@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Brain, Sparkles, Zap, Bot, AlertTriangle, TrendingUp,
+  Zap, Sparkles, Bot, AlertTriangle, TrendingUp,
   CheckCircle2, Wheat, DollarSign, Bug, Droplets, Users,
   Send, RefreshCw, ChevronRight, Activity,
 } from "lucide-react";
@@ -328,7 +328,7 @@ export default function AIPage() {
         <div>
           <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
             <span className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 grid place-items-center shadow-lg">
-              <Brain className="size-5 text-white" />
+              <Zap className="size-5 text-white" />
             </span>
             AI Alerts & Forecasting
           </h1>

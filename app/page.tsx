@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   Sprout, Users, Wheat, AlertTriangle, TrendingUp, Activity, Leaf,
   ArrowRight, Bug, ShieldCheck, CalendarCheck, ListChecks, ChevronRight,
-  Map, Brain, Sparkles,
+  Map, Zap, Sparkles,
 } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { StatCard } from "@/components/stat-card";
@@ -92,7 +92,7 @@ export default function DashboardPage() {
       {openDiseases > 0 && (
         <Link href="/ai" className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg shadow-amber-200">
           <span className="size-8 rounded-lg bg-white/20 grid place-items-center shrink-0">
-            <Brain className="size-4 text-white" />
+            <Zap className="size-4 text-white" />
           </span>
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm flex items-center gap-2">

@@ -7,7 +7,7 @@ import {
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   TrendingUp, DollarSign, UserCog, Beaker, ClipboardList,
-  BarChart3, CalendarDays, Brain,
+  BarChart3, CalendarDays, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -81,7 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Intelligence",
     items: [
-      { href: "/ai",         label: "AI Alerts & Forecast", icon: Brain,      roles: ["manager", "supervisor"] },
+      { href: "/ai",         label: "AI Alerts & Forecast", icon: Zap,      roles: ["manager", "supervisor"] },
     ],
   },
 ];
