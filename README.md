@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🍓 ENTOTO Riverside Farm
 
-## Getting Started
+A complete UI/UX demo for a real Ethiopian strawberry farm. Manages valves, raised beds, farmers, harvest tracking, disease reports, AI-driven crop pathology, and an interactive farm map.
 
-First, run the development server:
+> **Demo-ready.** All data lives in `lib/data.ts` as an in-memory seeded store. Swap that file with a real DB (Postgres / Supabase / Prisma) and the rest of the app keeps working.
+
+## ✨ What's inside
+
+- **Dashboard** — overview cards, live alerts, harvest trend, valve leaderboard, top farmers
+- **Interactive 2D Farm Map** — SVG, click any bed, colored by health, harvest icons
+- **Valve & Bed pages** — drill into any zone, full bed profile with stage timeline, harvest history, disease history, QR sticker
+- **Farmers** — performance score, attendance, assignments, task counts
+- **Diseases** — open reports, AI suggested treatments, telegram/sms notification stubs
+- **Harvest** — log harvests, see recent activity, ranked
+- **Reports** — daily / weekly / monthly tabs, smart Q&A
+- **AI Detect** — toggle between instant **Demo** mode and **Live** mode (Gemini Vision or OpenAI gpt-4o-mini)
+- **QR codes** — printable per-bed QR that opens the bed profile
+
+## 🚀 Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔑 Live AI mode (optional)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Demo mode works without any keys. For real AI vision, create `.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+GEMINI_API_KEY=your_gemini_key   # preferred (free tier available)
+# or
+OPENAI_API_KEY=your_openai_key
+```
 
-## Learn More
+> ⚠️ **Never commit `.env.local`.** It's gitignored by default.
 
-To learn more about Next.js, take a look at the following resources:
+## 🚢 Deploy to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx vercel
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Then add the same env vars in the Vercel project settings.
 
-## Deploy on Vercel
+## 🏗 Tech stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router, RSC, Turbopack)
+- React 19
+- Tailwind CSS 4 + shadcn/ui
+- Recharts for analytics
+- lucide-react icons
+- qrcode.react for stickers
+- Google Generative AI SDK / OpenAI REST for vision
