@@ -13,6 +13,7 @@ import { QuickActions } from "@/components/quick-actions";
 import { HarvestForecast } from "@/components/harvest-forecast";
 import { RipenessHeatmap } from "@/components/ripeness-heatmap";
 import { WeeklyReportCard } from "@/components/weekly-report-card";
+import { OriginPerformance } from "@/components/origin-performance";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -138,81 +139,7 @@ export default function DashboardPage() {
       <RipenessHeatmap beds={beds} valves={VALVES} />
 
       {/* ── Performance by Origin ────────────────────────────────────────── */}
-      {(() => {
-        // Aggregate harvest kg and bed metrics grouped by origin
-        const originMap: Record<string, { kg: number; lengthM: number; beds: number; varieties: Set<string> }> = {};
-        beds.forEach(b => {
-          if (!originMap[b.origin]) originMap[b.origin] = { kg: 0, lengthM: 0, beds: 0, varieties: new Set() };
-          originMap[b.origin].lengthM += b.lengthM;
-          originMap[b.origin].beds    += 1;
-          originMap[b.origin].varieties.add(b.variety);
-        });
-        harvests.forEach(h => {
-          const bed = beds.find(b => b.id === h.bedId);
-          if (bed && originMap[bed.origin]) originMap[bed.origin].kg += h.kg;
-        });
-        const rows = Object.entries(originMap)
-          .map(([origin, d]) => ({ origin, ...d, kgPerM: d.lengthM > 0 ? d.kg / d.lengthM : 0 }))
-          .sort((a, b) => b.kgPerM - a.kgPerM);
-        const maxKgPerM = Math.max(...rows.map(r => r.kgPerM));
-        const FLAG: Record<string, string> = {
-          "USA": "🇺🇸", "Australia": "🇦🇺", "Ethiopia": "🇪🇹",
-          "Kenya": "🇰🇪", "Netherlands": "🇳🇱", "Spain": "🇪🇸",
-        };
-        function flag(origin: string) {
-          const country = origin.split(" — ")[0].split(",")[0].trim();
-          return FLAG[country] ?? "🌍";
-        }
-        return (
-          <Card className="border border-slate-200 shadow-sm p-4 md:p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="font-semibold text-slate-900">Bed Performance by Origin</div>
-                <div className="text-xs text-slate-400">Yield efficiency (kg/m) per seed source region</div>
-              </div>
-              <Badge variant="outline" className="text-[10px]">{rows.length} origins</Badge>
-            </div>
-            <div className="space-y-3">
-              {rows.map((r, i) => (
-                <div key={r.origin} className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 w-48 shrink-0">
-                    <span className="text-base leading-none">{flag(r.origin)}</span>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-slate-800 truncate">{r.origin}</div>
-                      <div className="text-[10px] text-slate-400">{r.beds} bed{r.beds !== 1 ? "s" : ""} · {r.lengthM}m</div>
-                    </div>
-                  </div>
-                  <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${maxKgPerM > 0 ? (r.kgPerM / maxKgPerM) * 100 : 0}%`,
-                        background: i === 0 ? "#10b981" : i === 1 ? "#3b82f6" : i === 2 ? "#a855f7" : "#f59e0b",
-                      }}
-                    />
-                  </div>
-                  <div className="text-right w-24 shrink-0">
-                    <div className="text-sm font-bold tabular-nums text-slate-800">{r.kg.toFixed(1)} kg</div>
-                    <div className="text-[10px] text-slate-400 tabular-nums">{r.kgPerM.toFixed(2)} kg/m</div>
-                  </div>
-                  {i === 0 && (
-                    <Badge className="bg-amber-100 text-amber-700 text-[9px] shrink-0">Top</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-3 text-center">
-              {rows.slice(0, 3).map(r => (
-                <div key={r.origin} className="bg-slate-50 rounded-lg p-2">
-                  <div className="text-[10px] text-slate-400 truncate">{flag(r.origin)} {r.origin.split(" — ")[1] ?? r.origin}</div>
-                  <div className="font-bold text-sm tabular-nums text-slate-800">{r.kgPerM.toFixed(2)}</div>
-                  <div className="text-[9px] text-slate-400">kg / metre</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        );
-      })()}
+      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} />
 
       {/* ── Live Farm Map (scrollable on mobile) ────────────────────────── */}
       <Card className="border border-slate-200 shadow-sm overflow-hidden">
