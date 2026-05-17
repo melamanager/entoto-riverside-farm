@@ -32,7 +32,7 @@ export const FARMERS: Farmer[] = [
   { id: "f-005", name: "Dawit Bekele",    phone: "+251-91-166-7788", avatar: "DB", role: "farmer",     performanceScore: 78, attendanceRate: 88, joinedDate: "2025-11-01", assignedValves: ["valve-c"], nationalId: "ETH-2345-E", emergencyContact: "+251-91-999-0055" },
   { id: "f-006", name: "Selam Girma",     phone: "+251-91-177-8899", avatar: "SG", role: "supervisor", performanceScore: 94, attendanceRate: 97, joinedDate: "2025-09-01", assignedValves: ["valve-a","valve-b"], nationalId: "ETH-2346-F" },
   { id: "f-007", name: "Yonas Alemu",     phone: "+251-91-188-9900", avatar: "YA", role: "supervisor", performanceScore: 90, attendanceRate: 96, joinedDate: "2025-09-05", assignedValves: ["valve-c"], nationalId: "ETH-2347-G" },
-  { id: "f-008", name: "Meron Tadesse",   phone: "+251-91-199-0011", avatar: "MT", role: "manager",    performanceScore: 96, attendanceRate: 100, joinedDate: "2025-09-01", assignedValves: ["valve-a","valve-b","valve-c"], nationalId: "ETH-2348-H" },
+  { id: "f-008", name: "Nuredin Hassen",   phone: "+251-91-199-0011", avatar: "NH", role: "manager",    performanceScore: 96, attendanceRate: 100, joinedDate: "2025-09-01", assignedValves: ["valve-a","valve-b","valve-c"], nationalId: "ETH-2348-H" },
 ];
 
 export const VALVES: Valve[] = [
