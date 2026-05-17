@@ -327,7 +327,7 @@ export default function AIPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
-            <span className="size-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 grid place-items-center shadow-lg">
+            <span className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 grid place-items-center shadow-lg">
               <Brain className="size-5 text-white" />
             </span>
             AI Alerts & Forecasting
@@ -354,10 +354,10 @@ export default function AIPage() {
 
       {/* ── KPI Strip ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 bg-gradient-to-br from-violet-50 to-indigo-50 border-violet-200">
-          <div className="text-xs text-violet-600 font-semibold uppercase tracking-wide mb-1">AI Alerts</div>
-          <div className="text-3xl font-bold text-violet-700 tabular-nums">{alerts.length}</div>
-          <div className="text-[11px] text-violet-500 mt-0.5">{criticalCount} critical · {warningCount} warnings</div>
+        <Card className="p-4 bg-gradient-to-br from-amber-50 to-indigo-50 border-amber-200">
+          <div className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">AI Alerts</div>
+          <div className="text-3xl font-bold text-amber-700 tabular-nums">{alerts.length}</div>
+          <div className="text-[11px] text-amber-500 mt-0.5">{criticalCount} critical · {warningCount} warnings</div>
         </Card>
         <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
           <div className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">7-Day Forecast</div>
@@ -404,14 +404,14 @@ export default function AIPage() {
                         <Badge className={`text-[10px] ${s.badge}`}>{alert.category}</Badge>
                         <span className="font-semibold text-sm text-stone-900">{alert.title}</span>
                         <span className="ml-auto text-[10px] text-stone-400 tabular-nums whitespace-nowrap">
-                          <Sparkles className="size-3 inline mr-0.5 text-violet-400" />
+                          <Sparkles className="size-3 inline mr-0.5 text-amber-400" />
                           {alert.confidence}% confidence
                         </span>
                       </div>
                       <p className="text-xs text-stone-600 leading-relaxed">{alert.detail}</p>
                       <div className="mt-2">
                         <a href={alert.href}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors">
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-violet-800 transition-colors">
                           {alert.action} <ChevronRight className="size-3" />
                         </a>
                       </div>
@@ -498,7 +498,7 @@ export default function AIPage() {
       {/* ── AI Q&A Chat ───────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Bot className="size-4 text-violet-600" />
+          <Bot className="size-4 text-amber-600" />
           <h2 className="font-bold text-stone-900">Farm AI Assistant</h2>
           <span className="text-xs text-stone-400 ml-2">Ask anything about your farm data</span>
         </div>
@@ -508,7 +508,7 @@ export default function AIPage() {
           <div className="px-4 pt-3 pb-2 border-b border-slate-100 bg-slate-50/50 flex gap-2 flex-wrap">
             {QUICK_QUESTIONS.map(q => (
               <button key={q} onClick={() => sendMessage(q)}
-                className="text-[11px] px-2.5 py-1 rounded-full border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors font-medium">
+                className="text-[11px] px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium">
                 {q}
               </button>
             ))}
@@ -518,7 +518,7 @@ export default function AIPage() {
           <div ref={chatRef} className="h-72 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
               <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`size-8 rounded-full grid place-items-center shrink-0 ${msg.role === "ai" ? "bg-gradient-to-br from-violet-500 to-indigo-600" : "bg-stone-200"}`}>
+                <div className={`size-8 rounded-full grid place-items-center shrink-0 ${msg.role === "ai" ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-stone-200"}`}>
                   {msg.role === "ai"
                     ? <Sparkles className="size-4 text-white" />
                     : <Users className="size-4 text-stone-500" />}
@@ -527,7 +527,7 @@ export default function AIPage() {
                   <div className={`rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     msg.role === "ai"
                       ? "bg-white border border-slate-200 text-stone-800"
-                      : "bg-violet-600 text-white"
+                      : "bg-amber-600 text-white"
                   }`}>
                     {msg.text.split("\n").map((line, li) => {
                       const parts = line.split(/\*\*(.*?)\*\*/g);
@@ -548,13 +548,13 @@ export default function AIPage() {
 
             {typing && (
               <div className="flex gap-3">
-                <div className="size-8 rounded-full grid place-items-center bg-gradient-to-br from-violet-500 to-indigo-600 shrink-0">
+                <div className="size-8 rounded-full grid place-items-center bg-gradient-to-br from-amber-500 to-orange-600 shrink-0">
                   <Sparkles className="size-4 text-white" />
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="size-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="size-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             )}
@@ -567,11 +567,11 @@ export default function AIPage() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
               placeholder="Ask about harvest timing, disease risk, revenue forecast..."
-              className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
+              className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
             <Button onClick={() => sendMessage()}
               disabled={!input.trim() || typing}
-              className="bg-violet-600 hover:bg-violet-700 size-9 p-0 shrink-0">
+              className="bg-amber-600 hover:bg-amber-700 size-9 p-0 shrink-0">
               <Send className="size-4" />
             </Button>
           </div>

@@ -90,7 +90,7 @@ export default function DashboardPage() {
 
       {/* ── AI Alert Banner ─────────────────────────────────────────────── */}
       {openDiseases > 0 && (
-        <Link href="/ai" className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg shadow-violet-200">
+        <Link href="/ai" className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg shadow-amber-200">
           <span className="size-8 rounded-lg bg-white/20 grid place-items-center shrink-0">
             <Brain className="size-4 text-white" />
           </span>
@@ -98,9 +98,9 @@ export default function DashboardPage() {
             <div className="font-semibold text-sm flex items-center gap-2">
               <Sparkles className="size-3.5" /> AI detected {openDiseases} active issue{openDiseases > 1 ? "s" : ""} + harvest forecast ready
             </div>
-            <div className="text-[11px] text-violet-200 truncate">Click to view smart alerts, disease risk scores & 14-day yield projection</div>
+            <div className="text-[11px] text-amber-100 truncate">Click to view smart alerts, disease risk scores & 14-day yield projection</div>
           </div>
-          <ChevronRight className="size-4 shrink-0 text-violet-300" />
+          <ChevronRight className="size-4 shrink-0 text-amber-200" />
         </Link>
       )}
 
