@@ -12,7 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HARVESTS, getFarmer, getValve } from "@/lib/data";
 import { toast } from "sonner";
-import { PACKAGING_RECORDS } from "@/lib/erp-data";
+import { PACKAGING_RECORDS, CUSTOMER_ORDERS } from "@/lib/erp-data";
 import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose } from "@/lib/erp-types";
 
@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
   cartonCount: 2, plateCount: 0, lostKg: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
+  orderId: "",
 };
 
 export default function PackagingPage() {
@@ -62,7 +63,7 @@ export default function PackagingPage() {
       packedKg: r.packedKg, rejectedKg: r.rejectedKg, packageSize: r.packageSize,
       packageCount: r.packageCount, cartonCount: r.cartonCount, plateCount: r.plateCount,
       lostKg: r.lostKg, purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
-      packedBy: r.packedBy, status: r.status,
+      packedBy: r.packedBy, status: r.status, orderId: r.orderId ?? "",
     });
     setEditTarget(r);
   }
@@ -71,7 +72,7 @@ export default function PackagingPage() {
     if (!form.batchNumber.trim()) { toast.error("Batch number required"); return; }
     if (!form.valveId)            { toast.error("Please select a valve"); return; }
     const id = `pk-${Date.now()}`;
-    const newRec: PackagingRecord = { id, ...form };
+    const newRec: PackagingRecord = { id, ...form, orderId: form.orderId || undefined };
     PACKAGING_RECORDS.push(newRec);
     setRecords([...PACKAGING_RECORDS]);
     toast.success(`${form.batchNumber} created`);
@@ -268,6 +269,18 @@ export default function PackagingPage() {
               {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s.replace("_"," ")}</option>)}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-700 block mb-1">Customer Order <span className="text-slate-400 font-normal">(optional)</span></label>
+          <select value={form.orderId}
+            onChange={e => setForm(p => ({ ...p, orderId: e.target.value }))}
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+            <option value="">— Unlinked —</option>
+            {CUSTOMER_ORDERS.map(o => (
+              <option key={o.id} value={o.id}>{o.customerName} · {o.quantityKg}kg · {o.deliveryDate}</option>
+            ))}
+          </select>
         </div>
       </div>
     );
@@ -491,6 +504,20 @@ export default function PackagingPage() {
                       <div className="mt-1 text-xs text-slate-500">
                         Packed by {trackPacker?.name} · {new Date(trackResult.packedDate).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
                       </div>
+                      {trackResult.orderId && (() => {
+                        const ord = CUSTOMER_ORDERS.find(o => o.id === trackResult.orderId);
+                        return ord ? (
+                          <div className="mt-2 flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-md px-2.5 py-2">
+                            <div className="size-5 rounded-full bg-indigo-100 grid place-items-center shrink-0">
+                              <User className="size-3 text-indigo-700" />
+                            </div>
+                            <div className="text-xs">
+                              <span className="font-semibold text-indigo-800">{ord.customerName}</span>
+                              <span className="text-indigo-500 ml-1.5">· {ord.quantityKg} kg · ETB {ord.totalAmount.toLocaleString()} · delivery {new Date(ord.deliveryDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -517,7 +544,7 @@ export default function PackagingPage() {
           <table className="w-full pro-table">
             <thead>
               <tr>
-                <th>Batch #</th><th>Valve</th><th>Variety</th><th>Purpose</th>
+                <th>Batch #</th><th>Customer Order</th><th>Valve</th><th>Variety</th><th>Purpose</th>
                 <th>Harvested</th><th>Packed</th><th>Rejected</th>
                 <th>Cartons</th><th>Plates</th><th>Lost kg</th><th>Pkgs</th>
                 <th>Grade A</th><th>Packed By</th><th>Status</th><th className="w-12"></th>
@@ -530,6 +557,17 @@ export default function PackagingPage() {
                 return (
                   <tr key={rec.id} className="group">
                     <td className="font-mono text-xs font-semibold text-slate-700">{rec.batchNumber}</td>
+                    <td>
+                      {rec.orderId ? (() => {
+                        const ord = CUSTOMER_ORDERS.find(o => o.id === rec.orderId);
+                        return ord ? (
+                          <div className="text-xs">
+                            <div className="font-semibold text-indigo-700 truncate max-w-[120px]">{ord.customerName}</div>
+                            <div className="text-[10px] text-slate-400">{ord.quantityKg} kg</div>
+                          </div>
+                        ) : <span className="text-slate-300 text-xs">—</span>;
+                      })() : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
                     <td><span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name}</span></td>
                     <td className="text-xs text-slate-600 max-w-[120px] truncate">{rec.variety}</td>
                     <td><Badge className={`text-[10px] capitalize ${PURPOSE_STYLE[rec.purpose]}`}>{rec.purpose}</Badge></td>

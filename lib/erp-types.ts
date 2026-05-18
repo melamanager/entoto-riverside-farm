@@ -85,6 +85,7 @@ export interface PackagingRecord {
   gradeBPct: number;
   packedBy: string;
   status: PackagingStatus;
+  orderId?: string;
 }
 
 export interface CustomerOrder {

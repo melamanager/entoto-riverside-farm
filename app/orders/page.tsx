@@ -5,9 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingCart, Truck, Phone, Plus, Pencil, Trash2 } from "lucide-react";
+import { ShoppingCart, Truck, Phone, Plus, Pencil, Trash2, Package, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { CUSTOMER_ORDERS } from "@/lib/erp-data";
+import { CUSTOMER_ORDERS, PACKAGING_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
 import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus } from "@/lib/erp-types";
 
@@ -45,6 +45,7 @@ export default function OrdersPage() {
   const [editTarget, setEditTarget] = useState<CustomerOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerOrder | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
 
   function openCreate() { setForm(EMPTY_FORM); setCreateOpen(true); }
   function openEdit(o: CustomerOrder) {
@@ -290,14 +291,18 @@ export default function OrdersPage() {
                 <th>Customer</th><th>Type</th><th>Order</th><th>Delivery</th>
                 <th>Qty</th><th>Price</th><th>Total</th>
                 <th>Advance</th><th>Balance</th><th>Payment</th><th>Delivery</th>
-                <th className="w-16"></th>
+                <th>Batches</th><th className="w-16"></th>
               </tr>
             </thead>
             <tbody>
               {records.map(ord => {
                 const balance = ord.totalAmount - ord.advancePaid;
                 const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
+                const batches = PACKAGING_RECORDS.filter(p => p.orderId === ord.id);
+                const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
+                const isExpanded = expandedOrder === ord.id;
                 return (
+                  <>
                   <tr key={ord.id} className="group">
                     <td>
                       <div className="font-semibold text-slate-800 text-sm">{ord.customerName}</div>
@@ -332,6 +337,15 @@ export default function OrdersPage() {
                     <td><Badge className={`text-[10px] capitalize ${PAYMENT_STYLE[ord.paymentStatus]}`}>{ord.paymentStatus}</Badge></td>
                     <td><Badge className={`text-[10px] capitalize ${DELIVERY_STYLE[ord.deliveryStatus]}`}>{ord.deliveryStatus.replace("_", " ")}</Badge></td>
                     <td>
+                      {batches.length > 0 ? (
+                        <button onClick={() => setExpandedOrder(isExpanded ? null : ord.id)}
+                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                          <Package className="size-3" /> {batches.length}
+                          <ChevronDown className={`size-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                        </button>
+                      ) : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
+                    <td>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => openEdit(ord)}
                           className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center" title="Edit">
@@ -344,6 +358,30 @@ export default function OrdersPage() {
                       </div>
                     </td>
                   </tr>
+                  {isExpanded && (
+                    <tr key={`${ord.id}-batches`} className="bg-indigo-50/50">
+                      <td colSpan={13} className="px-4 py-3">
+                        <div className="text-xs font-semibold text-indigo-700 mb-2 flex items-center gap-1.5">
+                          <Package className="size-3.5" /> Fulfilled by {batches.length} batch{batches.length > 1 ? "es" : ""} · {fulfilledKg.toFixed(1)} kg packed of {ord.quantityKg} kg ordered
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {batches.map(b => (
+                            <div key={b.id} className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-2">
+                              <Package className="size-3.5 text-indigo-500 shrink-0" />
+                              <div>
+                                <div className="font-mono text-xs font-bold text-slate-800">{b.batchNumber}</div>
+                                <div className="text-[10px] text-slate-500">{b.packedKg} kg · {b.variety} · {b.packedDate}</div>
+                              </div>
+                              <Badge className={`text-[10px] ml-1 ${b.status === "dispatched" ? "bg-amber-100 text-amber-700 border-amber-200" : b.status === "packed" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-blue-100 text-blue-700 border-blue-200"}`}>
+                                {b.status.replace("_"," ")}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </>
                 );
               })}
             </tbody>
