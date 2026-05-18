@@ -1,4 +1,5 @@
 import type { Bed, HarvestRecord, DiseaseReport, GrowthStage } from "@/lib/types";
+import { PACKAGING_RECORDS } from "@/lib/erp-data";
 
 interface Props {
   beds: Bed[];
@@ -86,6 +87,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
     activeDiseases: number; resolvedDiseases: number; totalSeverity: number;
     stages: Partial<Record<GrowthStage, number>>;
     lastHarvestDate: string;
+    cartons: number; batches: number;
   }> = {};
 
   beds.forEach(b => {
@@ -96,6 +98,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
       gradeA: 0, gradeB: 0, gradeC: 0, harvestEvents: 0,
       activeDiseases: 0, resolvedDiseases: 0, totalSeverity: 0,
       stages: {}, lastHarvestDate: "",
+      cartons: 0, batches: 0,
     };
     const o = map[b.origin];
     o.lengthM  += b.lengthM;
@@ -128,6 +131,13 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
     else                         { o.activeDiseases++; o.totalSeverity += d.severity; }
   });
 
+  PACKAGING_RECORDS.forEach(pk => {
+    const bed = beds.find(b => b.valveId === pk.valveId && b.variety === pk.variety);
+    if (!bed || !map[bed.origin]) return;
+    map[bed.origin].cartons += pk.cartonCount;
+    map[bed.origin].batches += 1;
+  });
+
   const rows = Object.entries(map).map(([origin, d]) => {
     const kgPerM       = d.lengthM > 0 ? d.kg / d.lengthM : 0;
     const gradeAPct    = d.harvestEvents > 0 ? Math.round((d.gradeA / d.harvestEvents) * 100) : 0;
@@ -148,15 +158,17 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
       avgSeverity, totalSeverity: d.totalSeverity,
       stages: d.stages, lastHarvestDate: d.lastHarvestDate,
       kgPerM, gradeAPct, gradeBPct, gradeCPct, healthScore, consistency, gPerPlant,
+      cartons: d.cartons, batches: d.batches,
     };
   }).sort((a, b) => b.kgPerM - a.kgPerM);
 
-  const maxKgPerM  = Math.max(...rows.map(r => r.kgPerM), 0.01);
-  const avgKgPerM  = rows.length > 0 ? rows.reduce((s, r) => s + r.kgPerM, 0) / rows.length : 0;
-  const totalKg    = rows.reduce((s, r) => s + r.kg, 0);
-  const totalBeds  = rows.reduce((s, r) => s + r.bedCount, 0);
-  const farmGradeA = harvests.length > 0 ? Math.round((harvests.filter(h => h.qualityGrade === "A").length / harvests.length) * 100) : 0;
-  const farmHealth = beds.length > 0 ? Math.round((beds.filter(b => b.health === "healthy").length / beds.length) * 100) : 0;
+  const maxKgPerM      = Math.max(...rows.map(r => r.kgPerM), 0.01);
+  const avgKgPerM      = rows.length > 0 ? rows.reduce((s, r) => s + r.kgPerM, 0) / rows.length : 0;
+  const totalKg        = rows.reduce((s, r) => s + r.kg, 0);
+  const totalBeds      = rows.reduce((s, r) => s + r.bedCount, 0);
+  const totalCartons   = rows.reduce((s, r) => s + r.cartons, 0);
+  const farmGradeA     = harvests.length > 0 ? Math.round((harvests.filter(h => h.qualityGrade === "A").length / harvests.length) * 100) : 0;
+  const farmHealth     = beds.length > 0 ? Math.round((beds.filter(b => b.health === "healthy").length / beds.length) * 100) : 0;
   const activeDiseaseCount = diseases.filter(d => d.status !== "resolved").length;
 
   const MEDALS = ["🥇", "🥈", "🥉", ""];
@@ -181,11 +193,12 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: "Season Yield",    value: `${totalKg.toFixed(0)} kg`, sub: "all origins combined", icon: "🌾" },
+            { label: "Season Yield",    value: `${totalKg.toFixed(0)} kg`,  sub: "all origins combined",              icon: "🌾" },
             { label: "Best Efficiency", value: rows[0] ? `${rows[0].kgPerM.toFixed(2)} kg/m` : "—", sub: rows[0]?.origin ?? "", icon: "🏆" },
-            { label: "Farm Grade A",    value: `${farmGradeA}%`,           sub: `${harvests.length} harvest events`, icon: "⭐" },
+            { label: "Total Cartons",   value: `${totalCartons}`,           sub: `${PACKAGING_RECORDS.length} batches`, icon: "📦" },
+            { label: "Farm Grade A",    value: `${farmGradeA}%`,            sub: `${harvests.length} harvest events`, icon: "⭐" },
             { label: "Active Alerts",   value: activeDiseaseCount > 0 ? `${activeDiseaseCount}` : "Clean", sub: activeDiseaseCount > 0 ? "disease reports" : "no active issues", icon: activeDiseaseCount > 0 ? "⚠️" : "✅" },
           ].map(kpi => (
             <div key={kpi.label} className="bg-white/6 rounded-xl p-3 border border-white/8">
@@ -298,7 +311,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                   </div>
                 </div>
 
-                {/* ── 6-metric grid ───────────────────────────────────── */}
+                {/* ── 7-metric grid ───────────────────────────────────── */}
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {[
                     { icon: "🌾", label: "Total Yield",  value: `${r.kg.toFixed(1)} kg`,            sub: `${r.harvestEvents} picks` },
@@ -307,6 +320,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                     { icon: "⚖️", label: "Avg per Pick", value: `${r.consistency.toFixed(1)} kg`,   sub: "consistency" },
                     { icon: "🔬", label: "g / Plant",    value: `${r.gPerPlant.toFixed(0)} g`,       sub: "plant efficiency" },
                     { icon: "⭐", label: "Grade A",      value: `${r.gradeAPct}%`,                  sub: "of harvest" },
+                    { icon: "📦", label: "Cartons",      value: r.cartons > 0 ? `${r.cartons}` : "—", sub: r.batches > 0 ? `${r.batches} batch${r.batches > 1 ? "es" : ""}` : "no batches" },
                   ].map(m => (
                     <div key={m.label} className="rounded-xl p-2.5 text-center" style={{ background: pal.glow, border: `1px solid ${pal.bar}22` }}>
                       <div className="text-base leading-none mb-1">{m.icon}</div>
@@ -428,7 +442,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-100">
-                {["Rank", "Origin", "Score", "kg/m", "vs Avg", "Total kg", "Share", "Grade A", "Health", "Consistency", "Disease"].map(h => (
+                {["Rank", "Origin", "Score", "kg/m", "vs Avg", "Total kg", "Share", "Cartons", "Grade A", "Health", "Consistency", "Disease"].map(h => (
                   <th key={h} className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -476,6 +490,12 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                         </div>
                         <span className="text-[10px] text-slate-500 tabular-nums">{sharePct.toFixed(0)}%</span>
                       </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {r.cartons > 0
+                        ? <span className="font-bold text-indigo-600 flex items-center gap-1">📦 {r.cartons}</span>
+                        : <span className="text-slate-300">—</span>
+                      }
                     </td>
                     <td className="px-3 py-2.5">
                       <span className={`font-bold ${r.gradeAPct >= 70 ? "text-emerald-600" : r.gradeAPct >= 50 ? "text-amber-500" : "text-red-500"}`}>
@@ -528,6 +548,9 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                 </div>
                 <div className="w-16 text-right shrink-0 hidden md:block">
                   <span className="text-[10px] text-slate-400 tabular-nums">{r.kgPerM.toFixed(2)} kg/m</span>
+                </div>
+                <div className="w-16 text-right shrink-0 hidden lg:block">
+                  {r.cartons > 0 && <span className="text-[10px] text-indigo-500 font-semibold tabular-nums">📦 {r.cartons}</span>}
                 </div>
               </div>
             );
