@@ -1,6 +1,6 @@
 import type {
   PlantingRecord, WorkerAssignment, FertigationRecord,
-  PackagingRecord, CustomerOrder, PayrollRecord,
+  PackagingRecord, CustomerOrder, PayrollRecord, PackagingPurpose,
 } from "./erp-types";
 
 // ─── Planting Schedule ───────────────────────────────────────────────────────
@@ -47,14 +47,14 @@ export const FERTIGATION_RECORDS: FertigationRecord[] = [
 
 // ─── Packaging Records ───────────────────────────────────────────────────────
 export const PACKAGING_RECORDS: PackagingRecord[] = [
-  { id: "pk-001", batchNumber: "PKG-2026-051",  harvestDate: "2026-05-17", packedDate: "2026-05-17", valveId: "valve-a", harvestedKg: 28.5, gradedKg: 26.2, packedKg: 24.0, rejectedKg: 2.3, packageSize: "500g",  packageCount: 48,  gradeAPct: 78, gradeBPct: 22, packedBy: "f-004", status: "packed" },
-  { id: "pk-002", batchNumber: "PKG-2026-052",  harvestDate: "2026-05-17", packedDate: "2026-05-17", valveId: "valve-b", harvestedKg: 19.2, gradedKg: 17.5, packedKg: 16.0, rejectedKg: 1.7, packageSize: "1kg",   packageCount: 16,  gradeAPct: 72, gradeBPct: 28, packedBy: "f-004", status: "dispatched" },
-  { id: "pk-003", batchNumber: "PKG-2026-050",  harvestDate: "2026-05-16", packedDate: "2026-05-16", valveId: "valve-a", harvestedKg: 31.0, gradedKg: 28.5, packedKg: 26.0, rejectedKg: 2.5, packageSize: "500g",  packageCount: 52,  gradeAPct: 81, gradeBPct: 19, packedBy: "f-004", status: "dispatched" },
-  { id: "pk-004", batchNumber: "PKG-2026-049",  harvestDate: "2026-05-16", packedDate: "2026-05-16", valveId: "valve-c", harvestedKg: 14.8, gradedKg: 13.2, packedKg: 12.0, rejectedKg: 1.6, packageSize: "250g",  packageCount: 48,  gradeAPct: 75, gradeBPct: 25, packedBy: "f-004", status: "dispatched" },
-  { id: "pk-005", batchNumber: "PKG-2026-048",  harvestDate: "2026-05-15", packedDate: "2026-05-15", valveId: "valve-a", harvestedKg: 33.0, gradedKg: 30.0, packedKg: 27.5, rejectedKg: 3.0, packageSize: "1kg",   packageCount: 27,  gradeAPct: 80, gradeBPct: 20, packedBy: "f-004", status: "dispatched" },
-  { id: "pk-006", batchNumber: "PKG-2026-047",  harvestDate: "2026-05-15", packedDate: "2026-05-15", valveId: "valve-b", harvestedKg: 22.5, gradedKg: 20.0, packedKg: 18.5, rejectedKg: 2.5, packageSize: "500g",  packageCount: 37,  gradeAPct: 76, gradeBPct: 24, packedBy: "f-004", status: "dispatched" },
-  { id: "pk-007", batchNumber: "PKG-2026-046",  harvestDate: "2026-05-14", packedDate: "2026-05-14", valveId: "valve-a", harvestedKg: 29.0, gradedKg: 26.5, packedKg: 24.5, rejectedKg: 2.5, packageSize: "bulk",  packageCount: 1,   gradeAPct: 65, gradeBPct: 35, packedBy: "f-004", status: "dispatched", },
-  { id: "pk-008", batchNumber: "PKG-2026-053",  harvestDate: "2026-05-17", packedDate: "2026-05-17", valveId: "valve-c", harvestedKg: 11.0, gradedKg: 10.0, packedKg:  0.0, rejectedKg: 1.0, packageSize: "250g",  packageCount: 0,   gradeAPct: 80, gradeBPct: 20, packedBy: "f-004", status: "in_progress" },
+  { id: "pk-001", batchNumber: "PKG-2026-051", harvestDate: "2026-05-17", packedDate: "2026-05-17", valveId: "valve-a", variety: "Festival",               harvestedKg: 28.5, gradedKg: 26.2, packedKg: 24.0, rejectedKg: 2.3, packageSize: "500g", packageCount: 48, cartonCount: 4, plateCount: 0, purpose: "export",       gradeAPct: 78, gradeBPct: 22, packedBy: "f-004", status: "packed" },
+  { id: "pk-002", batchNumber: "PKG-2026-052", harvestDate: "2026-05-17", packedDate: "2026-05-17", valveId: "valve-b", variety: "California Albion",       harvestedKg: 19.2, gradedKg: 17.5, packedKg: 16.0, rejectedKg: 1.7, packageSize: "1kg",  packageCount: 16, cartonCount: 2, plateCount: 4, purpose: "hotel",        gradeAPct: 72, gradeBPct: 28, packedBy: "f-004", status: "dispatched" },
+  { id: "pk-003", batchNumber: "PKG-2026-050", harvestDate: "2026-05-16", packedDate: "2026-05-16", valveId: "valve-a", variety: "Festival",               harvestedKg: 31.0, gradedKg: 28.5, packedKg: 26.0, rejectedKg: 2.5, packageSize: "500g", packageCount: 52, cartonCount: 5, plateCount: 2, purpose: "export",       gradeAPct: 81, gradeBPct: 19, packedBy: "f-004", status: "dispatched" },
+  { id: "pk-004", batchNumber: "PKG-2026-049", harvestDate: "2026-05-16", packedDate: "2026-05-16", valveId: "valve-c", variety: "Monterey",               harvestedKg: 14.8, gradedKg: 13.2, packedKg: 12.0, rejectedKg: 1.6, packageSize: "250g", packageCount: 48, cartonCount: 0, plateCount: 8, purpose: "local",        gradeAPct: 75, gradeBPct: 25, packedBy: "f-004", status: "dispatched" },
+  { id: "pk-005", batchNumber: "PKG-2026-048", harvestDate: "2026-05-15", packedDate: "2026-05-15", valveId: "valve-a", variety: "California Albion",       harvestedKg: 33.0, gradedKg: 30.0, packedKg: 27.5, rejectedKg: 3.0, packageSize: "1kg",  packageCount: 27, cartonCount: 3, plateCount: 0, purpose: "supermarket",  gradeAPct: 80, gradeBPct: 20, packedBy: "f-004", status: "dispatched" },
+  { id: "pk-006", batchNumber: "PKG-2026-047", harvestDate: "2026-05-15", packedDate: "2026-05-15", valveId: "valve-b", variety: "Australian San Andreas",  harvestedKg: 22.5, gradedKg: 20.0, packedKg: 18.5, rejectedKg: 2.5, packageSize: "500g", packageCount: 37, cartonCount: 2, plateCount: 5, purpose: "juice",        gradeAPct: 76, gradeBPct: 24, packedBy: "f-004", status: "dispatched" },
+  { id: "pk-007", batchNumber: "PKG-2026-046", harvestDate: "2026-05-14", packedDate: "2026-05-14", valveId: "valve-a", variety: "Camarosa",               harvestedKg: 29.0, gradedKg: 26.5, packedKg: 24.5, rejectedKg: 2.5, packageSize: "bulk", packageCount: 1,  cartonCount: 0, plateCount: 0, purpose: "jam",          gradeAPct: 65, gradeBPct: 35, packedBy: "f-004", status: "dispatched" },
+  { id: "pk-008", batchNumber: "PKG-2026-053", harvestDate: "2026-05-17", packedDate: "2026-05-17", valveId: "valve-c", variety: "Monterey",               harvestedKg: 11.0, gradedKg: 10.0, packedKg:  0.0, rejectedKg: 1.0, packageSize: "250g", packageCount: 0,  cartonCount: 0, plateCount: 0, purpose: "local",        gradeAPct: 80, gradeBPct: 20, packedBy: "f-004", status: "in_progress" },
 ];
 
 // ─── Customer Orders ─────────────────────────────────────────────────────────

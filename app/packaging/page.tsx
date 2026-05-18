@@ -8,21 +8,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Package, CheckCircle2, Truck, Clock, BarChart3, Plus, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { PACKAGING_RECORDS } from "@/lib/erp-data";
-import { FARMERS, VALVES } from "@/lib/data";
-import type { PackagingRecord, PackagingStatus, PackageSize } from "@/lib/erp-types";
+import { FARMERS, VALVES, BEDS } from "@/lib/data";
+import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose } from "@/lib/erp-types";
 
 const STATUS_STYLE: Record<PackagingStatus, string> = {
   in_progress: "bg-blue-100 text-blue-700 border-blue-200",
   packed:      "bg-emerald-100 text-emerald-700 border-emerald-200",
   dispatched:  "bg-amber-100 text-amber-700 border-amber-200",
 };
+const PURPOSE_STYLE: Record<PackagingPurpose, string> = {
+  export:      "bg-purple-100 text-purple-700 border-purple-200",
+  juice:       "bg-orange-100 text-orange-700 border-orange-200",
+  jam:         "bg-rose-100 text-rose-700 border-rose-200",
+  local:       "bg-stone-100 text-stone-700 border-stone-200",
+  hotel:       "bg-sky-100 text-sky-700 border-sky-200",
+  supermarket: "bg-teal-100 text-teal-700 border-teal-200",
+};
+const PURPOSES: PackagingPurpose[] = ["export", "juice", "jam", "local", "hotel", "supermarket"];
 const STATUSES: PackagingStatus[] = ["in_progress", "packed", "dispatched"];
 const SIZES: PackageSize[] = ["250g", "500g", "1kg", "2kg", "bulk"];
 
 const EMPTY_FORM = {
   batchNumber: "", harvestDate: "2026-05-17", packedDate: "2026-05-17",
-  valveId: "", harvestedKg: 20, gradedKg: 18, packedKg: 16,
+  valveId: "", variety: "",
+  harvestedKg: 20, gradedKg: 18, packedKg: 16,
   rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
+  cartonCount: 2, plateCount: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
 };
 
@@ -41,9 +52,11 @@ export default function PackagingPage() {
   function openEdit(r: PackagingRecord) {
     setForm({
       batchNumber: r.batchNumber, harvestDate: r.harvestDate, packedDate: r.packedDate,
-      valveId: r.valveId, harvestedKg: r.harvestedKg, gradedKg: r.gradedKg,
+      valveId: r.valveId, variety: r.variety,
+      harvestedKg: r.harvestedKg, gradedKg: r.gradedKg,
       packedKg: r.packedKg, rejectedKg: r.rejectedKg, packageSize: r.packageSize,
-      packageCount: r.packageCount, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
+      packageCount: r.packageCount, cartonCount: r.cartonCount, plateCount: r.plateCount,
+      purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
       packedBy: r.packedBy, status: r.status,
     });
     setEditTarget(r);
@@ -70,14 +83,18 @@ export default function PackagingPage() {
     setEditTarget(null);
   }
 
-  const dispatched    = records.filter(r => r.status === "dispatched").length;
-  const packed        = records.filter(r => r.status === "packed").length;
-  const inProgress    = records.filter(r => r.status === "in_progress").length;
+  const dispatched     = records.filter(r => r.status === "dispatched").length;
+  const packed         = records.filter(r => r.status === "packed").length;
+  const inProgress     = records.filter(r => r.status === "in_progress").length;
   const totalHarvested = records.reduce((s, r) => s + r.harvestedKg, 0);
-  const totalPacked   = records.reduce((s, r) => s + r.packedKg, 0);
-  const totalRejected = records.reduce((s, r) => s + r.rejectedKg, 0);
-  const totalPackages = records.reduce((s, r) => s + r.packageCount, 0);
-  const avgGradeA     = records.length ? Math.round(records.reduce((s, r) => s + r.gradeAPct, 0) / records.length) : 0;
+  const totalPacked    = records.reduce((s, r) => s + r.packedKg, 0);
+  const totalRejected  = records.reduce((s, r) => s + r.rejectedKg, 0);
+  const totalPackages  = records.reduce((s, r) => s + r.packageCount, 0);
+  const totalCartons   = records.reduce((s, r) => s + r.cartonCount, 0);
+  const totalPlates    = records.reduce((s, r) => s + r.plateCount, 0);
+  const avgGradeA      = records.length ? Math.round(records.reduce((s, r) => s + r.gradeAPct, 0) / records.length) : 0;
+
+  const valveBeds = form.valveId ? [...new Set(BEDS().filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
 
   function BatchForm() {
     return (
@@ -92,13 +109,35 @@ export default function PackagingPage() {
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Valve <span className="text-red-500">*</span></label>
             <select value={form.valveId}
-              onChange={e => setForm(p => ({ ...p, valveId: e.target.value }))}
+              onChange={e => setForm(p => ({ ...p, valveId: e.target.value, variety: "" }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
               {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Variety / Origin <span className="text-red-500">*</span></label>
+            <select value={form.variety}
+              onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+              <option value="">— Select —</option>
+              {valveBeds.map(v => <option key={v} value={v}>{v}</option>)}
+              {!form.valveId && <option disabled>Select valve first</option>}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Purpose <span className="text-red-500">*</span></label>
+            <select value={form.purpose}
+              onChange={e => setForm(p => ({ ...p, purpose: e.target.value as PackagingPurpose }))}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
+              {PURPOSES.map(p => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+            </select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Harvest Date</label>
@@ -113,6 +152,7 @@ export default function PackagingPage() {
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Harvested (kg)</label>
@@ -133,22 +173,37 @@ export default function PackagingPage() {
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Package Size</label>
-            <select value={form.packageSize}
-              onChange={e => setForm(p => ({ ...p, packageSize: e.target.value as PackageSize }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
+
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Package Count</label>
             <input type="number" min={0} value={form.packageCount}
               onChange={e => setForm(p => ({ ...p, packageCount: Number(e.target.value) }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
           </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Cartons 📦</label>
+            <input type="number" min={0} value={form.cartonCount}
+              onChange={e => setForm(p => ({ ...p, cartonCount: Number(e.target.value) }))}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Plates 🍽️</label>
+            <input type="number" min={0} value={form.plateCount}
+              onChange={e => setForm(p => ({ ...p, plateCount: Number(e.target.value) }))}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+          </div>
         </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-700 block mb-1">Package Size</label>
+          <select value={form.packageSize}
+            onChange={e => setForm(p => ({ ...p, packageSize: e.target.value as PackageSize }))}
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+            {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Grade A %</label>
@@ -163,6 +218,7 @@ export default function PackagingPage() {
             </div>
           </div>
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Packed By</label>
@@ -202,7 +258,7 @@ export default function PackagingPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4 bg-amber-50 border-amber-200">
           <div className="text-2xl font-bold text-amber-700 tabular-nums">{dispatched}</div>
           <div className="text-xs text-amber-600 font-medium flex items-center gap-1 mt-0.5"><Truck className="size-3" /> Dispatched</div>
@@ -216,10 +272,6 @@ export default function PackagingPage() {
           <div className="text-xs text-blue-600 font-medium flex items-center gap-1 mt-0.5"><Clock className="size-3" /> In Progress</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xl font-bold text-slate-700 tabular-nums">{totalPacked.toFixed(1)} kg</div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">{totalPackages} packages</div>
-        </Card>
-        <Card className="p-4">
           <div className="flex items-center gap-2">
             <div>
               <div className="text-xl font-bold text-slate-700 tabular-nums">{avgGradeA}%</div>
@@ -227,6 +279,22 @@ export default function PackagingPage() {
             </div>
             <BarChart3 className="size-6 text-slate-300 ml-auto" />
           </div>
+        </Card>
+      </div>
+
+      {/* Carton / plate / package summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="p-4 border-purple-200 bg-purple-50">
+          <div className="text-2xl font-bold text-purple-700 tabular-nums">{totalCartons}</div>
+          <div className="text-xs text-purple-600 font-medium mt-0.5">📦 Total Cartons</div>
+        </Card>
+        <Card className="p-4 border-sky-200 bg-sky-50">
+          <div className="text-2xl font-bold text-sky-700 tabular-nums">{totalPlates}</div>
+          <div className="text-xs text-sky-600 font-medium mt-0.5">🍽️ Total Plates</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xl font-bold text-slate-700 tabular-nums">{totalPacked.toFixed(1)} kg</div>
+          <div className="text-xs text-slate-500 font-medium mt-0.5">{totalPackages} individual packages</div>
         </Card>
       </div>
 
@@ -247,10 +315,10 @@ export default function PackagingPage() {
           <table className="w-full pro-table">
             <thead>
               <tr>
-                <th>Batch #</th><th>Valve</th><th>Harvest Date</th>
+                <th>Batch #</th><th>Valve</th><th>Variety</th><th>Purpose</th>
                 <th>Harvested</th><th>Packed</th><th>Rejected</th>
-                <th>Size</th><th>Pkgs</th><th>Grade A</th><th>Grade B</th>
-                <th>Packed By</th><th>Status</th><th className="w-12"></th>
+                <th>📦 Cartons</th><th>🍽️ Plates</th><th>Pkgs</th>
+                <th>Grade A</th><th>Packed By</th><th>Status</th><th className="w-12"></th>
               </tr>
             </thead>
             <tbody>
@@ -261,21 +329,22 @@ export default function PackagingPage() {
                   <tr key={rec.id} className="group">
                     <td className="font-mono text-xs font-semibold text-slate-700">{rec.batchNumber}</td>
                     <td><span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name}</span></td>
-                    <td className="tabular-nums text-xs">{new Date(rec.harvestDate).toLocaleDateString("en", { month: "short", day: "numeric" })}</td>
+                    <td className="text-xs text-slate-600 max-w-[120px] truncate">{rec.variety}</td>
+                    <td><Badge className={`text-[10px] capitalize ${PURPOSE_STYLE[rec.purpose]}`}>{rec.purpose}</Badge></td>
                     <td className="tabular-nums font-semibold">{rec.harvestedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-emerald-700 font-semibold">{rec.packedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-red-600 font-semibold">{rec.rejectedKg.toFixed(1)}</td>
-                    <td><Badge variant="outline" className="text-[10px]">{rec.packageSize}</Badge></td>
-                    <td className="tabular-nums text-center font-semibold">{rec.packageCount}</td>
+                    <td className="tabular-nums text-center font-bold text-purple-700">{rec.cartonCount}</td>
+                    <td className="tabular-nums text-center font-bold text-sky-700">{rec.plateCount}</td>
+                    <td className="tabular-nums text-center text-slate-500 text-xs">{rec.packageCount}</td>
                     <td>
                       <div className="flex items-center gap-1.5">
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-10 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                           <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${rec.gradeAPct}%` }} />
                         </div>
                         <span className="text-xs tabular-nums font-semibold text-emerald-700">{rec.gradeAPct}%</span>
                       </div>
                     </td>
-                    <td className="tabular-nums text-xs text-amber-700 font-semibold">{rec.gradeBPct}%</td>
                     <td className="text-xs text-slate-600">{worker?.name.split(" ")[0]}</td>
                     <td><Badge className={`text-[10px] capitalize ${STATUS_STYLE[rec.status]}`}>{rec.status.replace("_", " ")}</Badge></td>
                     <td>

@@ -2,8 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { BEDS, HARVESTS, DISEASES, VALVES, FARMERS, plantsInBed, totalKgValve, totalKgBed } from "@/lib/data";
-import { CUSTOMER_ORDERS } from "@/lib/erp-data";
-import { FileBarChart, TrendingUp, Award, Calendar, DollarSign } from "lucide-react";
+import { CUSTOMER_ORDERS, PACKAGING_RECORDS } from "@/lib/erp-data";
+import { FileBarChart, TrendingUp, Award, Calendar, DollarSign, Package } from "lucide-react";
 
 export default function ReportsPage() {
   const beds = BEDS();
@@ -24,6 +24,25 @@ export default function ReportsPage() {
   // by farmer
   const byFarmer: Record<string, number> = {};
   harvests.forEach(h => { byFarmer[h.farmerId] = (byFarmer[h.farmerId] ?? 0) + h.kg; });
+
+  // packaging analytics
+  const cartonsPerValve: Record<string, number> = {};
+  const platesPerValve: Record<string, number> = {};
+  const cartonsPerVariety: Record<string, number> = {};
+  const platesPerVariety: Record<string, number> = {};
+  const cartonsByPurpose: Record<string, number> = {};
+  PACKAGING_RECORDS.forEach(r => {
+    cartonsPerValve[r.valveId]    = (cartonsPerValve[r.valveId] ?? 0) + r.cartonCount;
+    platesPerValve[r.valveId]     = (platesPerValve[r.valveId] ?? 0) + r.plateCount;
+    cartonsPerVariety[r.variety]  = (cartonsPerVariety[r.variety] ?? 0) + r.cartonCount;
+    platesPerVariety[r.variety]   = (platesPerVariety[r.variety] ?? 0) + r.plateCount;
+    cartonsByPurpose[r.purpose]   = (cartonsByPurpose[r.purpose] ?? 0) + r.cartonCount;
+  });
+  const maxCartonsValve   = Math.max(1, ...Object.values(cartonsPerValve));
+  const maxCartonsVariety = Math.max(1, ...Object.values(cartonsPerVariety));
+  const maxCartonsPurpose = Math.max(1, ...Object.values(cartonsByPurpose));
+  const totalCartonsAll   = PACKAGING_RECORDS.reduce((s, r) => s + r.cartonCount, 0);
+  const totalPlatesAll    = PACKAGING_RECORDS.reduce((s, r) => s + r.plateCount, 0);
 
   // top beds
   const bedTotals = beds.map(b => ({ b, kg: totalKgBed(b.id) })).sort((a,b)=>b.kg-a.kg);
@@ -63,6 +82,7 @@ export default function ReportsPage() {
           <TabsTrigger value="daily">Daily</TabsTrigger>
           <TabsTrigger value="weekly">Weekly</TabsTrigger>
           <TabsTrigger value="monthly">Monthly</TabsTrigger>
+          <TabsTrigger value="packaging">📦 Packaging</TabsTrigger>
           <TabsTrigger value="smart">🧠 Smart Q&A</TabsTrigger>
         </TabsList>
 
@@ -145,6 +165,100 @@ export default function ReportsPage() {
                       <div className="h-full bg-purple-500 rounded-full" style={{ width: `${(kg/max)*100}%` }} />
                     </div>
                     <div className="tabular-nums text-sm font-semibold w-20 text-right">{kg.toFixed(1)} kg</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="packaging" className="space-y-4">
+          {/* Summary row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-4 bg-purple-50 border-purple-200">
+              <div className="text-2xl font-bold text-purple-700 tabular-nums">{totalCartonsAll}</div>
+              <div className="text-xs text-purple-600 font-medium mt-0.5">📦 Total Cartons</div>
+            </Card>
+            <Card className="p-4 bg-sky-50 border-sky-200">
+              <div className="text-2xl font-bold text-sky-700 tabular-nums">{totalPlatesAll}</div>
+              <div className="text-xs text-sky-600 font-medium mt-0.5">🍽️ Total Plates</div>
+            </Card>
+            <Card className="p-4 bg-rose-50 border-rose-200">
+              <div className="text-2xl font-bold text-rose-700 tabular-nums">{cartonsByPurpose["export"] ?? 0}</div>
+              <div className="text-xs text-rose-600 font-medium mt-0.5">✈️ Export Cartons</div>
+            </Card>
+            <Card className="p-4 bg-orange-50 border-orange-200">
+              <div className="text-2xl font-bold text-orange-700 tabular-nums">{(cartonsByPurpose["juice"] ?? 0) + (cartonsByPurpose["jam"] ?? 0)}</div>
+              <div className="text-xs text-orange-600 font-medium mt-0.5">🧃 Juice + Jam Cartons</div>
+            </Card>
+          </div>
+
+          {/* Cartons by valve */}
+          <Card className="p-5">
+            <h3 className="font-bold mb-1 flex items-center gap-2"><Package className="size-4 text-purple-600" /> Cartons & Plates by Valve Zone</h3>
+            <p className="text-xs text-stone-500 mb-4">Total cartons and plates packed per irrigation zone</p>
+            <div className="space-y-3">
+              {VALVES.map(v => {
+                const cartons = cartonsPerValve[v.id] ?? 0;
+                const plates  = platesPerValve[v.id] ?? 0;
+                return (
+                  <div key={v.id}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold" style={{ color: v.color }}>{v.name}</span>
+                      <span className="text-xs text-stone-500">📦 {cartons} cartons · 🍽️ {plates} plates</span>
+                    </div>
+                    <div className="flex gap-1 h-4">
+                      <div className="rounded-l-full rounded-r-sm h-full transition-all" style={{ width: `${(cartons / maxCartonsValve) * 70}%`, background: v.color, opacity: 0.9, minWidth: cartons > 0 ? 8 : 0 }} />
+                      <div className="rounded-r-full h-full bg-sky-300 transition-all" style={{ width: `${(plates / Math.max(1, ...Object.values(platesPerValve))) * 30}%`, minWidth: plates > 0 ? 6 : 0 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Cartons by variety */}
+          <Card className="p-5">
+            <h3 className="font-bold mb-1">Cartons by Variety / Origin</h3>
+            <p className="text-xs text-stone-500 mb-4">Which strawberry variety produces the most cartons</p>
+            <div className="space-y-3">
+              {Object.entries(cartonsPerVariety).sort((a, b) => b[1] - a[1]).map(([variety, cartons]) => {
+                const plates = platesPerVariety[variety] ?? 0;
+                return (
+                  <div key={variety} className="flex items-center gap-3">
+                    <div className="w-44 text-xs font-medium text-stone-700 truncate shrink-0">{variety}</div>
+                    <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${(cartons / maxCartonsVariety) * 100}%` }} />
+                    </div>
+                    <div className="text-xs tabular-nums w-28 text-right shrink-0">
+                      <span className="font-bold text-purple-700">{cartons}</span>
+                      <span className="text-stone-400"> ctn · </span>
+                      <span className="font-bold text-sky-600">{plates}</span>
+                      <span className="text-stone-400"> plt</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Cartons by purpose */}
+          <Card className="p-5">
+            <h3 className="font-bold mb-1">Cartons by Purpose</h3>
+            <p className="text-xs text-stone-500 mb-4">Breakdown of packaging destination — export, juice, jam, local, hotel, supermarket</p>
+            <div className="space-y-3">
+              {Object.entries(cartonsByPurpose).sort((a, b) => b[1] - a[1]).map(([purpose, cartons]) => {
+                const colorMap: Record<string, string> = {
+                  export: "#9333ea", juice: "#f97316", jam: "#e11d48",
+                  local: "#64748b", hotel: "#0ea5e9", supermarket: "#14b8a6",
+                };
+                return (
+                  <div key={purpose} className="flex items-center gap-3">
+                    <div className="w-28 text-xs font-medium text-stone-700 capitalize shrink-0">{purpose}</div>
+                    <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(cartons / maxCartonsPurpose) * 100}%`, background: colorMap[purpose] ?? "#94a3b8" }} />
+                    </div>
+                    <div className="text-xs tabular-nums font-bold w-16 text-right shrink-0">{cartons} cartons</div>
                   </div>
                 );
               })}
