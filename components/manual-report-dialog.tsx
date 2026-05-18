@@ -97,11 +97,13 @@ export function ManualReportDialog({ onReported }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={o => { if (!o) reset(); setOpen(o); }}>
-        <DialogTrigger asChild>
-          <Button variant="outline" className="gap-2 border-red-300 text-red-700 hover:bg-red-50">
-            <Bug className="size-4" /> Report Manually
-          </Button>
-        </DialogTrigger>
+        <DialogTrigger
+          render={(props) => (
+            <Button variant="outline" className="gap-2 border-red-300 text-red-700 hover:bg-red-50" {...props}>
+              <Bug className="size-4" /> Report Manually
+            </Button>
+          )}
+        />
 
         <DialogContent className="max-w-lg">
           <DialogHeader>
