@@ -24,10 +24,10 @@ import { toast } from "sonner";
 
 export default function DiseasesPage() {
   const { user, isManager, isSupervisor } = useAuth();
-  const [diseases, setDiseases] = useState<DiseaseReport[]>(DISEASES);
+  const [diseases, setDiseases] = useState<DiseaseReport[]>(() => DISEASES());
 
   function refreshDiseases() {
-    setDiseases([...DISEASES]);
+    setDiseases([...DISEASES()]);
   }
 
   // Manager: write recommendation dialog
