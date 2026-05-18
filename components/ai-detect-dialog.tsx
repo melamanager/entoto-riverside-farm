@@ -110,10 +110,10 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
           <button
             onClick={() => setMode("live")}
             className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition ${mode==="live" ? "bg-white shadow-sm" : "text-stone-500"}`}
-          >⚡ Live (Gemini/OpenAI)</button>
+          >⚡ Live</button>
         </div>
 
-        {mode === "live" && (
+        {false && (
           <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
             Live mode requires <code>GEMINI_API_KEY</code> or <code>OPENAI_API_KEY</code> in <code>.env.local</code>.
           </div>
