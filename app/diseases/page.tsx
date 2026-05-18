@@ -161,10 +161,7 @@ export default function DiseasesPage() {
     { key: "resolved", label: "Resolved",                                       color: "text-emerald-700",dot: "bg-emerald-500",border: "border-emerald-200",strip: "bg-emerald-500",items: resolved },
   ];
 
-  // Supervisors don't see "open" — that's the manager's review queue
-  const visibleGroups = isSupervisor
-    ? STATUS_GROUPS.filter(g => g.key !== "open")
-    : STATUS_GROUPS;
+  const visibleGroups = STATUS_GROUPS;
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -182,19 +179,21 @@ export default function DiseasesPage() {
               : `${open.length + notified.length} active · ${treating.length} under treatment · ${resolved.length} resolved`}
           </p>
         </div>
-        {isManager && (
-          <AIDetectDialog trigger={
-            <Button className="gap-2 bg-amber-600 hover:bg-amber-700">
-              <Sparkles className="size-4" /> AI Detect Disease
-            </Button>
-          } />
-        )}
-        {isSupervisor && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
-            <ShieldCheck className="size-3.5" />
-            <span>Showing beds in your assigned valves only</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {(isManager || isSupervisor) && (
+            <AIDetectDialog trigger={
+              <Button className="gap-2 bg-amber-600 hover:bg-amber-700">
+                <Sparkles className="size-4" /> AI Detect Disease
+              </Button>
+            } />
+          )}
+          {isSupervisor && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+              <ShieldCheck className="size-3.5" />
+              <span>Showing beds in your assigned valves only</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Summary cards ──────────────────────────────────────────────── */}

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { AIDetectionResult } from "@/lib/ai";
+import { useAuth } from "@/lib/auth";
 
 interface Props {
   bedId?: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function AIDetectDialog({ bedId, trigger }: Props) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"demo" | "live">("demo");
   const [loading, setLoading] = useState(false);
@@ -68,7 +70,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
         severity: result.severity,
         suggestedTreatment: result.suggestedTreatment,
         aiConfidence: result.confidence,
-        reportedBy: "f-006",
+        reportedBy: user?.id ?? "f-006",
       }),
     });
     if (res.ok) {
