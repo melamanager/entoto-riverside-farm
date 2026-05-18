@@ -79,6 +79,7 @@ export interface PackagingRecord {
   packageCount: number;
   cartonCount: number;
   plateCount: number;
+  lostCount: number;
   purpose: PackagingPurpose;
   gradeAPct: number;
   gradeBPct: number;

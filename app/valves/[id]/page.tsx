@@ -3,13 +3,15 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Sprout, Users, Wheat, AlertTriangle, Calendar } from "lucide-react";
+import { ArrowLeft, Sprout, Users, Wheat, AlertTriangle, Calendar, Package, Bug, Droplets, CheckCircle2, FlaskConical } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { HarvestChart } from "@/components/harvest-chart";
 import {
   getValve, BEDS, FARMERS, HARVESTS, DISEASES,
   plantsInBed, totalKgValve, totalKgBed, getFarmer,
 } from "@/lib/data";
+import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
+import { DISEASE_LABELS } from "@/lib/types";
 
 export default async function ValvePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,6 +37,15 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
   }));
 
   const bedsRanked = [...vBeds].map(b => ({ b, kg: totalKgBed(b.id) })).sort((a,b) => b.kg - a.kg);
+
+  // ── Activity log ──────────────────────────────────────────────────────────
+  type LogEntry = { date: string; kind: "harvest"|"disease"|"fertigation"|"packaging"; data: unknown };
+  const log: LogEntry[] = [
+    ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
+    ...diseases.map(d => ({ date: d.reportedAt.slice(0,10), kind: "disease" as const, data: d })),
+    ...FERTIGATION_RECORDS.filter(f => f.valveId === valve.id).map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
+    ...PACKAGING_RECORDS.filter(p => p.valveId === valve.id).map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
+  ].sort((a,b) => b.date.localeCompare(a.date));
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -135,6 +146,90 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
           </div>
         </Card>
       </div>
+      {/* Activity log */}
+      <Card className="p-5">
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-800">
+          <Calendar className="size-4 text-slate-500" /> Zone Activity Log
+        </h3>
+        <div className="relative pl-7 space-y-3">
+          <div className="absolute left-2.5 top-1 bottom-1 w-px bg-slate-100" />
+          {log.slice(0, 25).map((entry, i) => {
+            const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
+            if (entry.kind === "harvest") {
+              const h = entry.data as typeof harvests[0];
+              const bed = vBeds.find(b => b.id === h.bedId);
+              const farmer = getFarmer(h.farmerId);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-emerald-100 border-emerald-400`}><Wheat className="size-2.5 text-emerald-700" /></div>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-emerald-800">Harvest — {h.kg.toFixed(1)} kg · {bed?.id}</span>
+                      <span className="text-emerald-600 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                    </div>
+                    <div className="text-emerald-600 mt-0.5">Grade {h.qualityGrade} · {bed?.variety} · {farmer?.name}</div>
+                  </div>
+                </div>
+              );
+            }
+            if (entry.kind === "disease") {
+              const d = entry.data as typeof diseases[0];
+              const bed = vBeds.find(b => b.id === d.bedId);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-red-100 border-red-400`}><Bug className="size-2.5 text-red-700" /></div>
+                  <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-red-800">{DISEASE_LABELS[d.type]} · {bed?.id}</span>
+                      <span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                    </div>
+                    <div className="text-red-600 mt-0.5 flex items-center gap-2">
+                      Severity {d.severity}%
+                      {d.treatmentApplied && <span className="flex items-center gap-0.5 text-emerald-700"><CheckCircle2 className="size-2.5" /> Treated</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            if (entry.kind === "fertigation") {
+              const f = entry.data as typeof FERTIGATION_RECORDS[0];
+              const worker = FARMERS.find(x => x.id === f.responsibleWorkerId);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-blue-100 border-blue-400`}><Droplets className="size-2.5 text-blue-700" /></div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-blue-800">{f.fertilizerType}</span>
+                      <span className="text-blue-500 tabular-nums">{new Date(f.applicationDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                    </div>
+                    <div className="text-blue-600 mt-0.5">{f.dosageGPerL}g/L · {f.waterVolumeLiters}L · {f.applicationMethod} · {worker?.name}{f.notes ? ` — ${f.notes}` : ""}</div>
+                  </div>
+                </div>
+              );
+            }
+            if (entry.kind === "packaging") {
+              const p = entry.data as typeof PACKAGING_RECORDS[0];
+              const packer = getFarmer(p.packedBy);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-amber-100 border-amber-400`}><Package className="size-2.5 text-amber-700" /></div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-amber-800">{p.batchNumber} · {p.purpose} · {p.variety}</span>
+                      <span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                    </div>
+                    <div className="text-amber-700 mt-0.5">
+                      {p.packedKg}kg · {p.cartonCount} cartons · {p.plateCount} plates{p.lostCount > 0 ? ` · ${p.lostCount} lost` : ""} · {packer?.name}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })}
+          {log.length === 0 && <p className="text-sm text-slate-400">No activity recorded yet.</p>}
+        </div>
+      </Card>
     </div>
   );
 }

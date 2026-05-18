@@ -5,7 +5,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, CheckCircle2, Truck, Clock, BarChart3, Plus, Pencil } from "lucide-react";
+import {
+  Package, CheckCircle2, Truck, Clock, BarChart3, Plus, Pencil,
+  Search, ScanLine, Wheat, MapPin, User, Leaf, Calendar, X, AlertCircle,
+} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HARVESTS, getFarmer, getValve } from "@/lib/data";
 import { toast } from "sonner";
 import { PACKAGING_RECORDS } from "@/lib/erp-data";
 import { FARMERS, VALVES, BEDS } from "@/lib/data";
@@ -33,7 +38,7 @@ const EMPTY_FORM = {
   valveId: "", variety: "",
   harvestedKg: 20, gradedKg: 18, packedKg: 16,
   rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
-  cartonCount: 2, plateCount: 0, purpose: "export" as PackagingPurpose,
+  cartonCount: 2, plateCount: 0, lostCount: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
 };
 
@@ -56,7 +61,7 @@ export default function PackagingPage() {
       harvestedKg: r.harvestedKg, gradedKg: r.gradedKg,
       packedKg: r.packedKg, rejectedKg: r.rejectedKg, packageSize: r.packageSize,
       packageCount: r.packageCount, cartonCount: r.cartonCount, plateCount: r.plateCount,
-      purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
+      lostCount: r.lostCount, purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
       packedBy: r.packedBy, status: r.status,
     });
     setEditTarget(r);
@@ -92,7 +97,27 @@ export default function PackagingPage() {
   const totalPackages  = records.reduce((s, r) => s + r.packageCount, 0);
   const totalCartons   = records.reduce((s, r) => s + r.cartonCount, 0);
   const totalPlates    = records.reduce((s, r) => s + r.plateCount, 0);
+  const totalLost      = records.reduce((s, r) => s + r.lostCount, 0);
   const avgGradeA      = records.length ? Math.round(records.reduce((s, r) => s + r.gradeAPct, 0) / records.length) : 0;
+
+  // ── Tracker state ──────────────────────────────────────────────────────────
+  const [trackQuery, setTrackQuery] = useState("");
+  const trackResult = trackQuery.trim()
+    ? PACKAGING_RECORDS.find(r =>
+        r.batchNumber.toLowerCase() === trackQuery.trim().toLowerCase() ||
+        r.batchNumber.toLowerCase().includes(trackQuery.trim().toLowerCase())
+      ) ?? null
+    : null;
+  const trackValve    = trackResult ? getValve(trackResult.valveId) : null;
+  const trackPacker   = trackResult ? getFarmer(trackResult.packedBy) : null;
+  const trackHarvests = trackResult
+    ? HARVESTS().filter(h => {
+        const b = BEDS().find(x => x.id === h.bedId);
+        return b?.valveId === trackResult.valveId && b?.variety === trackResult.variety && h.date === trackResult.harvestDate;
+      })
+    : [];
+  const trackBeds = [...new Set(trackHarvests.map(h => h.bedId))].map(bid => BEDS().find(b => b.id === bid)).filter(Boolean);
+  const trackFarmers = [...new Set(trackHarvests.map(h => h.farmerId))].map(fid => getFarmer(fid)).filter(Boolean);
 
   const valveBeds = form.valveId ? [...new Set(BEDS().filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
 
@@ -188,10 +213,16 @@ export default function PackagingPage() {
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Plates 🍽️</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1 flex items-center gap-1"><BarChart3 className="size-3 text-sky-500" /> Plates</label>
             <input type="number" min={0} value={form.plateCount}
               onChange={e => setForm(p => ({ ...p, plateCount: Number(e.target.value) }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-red-700 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost</label>
+            <input type="number" min={0} value={form.lostCount}
+              onChange={e => setForm(p => ({ ...p, lostCount: Number(e.target.value) }))}
+              className="w-full border border-red-100 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
 
@@ -282,22 +313,193 @@ export default function PackagingPage() {
         </Card>
       </div>
 
-      {/* Carton / plate / package summary */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Carton / plate / lost summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4 border-purple-200 bg-purple-50">
           <div className="text-2xl font-bold text-purple-700 tabular-nums">{totalCartons}</div>
-          <div className="text-xs text-purple-600 font-medium mt-0.5">📦 Total Cartons</div>
+          <div className="text-xs text-purple-600 font-medium mt-0.5 flex items-center gap-1"><Package className="size-3" /> Total Cartons</div>
         </Card>
         <Card className="p-4 border-sky-200 bg-sky-50">
           <div className="text-2xl font-bold text-sky-700 tabular-nums">{totalPlates}</div>
-          <div className="text-xs text-sky-600 font-medium mt-0.5">🍽️ Total Plates</div>
+          <div className="text-xs text-sky-600 font-medium mt-0.5 flex items-center gap-1"><BarChart3 className="size-3" /> Total Plates</div>
+        </Card>
+        <Card className="p-4 border-red-200 bg-red-50">
+          <div className="text-2xl font-bold text-red-700 tabular-nums">{totalLost}</div>
+          <div className="text-xs text-red-600 font-medium mt-0.5 flex items-center gap-1"><AlertCircle className="size-3" /> Lost Cartons</div>
         </Card>
         <Card className="p-4">
           <div className="text-xl font-bold text-slate-700 tabular-nums">{totalPacked.toFixed(1)} kg</div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">{totalPackages} individual packages</div>
+          <div className="text-xs text-slate-500 font-medium mt-0.5">{totalPackages} packages</div>
         </Card>
       </div>
 
+      <Tabs defaultValue="batches">
+        <TabsList>
+          <TabsTrigger value="batches">Batch Records</TabsTrigger>
+          <TabsTrigger value="tracker"><ScanLine className="size-3.5 mr-1.5" />Package Tracker</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tracker" className="space-y-4 mt-4">
+          <Card className="p-5">
+            <h3 className="font-semibold mb-1 flex items-center gap-2"><ScanLine className="size-4 text-amber-600" /> Carton Lookup</h3>
+            <p className="text-xs text-slate-500 mb-4">Enter or scan a batch number to trace the full history of that carton — valve zone, beds, harvest date, origin, and farmer.</p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+                <input
+                  value={trackQuery}
+                  onChange={e => setTrackQuery(e.target.value)}
+                  placeholder="e.g. PKG-2026-051"
+                  className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              {trackQuery && (
+                <button onClick={() => setTrackQuery("")} className="p-2 rounded-md border border-slate-200 hover:bg-slate-50">
+                  <X className="size-4 text-slate-400" />
+                </button>
+              )}
+            </div>
+
+            {trackQuery && !trackResult && (
+              <div className="mt-4 text-center py-8 text-slate-400">
+                <Package className="size-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No batch found for "{trackQuery}"</p>
+              </div>
+            )}
+
+            {trackResult && (
+              <div className="mt-5 space-y-4">
+                {/* Batch header */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <div className="font-mono font-bold text-lg text-slate-900">{trackResult.batchNumber}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{trackResult.variety} · Packed {new Date(trackResult.packedDate).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge className={`text-[10px] capitalize ${PURPOSE_STYLE[trackResult.purpose]}`}>{trackResult.purpose}</Badge>
+                    <Badge className={`text-[10px] capitalize ${STATUS_STYLE[trackResult.status]}`}>{trackResult.status.replace("_"," ")}</Badge>
+                  </div>
+                </div>
+
+                {/* Timeline */}
+                <div className="relative pl-7 space-y-4">
+                  <div className="absolute left-2.5 top-2 bottom-2 w-px bg-slate-200" />
+
+                  {/* Step 1 – Harvest */}
+                  <div className="relative">
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-emerald-100 border-2 border-emerald-400 grid place-items-center">
+                      <Wheat className="size-2.5 text-emerald-700" />
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-emerald-800 mb-1 flex items-center gap-1.5"><Wheat className="size-3" /> Harvested</div>
+                      <div className="text-xs text-emerald-700">
+                        <span className="font-medium">{new Date(trackResult.harvestDate).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</span>
+                      </div>
+                      <div className="text-xs text-emerald-600 mt-1">
+                        {trackResult.harvestedKg} kg harvested · {trackResult.rejectedKg} kg rejected · {trackResult.lostCount > 0 ? `${trackResult.lostCount} lost · ` : ""}{trackResult.packedKg} kg packed
+                      </div>
+                      {trackHarvests.length > 0 && (
+                        <div className="mt-1 text-xs text-emerald-600">
+                          Total yield from contributing beds: {trackHarvests.reduce((s,h)=>s+h.kg,0).toFixed(1)} kg
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Step 2 – Valve & Beds */}
+                  <div className="relative">
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-blue-100 border-2 border-blue-400 grid place-items-center">
+                      <MapPin className="size-2.5 text-blue-700" />
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-blue-800 mb-2 flex items-center gap-1.5"><MapPin className="size-3" /> Zone & Beds</div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: trackValve?.color ?? "#666" }}>{trackValve?.name}</span>
+                        <span className="text-xs text-blue-600">{trackValve?.irrigationSchedule}</span>
+                      </div>
+                      {trackBeds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {trackBeds.map(b => (
+                            <span key={b!.id} className="text-[11px] font-mono bg-white border border-blue-200 rounded px-2 py-0.5 text-blue-700">{b!.id}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-blue-600">All beds in {trackValve?.name} with {trackResult.variety}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Step 3 – Origin */}
+                  <div className="relative">
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-amber-100 border-2 border-amber-400 grid place-items-center">
+                      <Leaf className="size-2.5 text-amber-700" />
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1.5"><Leaf className="size-3" /> Origin / Variety</div>
+                      <div className="text-xs text-amber-700 font-medium">{trackResult.variety}</div>
+                      {trackBeds[0] && (
+                        <div className="text-xs text-amber-600 mt-0.5">{(trackBeds[0] as { origin?: string }).origin ?? ""}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Step 4 – Farmer */}
+                  <div className="relative">
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-purple-100 border-2 border-purple-400 grid place-items-center">
+                      <User className="size-2.5 text-purple-700" />
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-purple-800 mb-2 flex items-center gap-1.5"><User className="size-3" /> Harvested by</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(trackFarmers.length > 0 ? trackFarmers : [trackPacker]).filter(Boolean).map(f => (
+                          <div key={f!.id} className="flex items-center gap-1.5 bg-white border border-purple-200 rounded-lg px-2.5 py-1.5">
+                            <div className="size-5 rounded-full bg-purple-100 grid place-items-center text-[10px] font-bold text-purple-700">{f!.avatar}</div>
+                            <div>
+                              <div className="text-xs font-medium text-purple-900">{f!.name}</div>
+                              <div className="text-[10px] text-purple-500 capitalize">{f!.role}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 5 – Packaging */}
+                  <div className="relative">
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-slate-100 border-2 border-slate-400 grid place-items-center">
+                      <Package className="size-2.5 text-slate-700" />
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Package className="size-3" /> Packaging details</div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-white rounded border border-slate-200 p-2">
+                          <div className="text-base font-bold text-purple-700">{trackResult.cartonCount}</div>
+                          <div className="text-[10px] text-slate-500">Cartons</div>
+                        </div>
+                        <div className="bg-white rounded border border-slate-200 p-2">
+                          <div className="text-base font-bold text-sky-700">{trackResult.plateCount}</div>
+                          <div className="text-[10px] text-slate-500">Plates</div>
+                        </div>
+                        <div className="bg-white rounded border border-red-200 p-2">
+                          <div className="text-base font-bold text-red-600">{trackResult.lostCount}</div>
+                          <div className="text-[10px] text-slate-500">Lost</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {trackResult.packageSize} packs · Grade A {trackResult.gradeAPct}% · Grade B {trackResult.gradeBPct}%
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Packed by {trackPacker?.name} · {new Date(trackResult.packedDate).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="batches" className="space-y-4 mt-4">
       {/* Yield summary */}
       <Card className="p-4 flex items-center gap-6 flex-wrap border-red-100 bg-red-50/40">
         <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1 w-full">Yield Summary</div>
@@ -317,7 +519,7 @@ export default function PackagingPage() {
               <tr>
                 <th>Batch #</th><th>Valve</th><th>Variety</th><th>Purpose</th>
                 <th>Harvested</th><th>Packed</th><th>Rejected</th>
-                <th>📦 Cartons</th><th>🍽️ Plates</th><th>Pkgs</th>
+                <th>Cartons</th><th>Plates</th><th>Lost</th><th>Pkgs</th>
                 <th>Grade A</th><th>Packed By</th><th>Status</th><th className="w-12"></th>
               </tr>
             </thead>
@@ -336,6 +538,7 @@ export default function PackagingPage() {
                     <td className="tabular-nums text-red-600 font-semibold">{rec.rejectedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-center font-bold text-purple-700">{rec.cartonCount}</td>
                     <td className="tabular-nums text-center font-bold text-sky-700">{rec.plateCount}</td>
+                    <td className={`tabular-nums text-center font-bold ${rec.lostCount > 0 ? "text-red-600" : "text-slate-300"}`}>{rec.lostCount}</td>
                     <td className="tabular-nums text-center text-slate-500 text-xs">{rec.packageCount}</td>
                     <td>
                       <div className="flex items-center gap-1.5">
@@ -360,6 +563,8 @@ export default function PackagingPage() {
           </table>
         </div>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* ── Create ─────────────────────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={o => !o && setCreateOpen(false)}>
