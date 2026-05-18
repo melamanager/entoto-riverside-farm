@@ -117,7 +117,7 @@ export async function detectFromImage(opts: {
 async function detectWithGemini(imageBase64: string, key: string, bedId?: string): Promise<AIDetectionResult> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const ai = new GoogleGenerativeAI(key);
-  const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are a strawberry-crop pathologist. Analyze this photo of a strawberry bed and return STRICT JSON with this exact shape:
 {
