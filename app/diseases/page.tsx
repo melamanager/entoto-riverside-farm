@@ -15,6 +15,7 @@ import {
   Upload, ImageIcon, FileImage, ShieldCheck, X, Eye,
 } from "lucide-react";
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
+import { ManualReportDialog } from "@/components/manual-report-dialog";
 import { DISEASES, getBed, getFarmer, FARMERS, VALVES } from "@/lib/data";
 import { DISEASE_LABELS, DISEASE_TREATMENT_STEPS, DISEASE_TREATMENTS } from "@/lib/types";
 import type { DiseaseReport } from "@/lib/types";
@@ -24,6 +25,10 @@ import { toast } from "sonner";
 export default function DiseasesPage() {
   const { user, isManager, isSupervisor } = useAuth();
   const [diseases, setDiseases] = useState<DiseaseReport[]>(DISEASES);
+
+  function refreshDiseases() {
+    setDiseases([...DISEASES]);
+  }
 
   // Manager: write recommendation dialog
   const [recommendOpen, setRecommendOpen] = useState(false);
@@ -186,6 +191,9 @@ export default function DiseasesPage() {
                 <Sparkles className="size-4" /> AI Detect Disease
               </Button>
             } />
+          )}
+          {(isManager || isSupervisor) && (
+            <ManualReportDialog onReported={refreshDiseases} />
           )}
           {isSupervisor && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
