@@ -38,7 +38,7 @@ const EMPTY_FORM = {
   valveId: "", variety: "",
   harvestedKg: 20, gradedKg: 18, packedKg: 16,
   rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
-  cartonCount: 2, plateCount: 0, lostCount: 0, purpose: "export" as PackagingPurpose,
+  cartonCount: 2, plateCount: 0, lostKg: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
 };
 
@@ -61,7 +61,7 @@ export default function PackagingPage() {
       harvestedKg: r.harvestedKg, gradedKg: r.gradedKg,
       packedKg: r.packedKg, rejectedKg: r.rejectedKg, packageSize: r.packageSize,
       packageCount: r.packageCount, cartonCount: r.cartonCount, plateCount: r.plateCount,
-      lostCount: r.lostCount, purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
+      lostKg: r.lostKg, purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
       packedBy: r.packedBy, status: r.status,
     });
     setEditTarget(r);
@@ -97,7 +97,7 @@ export default function PackagingPage() {
   const totalPackages  = records.reduce((s, r) => s + r.packageCount, 0);
   const totalCartons   = records.reduce((s, r) => s + r.cartonCount, 0);
   const totalPlates    = records.reduce((s, r) => s + r.plateCount, 0);
-  const totalLost      = records.reduce((s, r) => s + r.lostCount, 0);
+  const totalLost      = records.reduce((s, r) => s + r.lostKg, 0);
   const avgGradeA      = records.length ? Math.round(records.reduce((s, r) => s + r.gradeAPct, 0) / records.length) : 0;
 
   // ── Tracker state ──────────────────────────────────────────────────────────
@@ -219,9 +219,9 @@ export default function PackagingPage() {
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-red-700 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost</label>
-            <input type="number" min={0} value={form.lostCount}
-              onChange={e => setForm(p => ({ ...p, lostCount: Number(e.target.value) }))}
+            <label className="text-xs font-semibold text-red-700 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost (kg)</label>
+            <input type="number" min={0} step={0.1} value={form.lostKg}
+              onChange={e => setForm(p => ({ ...p, lostKg: Number(e.target.value) }))}
               className="w-full border border-red-100 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
@@ -324,8 +324,8 @@ export default function PackagingPage() {
           <div className="text-xs text-sky-600 font-medium mt-0.5 flex items-center gap-1"><BarChart3 className="size-3" /> Total Plates</div>
         </Card>
         <Card className="p-4 border-red-200 bg-red-50">
-          <div className="text-2xl font-bold text-red-700 tabular-nums">{totalLost}</div>
-          <div className="text-xs text-red-600 font-medium mt-0.5 flex items-center gap-1"><AlertCircle className="size-3" /> Lost Cartons</div>
+          <div className="text-2xl font-bold text-red-700 tabular-nums">{totalLost.toFixed(1)} kg</div>
+          <div className="text-xs text-red-600 font-medium mt-0.5 flex items-center gap-1"><AlertCircle className="size-3" /> Lost (kg)</div>
         </Card>
         <Card className="p-4">
           <div className="text-xl font-bold text-slate-700 tabular-nums">{totalPacked.toFixed(1)} kg</div>
@@ -396,7 +396,7 @@ export default function PackagingPage() {
                         <span className="font-medium">{new Date(trackResult.harvestDate).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</span>
                       </div>
                       <div className="text-xs text-emerald-600 mt-1">
-                        {trackResult.harvestedKg} kg harvested · {trackResult.rejectedKg} kg rejected · {trackResult.lostCount > 0 ? `${trackResult.lostCount} lost · ` : ""}{trackResult.packedKg} kg packed
+                        {trackResult.harvestedKg} kg harvested · {trackResult.rejectedKg} kg rejected · {trackResult.lostKg > 0 ? `${trackResult.lostKg} kg lost · ` : ""}{trackResult.packedKg} kg packed
                       </div>
                       {trackHarvests.length > 0 && (
                         <div className="mt-1 text-xs text-emerald-600">
@@ -481,8 +481,8 @@ export default function PackagingPage() {
                           <div className="text-[10px] text-slate-500">Plates</div>
                         </div>
                         <div className="bg-white rounded border border-red-200 p-2">
-                          <div className="text-base font-bold text-red-600">{trackResult.lostCount}</div>
-                          <div className="text-[10px] text-slate-500">Lost</div>
+                          <div className="text-base font-bold text-red-600">{trackResult.lostKg} kg</div>
+                          <div className="text-[10px] text-slate-500">Lost kg</div>
                         </div>
                       </div>
                       <div className="mt-2 text-xs text-slate-500">
@@ -519,7 +519,7 @@ export default function PackagingPage() {
               <tr>
                 <th>Batch #</th><th>Valve</th><th>Variety</th><th>Purpose</th>
                 <th>Harvested</th><th>Packed</th><th>Rejected</th>
-                <th>Cartons</th><th>Plates</th><th>Lost</th><th>Pkgs</th>
+                <th>Cartons</th><th>Plates</th><th>Lost kg</th><th>Pkgs</th>
                 <th>Grade A</th><th>Packed By</th><th>Status</th><th className="w-12"></th>
               </tr>
             </thead>
@@ -538,7 +538,7 @@ export default function PackagingPage() {
                     <td className="tabular-nums text-red-600 font-semibold">{rec.rejectedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-center font-bold text-purple-700">{rec.cartonCount}</td>
                     <td className="tabular-nums text-center font-bold text-sky-700">{rec.plateCount}</td>
-                    <td className={`tabular-nums text-center font-bold ${rec.lostCount > 0 ? "text-red-600" : "text-slate-300"}`}>{rec.lostCount}</td>
+                    <td className={`tabular-nums text-center font-bold ${rec.lostKg > 0 ? "text-red-600" : "text-slate-300"}`}>{rec.lostKg > 0 ? `${rec.lostKg.toFixed(1)}` : "—"}</td>
                     <td className="tabular-nums text-center text-slate-500 text-xs">{rec.packageCount}</td>
                     <td>
                       <div className="flex items-center gap-1.5">

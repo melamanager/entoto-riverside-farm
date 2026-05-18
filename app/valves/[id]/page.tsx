@@ -219,7 +219,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
                       <span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                     </div>
                     <div className="text-amber-700 mt-0.5">
-                      {p.packedKg}kg · {p.cartonCount} cartons · {p.plateCount} plates{p.lostCount > 0 ? ` · ${p.lostCount} lost` : ""} · {packer?.name}
+                      {p.packedKg}kg · {p.cartonCount} cartons · {p.plateCount} plates{p.lostKg > 0 ? ` · ${p.lostKg.toFixed(1)} kg lost` : ""} · {packer?.name}
                     </div>
                   </div>
                 </div>

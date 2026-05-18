@@ -269,7 +269,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                         <span className="font-semibold text-amber-800">{p.batchNumber} · {p.purpose}</span>
                         <span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                       </div>
-                      <div className="text-amber-700 mt-0.5">{p.packedKg}kg packed · {p.cartonCount} cartons · {p.plateCount} plates{p.lostCount > 0 ? ` · ${p.lostCount} lost` : ""}</div>
+                      <div className="text-amber-700 mt-0.5">{p.packedKg}kg packed · {p.cartonCount} cartons · {p.plateCount} plates{p.lostKg > 0 ? ` · ${p.lostKg.toFixed(1)} kg lost` : ""}</div>
                     </div>
                   </div>
                 );

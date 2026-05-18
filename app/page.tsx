@@ -1,8 +1,8 @@
 import Link from "next/link";
 import {
-  Sprout, Users, Wheat, AlertTriangle, TrendingUp, Activity, Leaf,
+  Users, Wheat, AlertTriangle, TrendingUp, Activity, Leaf,
   ArrowRight, Bug, ShieldCheck, CalendarCheck, ListChecks, ChevronRight,
-  Map, Zap, Sparkles,
+  Map, Zap, Sparkles, Sprout, Package, BarChart3, Clock,
 } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { StatCard } from "@/components/stat-card";
@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   FARM, VALVES, BEDS, FARMERS, HARVESTS, DISEASES, NOTIFICATIONS, TASKS, ATTENDANCE,
-  plantsInBed, todayKg, totalKgValve, getFarmer, getBed,
+  plantsInBed, todayKg, totalKgValve, getFarmer,
 } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
 
@@ -34,6 +34,8 @@ export default function DashboardPage() {
   const totalKgToday   = todayKg(today);
   const openDiseases   = diseases.filter(d => d.status !== "resolved").length;
   const estimatedYield = beds.reduce((s, b) => s + b.lengthM * 0.4 * 12, 0);
+  const healthyBeds    = beds.filter(b => b.health === "healthy").length;
+  const presentToday   = attendance.filter(a => a.date === today && a.status === "present").length;
 
   // 14-day harvest chart data
   const series: Record<string, number> = {};
@@ -65,28 +67,45 @@ export default function DashboardPage() {
     .sort((a, b) => b.performanceScore - a.performanceScore)
     .slice(0, 5);
 
+  const totalHarvestAllTime = harvests.reduce((s, h) => s + h.kg, 0);
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
 
-      {/* ── Hero header ─────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 flex-wrap">
-            <Leaf className="size-3 text-emerald-600" />
-            <span>{FARM.location}</span>
-            <span className="text-slate-300">·</span>
-            <span>{FARM.altitudeM}m</span>
-            <span className="text-slate-300">·</span>
-            <span>{FARM.totalAreaHa} ha</span>
+      {/* ── Hero banner ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-5 md:p-6 shadow-xl shadow-emerald-900/20">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMC4wOCIvPjwvc3ZnPg==')] opacity-60" />
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-2 text-emerald-200 text-xs mb-2">
+              <Leaf className="size-3" />
+              <span>{FARM.location} · {FARM.altitudeM}m alt · {FARM.totalAreaHa} ha</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white leading-tight tracking-tight">{FARM.name}</h1>
+            <p className="text-emerald-200 text-sm mt-1">
+              {new Date(today).toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            </p>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 leading-tight">{FARM.name}</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {new Date(today).toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 shrink-0">
+            {[
+              { label: "Today's Harvest", value: `${totalKgToday.toFixed(1)} kg`, sub: "all zones", icon: Wheat, color: "bg-white/20 text-white" },
+              { label: "Active Alerts",   value: openDiseases,                    sub: openDiseases > 0 ? "needs action" : "all clear", icon: AlertTriangle, color: openDiseases > 0 ? "bg-red-500/80 text-white" : "bg-white/20 text-white" },
+              { label: "Staff On-site",   value: presentToday,                    sub: "present today", icon: Users, color: "bg-white/20 text-white" },
+              { label: "Season Yield",    value: `${(estimatedYield / 1000).toFixed(1)} t`, sub: "estimated total", icon: TrendingUp, color: "bg-white/20 text-white" },
+            ].map(item => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className={`rounded-xl ${item.color} backdrop-blur-sm px-4 py-3 min-w-[100px]`}>
+                  <div className="flex items-center gap-1.5 text-xs text-white/70 mb-1">
+                    <Icon className="size-3" /> {item.label}
+                  </div>
+                  <div className="text-2xl font-extrabold text-white tabular-nums leading-tight">{item.value}</div>
+                  <div className="text-[10px] text-white/60 mt-0.5">{item.sub}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <Link href="/map" className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors">
-          <Map className="size-4" /> Farm Map
-        </Link>
       </div>
 
       {/* ── AI Alert Banner ─────────────────────────────────────────────── */}
@@ -97,7 +116,7 @@ export default function DashboardPage() {
           </span>
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm flex items-center gap-2">
-              <Sparkles className="size-3.5" /> AI detected {openDiseases} active issue{openDiseases > 1 ? "s" : ""} + harvest forecast ready
+              <Sparkles className="size-3.5" /> AI detected {openDiseases} active issue{openDiseases > 1 ? "s" : ""} — harvest forecast ready
             </div>
             <div className="text-[11px] text-amber-100 truncate">Click to view smart alerts, disease risk scores & 14-day yield projection</div>
           </div>
@@ -108,78 +127,45 @@ export default function DashboardPage() {
       {/* ── Quick Actions ────────────────────────────────────────────────── */}
       <QuickActions />
 
-      {/* ── Stat cards ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Irrigation Valves" value={VALVES.length}        hint="Active zones"              icon={ValveIcon}      tone="blue"    />
-        <StatCard label="Raised Beds"       value={beds.length}          hint={`${beds.filter(b => b.health === "healthy").length} healthy`} icon={Sprout} tone="emerald" />
-        <StatCard label="Today's Harvest"   value={`${totalKgToday.toFixed(1)} kg`} hint="All zones"     icon={Wheat}          tone="emerald" trend={{ value: "+12% vs yesterday", up: true }} />
-        <StatCard label="Disease Alerts"    value={openDiseases}         hint={openDiseases > 0 ? "Needs attention" : "All clear"} icon={AlertTriangle} tone={openDiseases > 0 ? "red" : "emerald"} />
-        <StatCard label="Total Plants"      value={totalPlants.toLocaleString()} hint="8 plants/m"       icon={Leaf}           tone="emerald" />
-        <StatCard label="Field Staff"       value={FARMERS.filter(f => f.role !== "manager").length} hint={`${FARMERS.filter(f => f.role === "supervisor").length} supervisors`} icon={Users} tone="slate" />
-        <StatCard label="Irrigation"        value="Active"               hint="Next cycle 17:00"          icon={Activity}       tone="blue"    />
-        <StatCard label="Season Yield Est." value={`${(estimatedYield / 1000).toFixed(1)} t`} hint="Projected total" icon={TrendingUp} tone="amber" />
+      {/* ── Secondary stat strip ────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="Irrigation Zones" value={VALVES.length}     hint="Active"                    icon={ValveIcon}      tone="blue"    />
+        <StatCard label="Healthy Beds"      value={`${healthyBeds}/${beds.length}`} hint={`${beds.filter(b=>b.health==="infected").length} infected`} icon={Sprout} tone="emerald" />
+        <StatCard label="Total Plants"      value={totalPlants.toLocaleString()} hint="8 plants/m"     icon={Leaf}           tone="emerald" />
+        <StatCard label="Field Staff"       value={FARMERS.filter(f => f.role !== "manager").length} hint={`${FARMERS.filter(f=>f.role==="supervisor").length} supervisors`} icon={Users} tone="slate" />
       </div>
 
       {/* ── Weather + Weekly Report (side by side on md+) ─────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <WeatherWidget />
-        <WeeklyReportCard
-          harvests={harvests}
-          diseases={diseases}
-          attendance={attendance}
-          beds={beds}
-          today={today}
-        />
+        <WeeklyReportCard harvests={harvests} diseases={diseases} attendance={attendance} beds={beds} today={today} />
       </div>
-
-      {/* ── Harvest Forecast ─────────────────────────────────────────────── */}
-      <HarvestForecast beds={beds} today={today} />
-
-      {/* ── Ripeness Heatmap ─────────────────────────────────────────────── */}
-      <RipenessHeatmap beds={beds} valves={VALVES} />
-
-      {/* ── Performance by Origin ────────────────────────────────────────── */}
-      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} />
-
-      {/* ── Live Farm Map (scrollable on mobile) ────────────────────────── */}
-      <Card className="border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 md:px-5 py-3.5 border-b border-slate-100">
-          <div>
-            <div className="font-semibold text-slate-900 text-sm md:text-base">Live Farm Map</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Tap any bed to open profile · colour = health</div>
-          </div>
-          <Link href="/map" className="text-xs text-emerald-600 hover:underline font-semibold">Fullscreen →</Link>
-        </div>
-        <div className="p-3 md:p-4">
-          <FarmMap valves={VALVES} beds={beds} harvestKgByBed={harvestKgByBed} />
-        </div>
-      </Card>
 
       {/* ── Harvest chart + Notifications ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 border border-slate-200 shadow-sm p-4 md:p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="font-semibold text-slate-900">Harvest Trend</div>
-              <div className="text-xs text-slate-400">14-day · all zones</div>
+              <div className="font-bold text-slate-900 text-base">Harvest Trend</div>
+              <div className="text-xs text-slate-400">14-day rolling · all zones</div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-slate-900 tabular-nums">
-                {harvests.reduce((s, h) => s + h.kg, 0).toFixed(1)}
+              <div className="text-2xl font-extrabold text-emerald-700 tabular-nums">
+                {totalHarvestAllTime.toFixed(1)}
               </div>
-              <div className="text-xs text-slate-400">kg total</div>
+              <div className="text-xs text-slate-400">kg this period</div>
             </div>
           </div>
           <HarvestChart data={chartData} />
         </Card>
 
-        <Card className="border border-slate-200 shadow-sm p-4 md:p-5">
+        <Card className="border border-slate-200 shadow-sm p-4 md:p-5 flex flex-col">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-semibold text-slate-900">Notifications</div>
+            <div className="font-bold text-slate-900">Notifications</div>
             <Badge variant="outline" className="text-[10px]">{NOTIFICATIONS.filter(n => !n.read).length} new</Badge>
           </div>
-          <div className="space-y-2">
-            {NOTIFICATIONS.slice(0, 5).map(n => (
+          <div className="space-y-2 flex-1">
+            {NOTIFICATIONS.slice(0, 6).map(n => (
               <Link key={n.id} href={n.link ?? "#"} className="flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors">
                 <span className={`size-2 rounded-full mt-1.5 shrink-0 ${n.read ? "bg-slate-300" : "bg-emerald-500"}`} />
                 <div className="min-w-0">
@@ -199,8 +185,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="border border-slate-200 shadow-sm p-4 md:p-5">
           <div className="flex items-center justify-between mb-4">
-            <div className="font-semibold text-slate-900">Zone Productivity</div>
-            <Link href="/valves" className="text-xs text-emerald-600 hover:underline font-medium">View all →</Link>
+            <div>
+              <div className="font-bold text-slate-900">Zone Productivity</div>
+              <div className="text-xs text-slate-400">Total harvest by irrigation zone</div>
+            </div>
+            <Link href="/valves" className="text-xs text-emerald-600 hover:underline font-semibold">View all →</Link>
           </div>
           <div className="space-y-4">
             {valveStats.map((v, i) => {
@@ -208,20 +197,20 @@ export default function DashboardPage() {
               return (
                 <Link href={`/valves/${v.valve.id}`} key={v.valve.id} className="block group">
                   <div className="flex items-center gap-3">
-                    <div className="size-7 rounded-md grid place-items-center text-white text-[11px] font-bold shrink-0" style={{ background: v.valve.color }}>
-                      {i + 1}
+                    <div className="size-8 rounded-lg grid place-items-center text-white text-xs font-bold shrink-0 shadow-sm" style={{ background: v.valve.color }}>
+                      #{i + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="font-semibold text-slate-800 group-hover:text-emerald-700 truncate">{v.valve.name}</span>
-                        <span className="tabular-nums font-bold text-slate-900 ml-2 shrink-0">{v.kg.toFixed(1)} <span className="text-xs font-normal text-slate-400">kg</span></span>
+                      <div className="flex items-center justify-between text-sm mb-1.5">
+                        <span className="font-bold text-slate-800 group-hover:text-emerald-700 truncate">{v.valve.name}</span>
+                        <span className="tabular-nums font-extrabold text-slate-900 ml-2 shrink-0">{v.kg.toFixed(1)} <span className="text-xs font-normal text-slate-400">kg</span></span>
                       </div>
-                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${(v.kg / max) * 100}%`, background: v.valve.color }} />
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${(v.kg / max) * 100}%`, background: v.valve.color }} />
                       </div>
                       <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1">
                         <span>{v.bedCount} beds</span>
-                        {v.infected > 0 && <span className="text-red-600 font-semibold">{v.infected} infected</span>}
+                        {v.infected > 0 && <span className="text-red-600 font-bold">{v.infected} infected</span>}
                       </div>
                     </div>
                   </div>
@@ -233,14 +222,17 @@ export default function DashboardPage() {
 
         <Card className="border border-slate-200 shadow-sm p-4 md:p-5">
           <div className="flex items-center justify-between mb-4">
-            <div className="font-semibold text-slate-900">Top Performers</div>
-            <Link href="/employees" className="text-xs text-emerald-600 hover:underline font-medium">All staff →</Link>
+            <div>
+              <div className="font-bold text-slate-900">Top Performers</div>
+              <div className="text-xs text-slate-400">Ranked by performance score</div>
+            </div>
+            <Link href="/employees" className="text-xs text-emerald-600 hover:underline font-semibold">All staff →</Link>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {topFarmers.map((f, i) => (
               <div key={f.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
-                <div className="text-[10px] font-bold text-slate-400 w-4 text-center shrink-0">#{i + 1}</div>
-                <Avatar className="size-8 shrink-0">
+                <div className="text-[10px] font-bold text-slate-400 w-5 text-center shrink-0">#{i + 1}</div>
+                <Avatar className="size-9 shrink-0">
                   <AvatarFallback className="bg-emerald-100 text-emerald-800 text-[10px] font-bold">{f.avatar}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
@@ -248,7 +240,7 @@ export default function DashboardPage() {
                   <div className="text-[11px] text-slate-400">Attendance {f.attendanceRate}%</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-emerald-700">{f.performanceScore}</div>
+                  <div className="text-sm font-extrabold text-emerald-700">{f.performanceScore}</div>
                   <div className="text-[10px] text-slate-400">score</div>
                 </div>
               </div>
@@ -257,18 +249,42 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* ── Harvest Forecast ─────────────────────────────────────────────── */}
+      <HarvestForecast beds={beds} today={today} />
+
+      {/* ── Ripeness Heatmap ─────────────────────────────────────────────── */}
+      <RipenessHeatmap beds={beds} valves={VALVES} />
+
+      {/* ── Performance by Origin ────────────────────────────────────────── */}
+      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} />
+
+      {/* ── Live Farm Map ────────────────────────────────────────────────── */}
+      <Card className="border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 md:px-5 py-3.5 border-b border-slate-100">
+          <div>
+            <div className="font-bold text-slate-900 text-sm md:text-base">Live Farm Map</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">Tap any bed to open profile · colour = health status</div>
+          </div>
+          <Link href="/map" className="text-xs text-emerald-600 hover:underline font-semibold">Fullscreen →</Link>
+        </div>
+        <div className="p-3 md:p-4">
+          <FarmMap valves={VALVES} beds={beds} harvestKgByBed={harvestKgByBed} />
+        </div>
+      </Card>
+
       {/* ── Quick navigation shortcuts ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {[
-          { href: "/supervisor", icon: ShieldCheck, label: "Supervisor View", sub: "Field operations", col: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200 hover:border-emerald-400" },
-          { href: "/attendance", icon: CalendarCheck, label: "Attendance", sub: "Today's register", col: "text-blue-600", bg: "bg-blue-50 border-blue-200 hover:border-blue-400" },
-          { href: "/tasks", icon: ListChecks, label: "Task Manager", sub: `${pendingTasks} pending`, col: "text-purple-600", bg: "bg-purple-50 border-purple-200 hover:border-purple-400" },
+          { href: "/supervisor",  icon: ShieldCheck,  label: "Supervisor View",  sub: "Field operations", col: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200 hover:border-emerald-400" },
+          { href: "/attendance",  icon: CalendarCheck, label: "Attendance",       sub: "Today's register", col: "text-blue-600",    bg: "bg-blue-50 border-blue-200 hover:border-blue-400" },
+          { href: "/tasks",       icon: ListChecks,   label: "Task Manager",     sub: `${pendingTasks} pending`, col: "text-purple-600", bg: "bg-purple-50 border-purple-200 hover:border-purple-400" },
+          { href: "/packaging",   icon: Package,      label: "Packaging",        sub: "Batch & dispatch",  col: "text-amber-600",   bg: "bg-amber-50 border-amber-200 hover:border-amber-400" },
         ].map(item => {
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} className={`flex items-center gap-3 p-4 rounded-xl border transition-all group ${item.bg}`}>
               <div className="size-9 rounded-lg bg-white border border-white/80 shadow-sm grid place-items-center shrink-0">
-                <Icon className={`size-4.5 ${item.col}`} />
+                <Icon className={`size-4 ${item.col}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-slate-800">{item.label}</div>
@@ -285,10 +301,15 @@ export default function DashboardPage() {
         <Card className="border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 md:px-5 py-3.5 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <Bug className="size-4 text-red-600" />
-              <span className="font-semibold text-slate-900 text-sm md:text-base">Active Disease Reports</span>
+              <div className="size-7 rounded-lg bg-red-100 grid place-items-center">
+                <Bug className="size-3.5 text-red-600" />
+              </div>
+              <div>
+                <span className="font-bold text-slate-900 text-sm md:text-base">Active Disease Reports</span>
+                <span className="ml-2 text-xs text-red-600 font-semibold">{openDiseases} open</span>
+              </div>
             </div>
-            <Link href="/diseases" className="text-xs text-emerald-600 hover:underline font-medium">Manage →</Link>
+            <Link href="/diseases" className="text-xs text-emerald-600 hover:underline font-semibold">Manage →</Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full pro-table">
