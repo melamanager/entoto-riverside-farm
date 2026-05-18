@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle, ImageUp } from "lucide-react";
 import { toast } from "sonner";
 import type { AIDetectionResult } from "@/lib/ai";
 import { useAuth } from "@/lib/auth";
@@ -120,19 +120,43 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
         )}
 
         {/* Image upload */}
-        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer hover:bg-stone-50 transition">
+        <div className="border-2 border-dashed rounded-lg overflow-hidden">
           {imagePreview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imagePreview} alt="preview" className="max-h-48 rounded-md" />
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imagePreview} alt="preview" className="w-full max-h-48 object-cover" />
+              <div className="absolute bottom-0 inset-x-0 flex gap-2 p-2 bg-black/50">
+                <label className="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-white bg-white/20 hover:bg-white/30 rounded py-1 cursor-pointer transition">
+                  <Camera className="size-3.5" /> Retake
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+                </label>
+                <label className="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-white bg-white/20 hover:bg-white/30 rounded py-1 cursor-pointer transition">
+                  <ImageUp className="size-3.5" /> Change
+                  <input type="file" accept="image/*" className="hidden" onChange={onFile} />
+                </label>
+              </div>
+            </div>
           ) : (
-            <>
-              <Camera className="size-8 text-stone-400" />
-              <div className="text-sm font-medium">Upload a strawberry bed photo</div>
-              <div className="text-[11px] text-stone-500">{mode === "demo" ? "Any image works in demo mode" : "Close-up of leaves/fruit for best results"}</div>
-            </>
+            <div className="p-4 space-y-3">
+              <div className="text-center text-sm font-medium text-stone-600">Add a strawberry bed photo</div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col items-center gap-2 p-4 rounded-lg bg-stone-50 hover:bg-stone-100 cursor-pointer transition">
+                  <Camera className="size-6 text-stone-400" />
+                  <span className="text-xs font-medium text-stone-600">Take Photo</span>
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+                </label>
+                <label className="flex flex-col items-center gap-2 p-4 rounded-lg bg-stone-50 hover:bg-stone-100 cursor-pointer transition">
+                  <ImageUp className="size-6 text-stone-400" />
+                  <span className="text-xs font-medium text-stone-600">Upload from Gallery</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={onFile} />
+                </label>
+              </div>
+              <div className="text-center text-[11px] text-stone-400">
+                {mode === "demo" ? "Any image works in demo mode" : "Close-up of leaves/fruit for best results"}
+              </div>
+            </div>
           )}
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-        </label>
+        </div>
 
         {mode === "demo" && (
           <Button onClick={() => runDetection()} disabled={loading} className="w-full">
