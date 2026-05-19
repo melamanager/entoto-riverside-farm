@@ -10,6 +10,8 @@ import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save }
 import { toast } from "sonner";
 import { FARMERS, ATTENDANCE, VALVES, attendanceForDate } from "@/lib/data";
 import type { AttendanceStatus } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const STATUSES: { value: AttendanceStatus; label: string; color: string }[] = [
   { value: "present", label: "Present", color: "bg-emerald-500" },
@@ -26,6 +28,8 @@ const STATUS_ICONS = {
 };
 
 export default function AttendancePage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const today = "2026-05-17";
   const farmers = FARMERS.filter(f => f.role !== "manager");
   const existingToday = attendanceForDate(today);
@@ -65,9 +69,9 @@ export default function AttendancePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <CalendarCheck className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.attendance.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Daily attendance tracking for all farm staff</p>
+          <p className="text-slate-500 text-sm">{t.attendance.subtitle}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2">
@@ -78,7 +82,7 @@ export default function AttendancePage() {
             className="gap-2 bg-emerald-600 hover:bg-emerald-700"
             onClick={saveAttendance}
           >
-            <Save className="size-3.5" /> Save Attendance
+            <Save className="size-3.5" /> {t.attendance.recordAttendance}
           </Button>
         </div>
       </div>
@@ -222,7 +226,7 @@ export default function AttendancePage() {
             <table className="w-full pro-table">
               <thead>
                 <tr>
-                  <th>Farmer</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th>
+                  <th>{t.common.farmer}</th><th>{t.common.status}</th><th>{t.attendance.checkIn}</th><th>{t.attendance.checkOut}</th><th>{t.attendance.hours}</th>
                 </tr>
               </thead>
               <tbody>

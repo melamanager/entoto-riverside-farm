@@ -1,11 +1,17 @@
+"use client";
+
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { BEDS, HARVESTS, DISEASES, VALVES, FARMERS, plantsInBed, totalKgValve, totalKgBed } from "@/lib/data";
 import { CUSTOMER_ORDERS, PACKAGING_RECORDS } from "@/lib/erp-data";
 import { FileBarChart, TrendingUp, Award, Calendar, DollarSign, Package } from "lucide-react";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 export default function ReportsPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const beds = BEDS();
   const harvests = HARVESTS();
   const diseases = DISEASES();
@@ -50,8 +56,8 @@ export default function ReportsPage() {
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><FileBarChart className="size-6 text-purple-600" /> Reports & Analytics</h1>
-        <p className="text-stone-500 text-sm">Smart insights about your farm</p>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><FileBarChart className="size-6 text-purple-600" /> {t.reports.title}</h1>
+        <p className="text-stone-500 text-sm">{t.reports.subtitle}</p>
       </div>
 
       {/* Top stats */}

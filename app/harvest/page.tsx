@@ -11,10 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Wheat, Plus, Package, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { BEDS, FARMERS, HARVESTS, getBed, getValve, getFarmer } from "@/lib/data";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 type PackPrompt = { bedId: string; kg: number; grade: "A" | "B" | "C" };
 
 export default function HarvestPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [bedId, setBedId] = useState("A-BED-01");
   const [kg, setKg] = useState("");
   const [farmerId, setFarmerId] = useState("f-001");
@@ -55,13 +59,13 @@ export default function HarvestPage() {
     <>
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Wheat className="size-6 text-rose-600" /> Harvest Collection</h1>
-        <p className="text-stone-500 text-sm">Record berries picked from each bed · workers update via phone / QR scan</p>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Wheat className="size-6 text-rose-600" /> {t.harvest.title}</h1>
+        <p className="text-stone-500 text-sm">{t.harvest.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-5 lg:col-span-1">
-          <h3 className="font-bold mb-3 flex items-center gap-2"><Plus className="size-4 text-emerald-600" /> Record harvest</h3>
+          <h3 className="font-bold mb-3 flex items-center gap-2"><Plus className="size-4 text-emerald-600" /> {t.harvest.recordHarvest}</h3>
           <form onSubmit={submit} className="space-y-3">
             <div>
               <Label className="text-xs">Bed</Label>
@@ -70,7 +74,7 @@ export default function HarvestPage() {
               </select>
             </div>
             <div>
-              <Label className="text-xs">Weight (kg)</Label>
+              <Label className="text-xs">{t.harvest.weight}</Label>
               <Input type="number" step="0.1" min="0" value={kg} onChange={e=>setKg(e.target.value)} placeholder="e.g. 14.5" />
             </div>
             <div>
@@ -80,19 +84,19 @@ export default function HarvestPage() {
               </select>
             </div>
             <div>
-              <Label className="text-xs">Quality grade</Label>
+              <Label className="text-xs">{t.harvest.qualityGrade}</Label>
               <div className="grid grid-cols-3 gap-2">
                 {(["A","B","C"] as const).map(g => (
                   <button key={g} type="button" onClick={()=>setGrade(g)} className={`py-2 rounded-md text-sm font-semibold border ${grade===g?"bg-emerald-600 text-white border-emerald-600":"bg-white text-stone-700"}`}>{g}</button>
                 ))}
               </div>
             </div>
-            <Button type="submit" className="w-full">Log harvest</Button>
+            <Button type="submit" className="w-full">{t.harvest.logHarvest}</Button>
           </form>
         </Card>
 
         <Card className="p-5 lg:col-span-2">
-          <h3 className="font-bold mb-3">Recent harvests</h3>
+          <h3 className="font-bold mb-3">{t.harvest.recentHarvests}</h3>
           <div className="overflow-x-auto -mx-5">
             <table className="w-full text-sm">
               <thead className="text-[11px] uppercase tracking-wider text-stone-500 border-b">
@@ -132,7 +136,7 @@ export default function HarvestPage() {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Package className="size-4 text-violet-600" /> Pack this harvest?
+            <Package className="size-4 text-violet-600" /> {t.harvest.packPromptTitle}
           </DialogTitle>
         </DialogHeader>
         {packPrompt && (
@@ -141,16 +145,14 @@ export default function HarvestPage() {
               <div className="font-semibold text-slate-800">{packPrompt.kg} kg from {packPrompt.bedId}</div>
               <div className="text-slate-500 text-xs mt-0.5">Grade {packPrompt.grade} · Logged just now</div>
             </div>
-            <p className="text-sm text-slate-600">
-              Ready to create a packaging batch for this harvest? This will open the packaging page with the details pre-filled.
-            </p>
+            <p className="text-sm text-slate-600">{t.harvest.packPromptBody}</p>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setPackPrompt(null)}>
-                Later
+                {t.harvest.later}
               </Button>
               <Link href={`/packaging?bedId=${packPrompt.bedId}&kg=${packPrompt.kg}&grade=${packPrompt.grade}`} className="flex-1">
                 <Button className="w-full bg-violet-600 hover:bg-violet-700 gap-2" onClick={() => setPackPrompt(null)}>
-                  Pack Now <ArrowRight className="size-3.5" />
+                  {t.harvest.packNow} <ArrowRight className="size-3.5" />
                 </Button>
               </Link>
             </div>

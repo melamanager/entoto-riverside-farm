@@ -14,6 +14,8 @@ import {
   plantsInBed, totalKgBed,
 } from "@/lib/data";
 import { CUSTOMER_ORDERS, FERTIGATION_RECORDS, WORKER_ASSIGNMENTS } from "@/lib/erp-data";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 // ── Alert engine ──────────────────────────────────────────────────────────────
 
@@ -267,6 +269,8 @@ const SEVERITY_STYLES = {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AIPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const beds     = BEDS();
   const harvests = HARVESTS();
   const diseases = DISEASES();
@@ -330,9 +334,9 @@ export default function AIPage() {
             <span className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 grid place-items-center shadow-lg">
               <Zap className="size-5 text-white" />
             </span>
-            AI Alerts & Forecasting
+            {t.ai.title}
           </h1>
-          <p className="text-stone-500 text-sm mt-0.5">Real-time farm intelligence — anomaly detection, harvest forecasting & smart recommendations</p>
+          <p className="text-stone-500 text-sm mt-0.5">{t.ai.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           {criticalCount > 0 && (

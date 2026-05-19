@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,10 +17,14 @@ import {
 } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
 import { FOLLOW_UPS } from "@/lib/erp-data";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const TODAY = "2026-05-17";
 
 export default function SupervisorPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const supervisors = FARMERS.filter(f => f.role === "supervisor");
   const todayAttendance = ATTENDANCE().filter(a => a.date === TODAY);
   const allBeds = BEDS();
@@ -32,16 +38,16 @@ export default function SupervisorPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <ShieldCheck className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Supervisor Command Centre</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.supervisor.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Real-time overview for all field supervisors · {new Date(TODAY).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}</p>
+          <p className="text-slate-500 text-sm">{t.supervisor.subtitle} · {new Date(TODAY).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}</p>
         </div>
         <div className="flex gap-2">
           <Link href="/attendance" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
-            <CalendarCheck className="size-4" /> Take Attendance
+            <CalendarCheck className="size-4" /> {t.supervisor.takeAttendance}
           </Link>
           <Link href="/tasks" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50">
-            <ListChecks className="size-4" /> All Tasks
+            <ListChecks className="size-4" /> {t.supervisor.allTasks}
           </Link>
         </div>
       </div>
@@ -51,9 +57,9 @@ export default function SupervisorPage() {
         const myValves = VALVES.filter(v => sup.assignedValves.includes(v.id));
         const myBeds = allBeds.filter(b => sup.assignedValves.includes(b.valveId));
         const myDiseases = allDiseases.filter(d => myBeds.some(b => b.id === d.bedId) && d.status !== "resolved");
-        const myTasks = allTasks.filter(t => t.assignedTo === sup.id);
-        const pendingTasks = myTasks.filter(t => t.status !== "done");
-        const doneTasks = myTasks.filter(t => t.status === "done");
+        const myTasks = allTasks.filter(task => task.assignedTo === sup.id);
+        const pendingTasks = myTasks.filter(task => task.status !== "done");
+        const doneTasks = myTasks.filter(task => task.status === "done");
         const todayAttSup = todayAttendance.filter(a => {
           const farmer = FARMERS.find(f => f.id === a.farmerId);
           return farmer && sup.assignedValves.some(v => farmer.assignedValves.includes(v));
@@ -82,19 +88,19 @@ export default function SupervisorPage() {
               <div className="hidden md:flex items-center gap-6 text-center">
                 <div>
                   <div className="text-xl font-bold text-slate-900">{myBeds.length}</div>
-                  <div className="text-[10px] text-slate-500">Beds</div>
+                  <div className="text-[10px] text-slate-500">{t.supervisor.beds}</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-emerald-600">{todayHarvestKg.toFixed(1)}</div>
-                  <div className="text-[10px] text-slate-500">kg today</div>
+                  <div className="text-[10px] text-slate-500">{t.supervisor.kgToday}</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-red-600">{myDiseases.length}</div>
-                  <div className="text-[10px] text-slate-500">alerts</div>
+                  <div className="text-[10px] text-slate-500">{t.supervisor.alerts}</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-amber-600">{presentCount}/{todayAttSup.length}</div>
-                  <div className="text-[10px] text-slate-500">present</div>
+                  <div className="text-[10px] text-slate-500">{t.supervisor.present}</div>
                 </div>
               </div>
             </div>
@@ -170,10 +176,10 @@ export default function SupervisorPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  {pendingTasks.slice(0,3).map(t => (
-                    <div key={t.id} className="flex items-center gap-2.5">
-                      <span className={`size-2 rounded-full shrink-0 ${t.priority==="high"?"bg-red-500":t.priority==="medium"?"bg-amber-500":"bg-slate-400"}`} />
-                      <span className="text-xs text-slate-700 truncate">{t.title}</span>
+                  {pendingTasks.slice(0,3).map(task => (
+                    <div key={task.id} className="flex items-center gap-2.5">
+                      <span className={`size-2 rounded-full shrink-0 ${task.priority==="high"?"bg-red-500":task.priority==="medium"?"bg-amber-500":"bg-slate-400"}`} />
+                      <span className="text-xs text-slate-700 truncate">{task.title}</span>
                     </div>
                   ))}
                   {pendingTasks.length === 0 && <div className="text-xs text-emerald-700 flex items-center gap-1"><CheckCircle2 className="size-3"/>All tasks complete</div>}
@@ -227,7 +233,7 @@ export default function SupervisorPage() {
       {/* Today's attendance summary */}
       <Card className="border border-slate-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900 flex items-center gap-2"><CalendarCheck className="size-4 text-emerald-600" />Today's Attendance Summary</h3>
+          <h3 className="font-semibold text-slate-900 flex items-center gap-2"><CalendarCheck className="size-4 text-emerald-600" />{t.supervisor.attendanceSummary}</h3>
           <Link href="/attendance" className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline font-medium">
             Take attendance <ArrowRight className="size-3" />
           </Link>
@@ -236,13 +242,13 @@ export default function SupervisorPage() {
           <table className="w-full pro-table text-sm">
             <thead>
               <tr>
-                <th className="text-left">Farmer</th>
+                <th className="text-left">{t.common.farmer}</th>
                 <th className="text-left">Role</th>
-                <th className="text-left">Valve</th>
-                <th className="text-left">Check-in</th>
-                <th className="text-left">Check-out</th>
-                <th className="text-left">Hours</th>
-                <th className="text-left">Status</th>
+                <th className="text-left">{t.common.valve}</th>
+                <th className="text-left">{t.attendance.checkIn}</th>
+                <th className="text-left">{t.attendance.checkOut}</th>
+                <th className="text-left">{t.attendance.hours}</th>
+                <th className="text-left">{t.common.status}</th>
               </tr>
             </thead>
             <tbody>

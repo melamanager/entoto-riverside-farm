@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Users, Wheat, AlertTriangle, TrendingUp, Activity, Leaf,
@@ -22,8 +24,12 @@ import {
   plantsInBed, todayKg, totalKgValve, getFarmer,
 } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 export default function DashboardPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const beds       = BEDS();
   const harvests   = HARVESTS();
   const diseases   = DISEASES();
@@ -61,7 +67,7 @@ export default function DashboardPage() {
     infected: beds.filter(b => b.valveId === v.id && b.health === "infected").length,
   })).sort((a, b) => b.kg - a.kg);
 
-  const pendingTasks = TASKS.filter(t => t.status !== "done").length;
+  const pendingTasks = TASKS.filter(task => task.status !== "done").length;
   const topFarmers = [...FARMERS]
     .filter(f => f.role === "farmer")
     .sort((a, b) => b.performanceScore - a.performanceScore)
@@ -88,10 +94,10 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 shrink-0">
             {[
-              { label: "Today's Harvest", value: `${totalKgToday.toFixed(1)} kg`, sub: "all zones", icon: Wheat, color: "bg-white/20 text-white" },
-              { label: "Active Alerts",   value: openDiseases,                    sub: openDiseases > 0 ? "needs action" : "all clear", icon: AlertTriangle, color: openDiseases > 0 ? "bg-red-500/80 text-white" : "bg-white/20 text-white" },
-              { label: "Staff On-site",   value: presentToday,                    sub: "present today", icon: Users, color: "bg-white/20 text-white" },
-              { label: "Season Yield",    value: `${(estimatedYield / 1000).toFixed(1)} t`, sub: "estimated total", icon: TrendingUp, color: "bg-white/20 text-white" },
+              { label: t.dashboard.todayHarvest,  value: `${totalKgToday.toFixed(1)} kg`, sub: "all zones", icon: Wheat, color: "bg-white/20 text-white" },
+              { label: t.dashboard.activeDiseases, value: openDiseases,              sub: openDiseases > 0 ? "needs action" : "all clear", icon: AlertTriangle, color: openDiseases > 0 ? "bg-red-500/80 text-white" : "bg-white/20 text-white" },
+              { label: t.dashboard.staffOnSite,   value: presentToday,               sub: "present today", icon: Users, color: "bg-white/20 text-white" },
+              { label: t.dashboard.seasonYield,   value: `${(estimatedYield / 1000).toFixed(1)} t`, sub: "estimated total", icon: TrendingUp, color: "bg-white/20 text-white" },
             ].map(item => {
               const Icon = item.icon;
               return (

@@ -1,9 +1,15 @@
+"use client";
+
 import { Card } from "@/components/ui/card";
 import { TrendingUp, DollarSign, ShoppingCart, BarChart3, TrendingDown } from "lucide-react";
 import { CUSTOMER_ORDERS, PACKAGING_RECORDS, FERTIGATION_RECORDS, PAYROLL_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 export default function RevenuePage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const totalRevenue  = CUSTOMER_ORDERS.reduce((s, o) => s + o.totalAmount, 0);
   const collected     = CUSTOMER_ORDERS.reduce((s, o) => s + o.advancePaid, 0);
   const outstanding   = totalRevenue - collected;
@@ -39,9 +45,9 @@ export default function RevenuePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Revenue</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.revenue.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Sales performance, profitability & customer breakdown</p>
+          <p className="text-slate-500 text-sm">{t.revenue.subtitle}</p>
         </div>
       </div>
 

@@ -11,6 +11,8 @@ import { PLANTING_RECORDS } from "@/lib/erp-data";
 import { BEDS, VALVES, FARMERS, getBed } from "@/lib/data";
 import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
 import type { GrowthStage } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const STATUS_STYLE: Record<PlantingStatus, { badge: string; dot: string }> = {
   planned:   { badge: "bg-slate-100 text-slate-600 border-slate-200",       dot: "bg-slate-400"   },
@@ -33,6 +35,8 @@ const EMPTY_FORM = {
 };
 
 export default function PlantingPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [plantings, setPlantings] = useState<PlantingRecord[]>(PLANTING_RECORDS);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantingRecord | null>(null);
@@ -212,12 +216,12 @@ export default function PlantingPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <CalendarDays className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Planting Schedule</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.planting.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Variety tracking, planting dates & expected harvest windows</p>
+          <p className="text-slate-500 text-sm">{t.planting.subtitle}</p>
         </div>
         <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-          <Plus className="size-4" /> Schedule Planting
+          <Plus className="size-4" /> {t.planting.schedulePlanting}
         </Button>
       </div>
 
@@ -225,25 +229,25 @@ export default function PlantingPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4 bg-emerald-50 border-emerald-200">
           <div className="flex items-center justify-between">
-            <div><div className="text-2xl font-bold text-emerald-700 tabular-nums">{growing}</div><div className="text-xs text-emerald-600 font-medium">Growing</div></div>
+            <div><div className="text-2xl font-bold text-emerald-700 tabular-nums">{growing}</div><div className="text-xs text-emerald-600 font-medium">{t.planting.growing}</div></div>
             <Sprout className="size-7 text-emerald-400" />
           </div>
         </Card>
         <Card className="p-4 bg-blue-50 border-blue-200">
           <div className="flex items-center justify-between">
-            <div><div className="text-2xl font-bold text-blue-700 tabular-nums">{planned}</div><div className="text-xs text-blue-600 font-medium">Planned</div></div>
+            <div><div className="text-2xl font-bold text-blue-700 tabular-nums">{planned}</div><div className="text-xs text-blue-600 font-medium">{t.planting.planned}</div></div>
             <Clock className="size-7 text-blue-400" />
           </div>
         </Card>
         <Card className="p-4 bg-amber-50 border-amber-200">
           <div className="flex items-center justify-between">
-            <div><div className="text-2xl font-bold text-amber-700 tabular-nums">{harvested}</div><div className="text-xs text-amber-600 font-medium">Harvested</div></div>
+            <div><div className="text-2xl font-bold text-amber-700 tabular-nums">{harvested}</div><div className="text-xs text-amber-600 font-medium">{t.planting.harvested}</div></div>
             <CheckCircle2 className="size-7 text-amber-400" />
           </div>
         </Card>
         <Card className="p-4 bg-red-50 border-red-200">
           <div className="flex items-center justify-between">
-            <div><div className="text-2xl font-bold text-red-700 tabular-nums">{failed}</div><div className="text-xs text-red-600 font-medium">Failed</div></div>
+            <div><div className="text-2xl font-bold text-red-700 tabular-nums">{failed}</div><div className="text-xs text-red-600 font-medium">{t.planting.failed}</div></div>
             <AlertTriangle className="size-7 text-red-400" />
           </div>
         </Card>
@@ -252,7 +256,7 @@ export default function PlantingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Variety breakdown */}
         <Card className="p-5 lg:col-span-1">
-          <h3 className="font-semibold text-slate-900 mb-4">Variety Breakdown</h3>
+          <h3 className="font-semibold text-slate-900 mb-4">{t.planting.varietyBreakdown}</h3>
           <div className="space-y-3">
             {Object.entries(byVariety).map(([variety, count]) => (
               <div key={variety} className="flex items-center justify-between">
@@ -271,7 +275,7 @@ export default function PlantingPage() {
         {/* Table */}
         <Card className="border border-slate-200 shadow-sm overflow-hidden lg:col-span-3">
           <div className="px-5 py-3.5 border-b border-slate-100 font-semibold text-slate-900">
-            All Planting Records
+            {t.planting.allRecords}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full pro-table">

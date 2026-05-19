@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
+import { LangProvider } from "@/lib/lang";
 import { MobileNav } from "@/components/mobile-nav";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full bg-[#f8fafc] text-slate-900">
+        <LangProvider>
         <AuthProvider>
           <div className="min-h-screen flex">
             <Sidebar />
@@ -28,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </AuthProvider>
+        </LangProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>

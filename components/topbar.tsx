@@ -10,6 +10,8 @@ import { NOTIFICATIONS, FARMERS, BEDS, VALVES } from "@/lib/data";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const NOTIF_ICONS: Record<Notification["type"], React.ReactNode> = {
   disease:    <AlertTriangle className="size-3.5 text-red-500" />,
@@ -63,6 +65,8 @@ const TYPE_BADGE: Record<SearchResult["type"], string> = {
 };
 
 export function Topbar() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -143,7 +147,7 @@ export function Topbar() {
             onChange={e => { setQuery(e.target.value); setSearchOpen(true); setFocused(0); }}
             onFocus={() => setSearchOpen(true)}
             onKeyDown={handleKey}
-            placeholder="Search beds, farmers, valves…"
+            placeholder={`${t.common.search} beds, farmers, valves…`}
             className="w-full pl-9 pr-16 h-8 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/30 transition-all placeholder:text-slate-400"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-mono hidden lg:block">
@@ -206,7 +210,7 @@ export function Topbar() {
               value={query}
               onChange={e => { setQuery(e.target.value); setFocused(0); }}
               onKeyDown={handleKey}
-              placeholder="Search beds, farmers, valves…"
+              placeholder={`${t.common.search} beds, farmers, valves…`}
               className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400"
             />
             <button onClick={() => { setQuery(""); setSearchOpen(false); }} className="p-1">

@@ -21,8 +21,12 @@ import { DISEASE_LABELS, DISEASE_TREATMENT_STEPS, DISEASE_TREATMENTS } from "@/l
 import type { DiseaseReport } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 export default function DiseasesPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
   const [diseases, setDiseases] = useState<DiseaseReport[]>(() => DISEASES());
 
@@ -195,10 +199,10 @@ export default function DiseasesPage() {
   };
 
   const STATUS_GROUPS: StatusEntry[] = [
-    { key: "open",     label: "Unreviewed — Awaiting Manager Recommendation", color: "text-red-700",     dot: "bg-red-500",     border: "border-red-200",     strip: "bg-red-500",     items: open },
-    { key: "notified", label: "Recommendation Sent — Supervisor Must Apply",  color: "text-orange-700", dot: "bg-orange-500", border: "border-orange-200", strip: "bg-orange-500", items: notified },
-    { key: "treating", label: "Treatment Applied — Awaiting Manager Sign-off", color: "text-blue-700",   dot: "bg-blue-500",   border: "border-blue-200",   strip: "bg-blue-500",   items: treating },
-    { key: "resolved", label: "Resolved",                                       color: "text-emerald-700",dot: "bg-emerald-500",border: "border-emerald-200",strip: "bg-emerald-500",items: resolved },
+    { key: "open",     label: t.diseases.groupOpen,     color: "text-red-700",     dot: "bg-red-500",     border: "border-red-200",     strip: "bg-red-500",     items: open },
+    { key: "notified", label: t.diseases.groupNotified, color: "text-orange-700", dot: "bg-orange-500", border: "border-orange-200", strip: "bg-orange-500", items: notified },
+    { key: "treating", label: t.diseases.groupTreating, color: "text-blue-700",   dot: "bg-blue-500",   border: "border-blue-200",   strip: "bg-blue-500",   items: treating },
+    { key: "resolved", label: t.diseases.groupResolved, color: "text-emerald-700",dot: "bg-emerald-500",border: "border-emerald-200",strip: "bg-emerald-500",items: resolved },
   ];
 
   const visibleGroups = STATUS_GROUPS;
@@ -211,7 +215,7 @@ export default function DiseasesPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Bug className="size-5 text-red-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Disease Management</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.diseases.title}</h1>
           </div>
           <p className="text-slate-500 text-sm">
             {isSupervisor
@@ -223,7 +227,7 @@ export default function DiseasesPage() {
           {(isManager || isSupervisor) && (
             <AIDetectDialog trigger={
               <Button className="gap-2 bg-amber-600 hover:bg-amber-700">
-                <Sparkles className="size-4" /> AI Detect Disease
+                <Sparkles className="size-4" /> {t.diseases.aiDetect}
               </Button>
             } />
           )}
@@ -244,20 +248,20 @@ export default function DiseasesPage() {
         {isManager && (
           <Card className="p-4 border-red-200 bg-red-50">
             <div className="text-2xl font-bold text-red-700">{open.length}</div>
-            <div className="text-xs text-red-600 font-medium">Needs Recommendation</div>
+            <div className="text-xs text-red-600 font-medium">{t.diseases.needsRecommendation}</div>
           </Card>
         )}
         <Card className="p-4 border-orange-200 bg-orange-50">
           <div className="text-2xl font-bold text-orange-700">{notified.length}</div>
-          <div className="text-xs text-orange-600 font-medium">{isSupervisor ? "Pending Your Action" : "Awaiting Treatment"}</div>
+          <div className="text-xs text-orange-600 font-medium">{isSupervisor ? t.diseases.pendingYourAction : t.diseases.awaitingTreatment}</div>
         </Card>
         <Card className="p-4 border-blue-200 bg-blue-50">
           <div className="text-2xl font-bold text-blue-700">{treating.length}</div>
-          <div className="text-xs text-blue-600 font-medium">{isSupervisor ? "Treatment Applied" : "Under Treatment"}</div>
+          <div className="text-xs text-blue-600 font-medium">{isSupervisor ? t.diseases.treatmentApplied : t.diseases.underTreatment}</div>
         </Card>
         <Card className="p-4 border-emerald-200 bg-emerald-50">
           <div className="text-2xl font-bold text-emerald-700">{resolved.length}</div>
-          <div className="text-xs text-emerald-600 font-medium">Resolved</div>
+          <div className="text-xs text-emerald-600 font-medium">{t.diseases.groupResolved}</div>
         </Card>
       </div>
 
@@ -305,7 +309,7 @@ export default function DiseasesPage() {
                           }`}>{group.key}</Badge>
                           {d.requiresImageProof && (
                             <Badge className="text-[10px] bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 gap-0.5">
-                              <ImageIcon className="size-2.5" /> Photo Required
+                              <ImageIcon className="size-2.5" /> {t.diseases.photoRequired}
                             </Badge>
                           )}
                         </div>
@@ -331,7 +335,7 @@ export default function DiseasesPage() {
                           <div className="mb-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
                             <div className="flex items-center gap-1.5 mb-1">
                               <ShieldCheck className="size-3 text-amber-600" />
-                              <span className="text-[11px] font-semibold text-amber-800">Manager Recommendation</span>
+                              <span className="text-[11px] font-semibold text-amber-800">{t.diseases.managerRecommendation}</span>
                               {d.notifiedAt && (
                                 <span className="text-[10px] text-amber-600 ml-auto">
                                   {new Date(d.notifiedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
@@ -382,7 +386,7 @@ export default function DiseasesPage() {
                             className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs w-full"
                             onClick={() => openRecommend(d)}
                           >
-                            <MessageSquare className="size-3.5" /> Write Recommendation
+                            <MessageSquare className="size-3.5" /> {t.diseases.writeRecommendation}
                           </Button>
                         )}
                         {isManager && group.key === "treating" && (
@@ -392,7 +396,7 @@ export default function DiseasesPage() {
                             onClick={() => markResolved(d)}
                           >
                             <CheckCircle2 className="size-3.5" />
-                            {d.requiresImageProof && d.proofImageUrl ? "Review & Resolve" : "Mark Resolved"}
+                            {d.requiresImageProof && d.proofImageUrl ? t.diseases.reviewResolve : t.diseases.markResolved}
                           </Button>
                         )}
 
@@ -403,7 +407,7 @@ export default function DiseasesPage() {
                             className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs w-full"
                             onClick={() => openConfirm(d)}
                           >
-                            <CheckCircle2 className="size-3.5" /> Confirm Treatment Applied
+                            <CheckCircle2 className="size-3.5" /> {t.diseases.confirmTreatment}
                           </Button>
                         )}
 

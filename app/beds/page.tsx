@@ -10,6 +10,8 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { BEDS, VALVES, FARMERS, plantsInBed, getValve, totalKgBed } from "@/lib/data";
 import type { Bed, GrowthStage, HealthStatus } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const VARIETIES = [
   { variety: "California Albion",      origin: "USA — California" },
@@ -38,6 +40,8 @@ function healthClass(h: HealthStatus) {
 }
 
 export default function BedsIndex() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [beds, setBeds] = useState<Bed[]>(() => BEDS());
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<Bed | null>(null);
@@ -216,7 +220,7 @@ export default function BedsIndex() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">🌱 All Raised Beds</h1>
+          <h1 className="text-2xl font-bold text-stone-900">🌱 {t.beds.title}</h1>
           <p className="text-stone-500 text-sm">{beds.length} beds · {totalPlants.toLocaleString()} plants</p>
         </div>
         <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
@@ -297,8 +301,8 @@ export default function BedsIndex() {
           </DialogHeader>
           <BedForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Bed</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>{t.common.create}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -313,8 +317,8 @@ export default function BedsIndex() {
           </DialogHeader>
           <BedForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>{t.common.save}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -331,8 +335,8 @@ export default function BedsIndex() {
             Permanently remove <strong>{deleteTarget?.id}</strong> ({deleteTarget?.variety})? Harvest records for this bed will be orphaned.
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>Delete</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>{t.common.delete}</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { PAYROLL_RECORDS } from "@/lib/erp-data";
 import { FARMERS, ATTENDANCE } from "@/lib/data";
 import type { PayrollRecord, PayrollStatus } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const STATUS_STYLE: Record<PayrollStatus, string> = {
   paid:      "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -20,6 +22,8 @@ const STATUS_STYLE: Record<PayrollStatus, string> = {
 const MONTHS = [...new Set(PAYROLL_RECORDS.map(r => r.month))].sort().reverse();
 
 export default function PayrollPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[0]);
   const [overrides, setOverrides] = useState<Record<string, Partial<PayrollRecord>>>({});
 
@@ -69,9 +73,9 @@ export default function PayrollPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <DollarSign className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Payroll</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.payroll.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Monthly payroll processing, wages & deductions</p>
+          <p className="text-slate-500 text-sm">{t.payroll.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -86,14 +90,14 @@ export default function PayrollPage() {
             ))}
           </select>
           <Button variant="outline" size="sm" className="gap-2" onClick={autoCalculate}>
-            <Calculator className="size-3.5" /> Auto-calculate from Attendance
+            <Calculator className="size-3.5" /> {t.payroll.autoCalculate}
           </Button>
           <Button variant="outline" size="sm" className="gap-2">
-            <Download className="size-3.5" /> Export
+            <Download className="size-3.5" /> {t.payroll.export}
           </Button>
           {pendingCount > 0 && (
             <Button onClick={processAll} size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-              <CheckCircle2 className="size-3.5" /> Process All ({pendingCount})
+              <CheckCircle2 className="size-3.5" /> {t.payroll.processAll} ({pendingCount})
             </Button>
           )}
         </div>
@@ -103,23 +107,23 @@ export default function PayrollPage() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="p-4 bg-emerald-50 border-emerald-200">
           <div className="text-lg font-bold text-emerald-700 tabular-nums">{(totalNetPay / 1000).toFixed(1)}k</div>
-          <div className="text-xs text-emerald-600 font-medium mt-0.5">Total Net Pay (ETB)</div>
+          <div className="text-xs text-emerald-600 font-medium mt-0.5">{t.payroll.netPay}</div>
         </Card>
         <Card className="p-4">
           <div className="text-lg font-bold text-slate-700 tabular-nums">{(totalBasePay / 1000).toFixed(1)}k</div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">Base Pay</div>
+          <div className="text-xs text-slate-500 font-medium mt-0.5">{t.payroll.basePay}</div>
         </Card>
         <Card className="p-4">
           <div className="text-lg font-bold text-blue-700 tabular-nums">{(totalOT / 1000).toFixed(1)}k</div>
-          <div className="text-xs text-blue-600 font-medium mt-0.5">Overtime</div>
+          <div className="text-xs text-blue-600 font-medium mt-0.5">{t.payroll.overtime}</div>
         </Card>
         <Card className="p-4">
           <div className="text-lg font-bold text-amber-700 tabular-nums">{(totalBonus / 1000).toFixed(1)}k</div>
-          <div className="text-xs text-amber-600 font-medium mt-0.5">Bonuses</div>
+          <div className="text-xs text-amber-600 font-medium mt-0.5">{t.payroll.bonuses}</div>
         </Card>
         <Card className="p-4 bg-red-50 border-red-200">
           <div className="text-lg font-bold text-red-700 tabular-nums">−{(totalDeduct / 1000).toFixed(1)}k</div>
-          <div className="text-xs text-red-600 font-medium mt-0.5">Deductions</div>
+          <div className="text-xs text-red-600 font-medium mt-0.5">{t.payroll.deductions}</div>
         </Card>
       </div>
 
@@ -131,23 +135,23 @@ export default function PayrollPage() {
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <Users className="size-3.5" />
-            <span>{records.length} employees</span>
+            <span>{records.length} {t.payroll.employees}</span>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full pro-table">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th className="text-center">Days</th>
-                <th className="text-right">Daily Rate</th>
-                <th className="text-right">Base Pay</th>
-                <th className="text-center">OT Hours</th>
+                <th>{t.common.farmer}</th>
+                <th className="text-center">{t.payroll.days}</th>
+                <th className="text-right">{t.payroll.dailyRate}</th>
+                <th className="text-right">{t.payroll.basePay}</th>
+                <th className="text-center">OT h</th>
                 <th className="text-right">OT Pay</th>
-                <th className="text-right">Bonus</th>
-                <th className="text-right">Deductions</th>
-                <th className="text-right">Net Pay (ETB)</th>
-                <th>Status</th>
+                <th className="text-right">{t.payroll.bonuses}</th>
+                <th className="text-right">{t.payroll.deductions}</th>
+                <th className="text-right">{t.payroll.netPay}</th>
+                <th>{t.common.status}</th>
               </tr>
             </thead>
             <tbody>

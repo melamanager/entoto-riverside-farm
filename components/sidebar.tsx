@@ -6,85 +6,86 @@ import {
   LayoutDashboard, Map, Sprout, Users, Bug, Wheat,
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
-  TrendingUp, DollarSign, UserCog, Beaker, ClipboardList,
-  BarChart3, CalendarDays, Zap, Bell, Warehouse,
+  TrendingUp, DollarSign, Beaker, ClipboardList,
+  BarChart3, CalendarDays, Zap, Bell, Warehouse, Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 import { AccountSwitcher } from "@/components/account-switcher";
 import { ValveIcon } from "@/components/valve-icon";
 
 type NavItem = {
   href: string;
-  label: string;
+  labelKey: keyof typeof EN.item;
   icon?: React.ComponentType<{ className?: string }>;
   isValve?: boolean;
   roles: string[];
-  title?: string;
 };
 
 type NavGroup = {
-  label: string;
+  groupKey: keyof typeof EN.nav;
   items: NavItem[];
 };
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Overview",
+    groupKey: "overview",
     items: [
-      { href: "/",           label: "Dashboard",      icon: LayoutDashboard, roles: ["manager"] },
-      { href: "/supervisor", label: "My Dashboard",   icon: ShieldCheck,     roles: ["supervisor"] },
-      { href: "/map",        label: "Farm Map",        icon: Map,             roles: ["manager", "supervisor"] },
+      { href: "/",           labelKey: "dashboard",        icon: LayoutDashboard, roles: ["manager"] },
+      { href: "/supervisor", labelKey: "myDashboard",      icon: ShieldCheck,     roles: ["supervisor"] },
+      { href: "/map",        labelKey: "farmMap",           icon: Map,             roles: ["manager", "supervisor"] },
     ],
   },
   {
-    label: "Crop Management",
+    groupKey: "cropMgmt",
     items: [
-      { href: "/planting",   label: "Planting Schedule", icon: CalendarDays,  roles: ["manager", "supervisor"] },
-      { href: "/beds",       label: "Raised Beds",        icon: Sprout,        roles: ["manager", "supervisor"] },
+      { href: "/planting", labelKey: "plantingSchedule", icon: CalendarDays, roles: ["manager", "supervisor"] },
+      { href: "/beds",     labelKey: "raisedBeds",        icon: Sprout,       roles: ["manager", "supervisor"] },
     ],
   },
   {
-    label: "Operations",
+    groupKey: "operations",
     items: [
-      { href: "/valves",      label: "Irrigation Zones",   isValve: true,        roles: ["manager"], title: "Valves: each valve controls water to a section of raised beds" },
-      { href: "/fertigation", label: "Nutrient Feeding",   icon: Beaker,         roles: ["manager", "supervisor"], title: "Fertigation: delivering fertilizer through the drip irrigation lines" },
-      { href: "/diseases",    label: "Disease Management", icon: Bug,            roles: ["manager", "supervisor"] },
-      { href: "/tasks",       label: "Daily Tasks",        icon: ListChecks,     roles: ["manager", "supervisor"] },
-      { href: "/stock",       label: "Input Store",        icon: Warehouse,      roles: ["manager", "supervisor"], title: "Track fertilizers, pesticides, packaging & tool inventory" },
-      { href: "/follow-ups",  label: "Follow-ups",         icon: Bell,           roles: ["manager", "supervisor"], title: "Pending actions, reminders & scheduled checks across all activities" },
+      { href: "/valves",      labelKey: "irrigationZones",  isValve: true,    roles: ["manager"] },
+      { href: "/fertigation", labelKey: "nutrientFeeding",  icon: Beaker,     roles: ["manager", "supervisor"] },
+      { href: "/diseases",    labelKey: "diseaseMgmt",      icon: Bug,        roles: ["manager", "supervisor"] },
+      { href: "/tasks",       labelKey: "dailyTasks",       icon: ListChecks, roles: ["manager", "supervisor"] },
+      { href: "/stock",       labelKey: "inputStore",       icon: Warehouse,  roles: ["manager", "supervisor"] },
+      { href: "/follow-ups",  labelKey: "followUps",        icon: Bell,       roles: ["manager", "supervisor"] },
     ],
   },
   {
-    label: "Harvest & Sales",
+    groupKey: "harvestSales",
     items: [
-      { href: "/harvest",    label: "Harvest Log",     icon: Wheat,           roles: ["manager", "supervisor"] },
-      { href: "/packaging",  label: "Packaging",       icon: Package,         roles: ["manager", "supervisor"] },
-      { href: "/orders",     label: "Customer Orders", icon: ShoppingCart,    roles: ["manager"] },
-      { href: "/revenue",    label: "Revenue",         icon: TrendingUp,      roles: ["manager"] },
+      { href: "/harvest",    labelKey: "harvestLog",      icon: Wheat,        roles: ["manager", "supervisor"] },
+      { href: "/packaging",  labelKey: "packaging",        icon: Package,      roles: ["manager", "supervisor"] },
+      { href: "/orders",     labelKey: "customerOrders",   icon: ShoppingCart, roles: ["manager"] },
+      { href: "/revenue",    labelKey: "revenue",          icon: TrendingUp,   roles: ["manager"] },
     ],
   },
   {
-    label: "Workforce",
+    groupKey: "workforce",
     items: [
-      { href: "/employees",    label: "Employees",       icon: Users,           roles: ["manager"] },
-      { href: "/assignments",  label: "Assignments",     icon: ClipboardList,   roles: ["manager", "supervisor"] },
-      { href: "/attendance",   label: "Attendance",      icon: CalendarCheck,   roles: ["manager", "supervisor"] },
-      { href: "/payroll",      label: "Payroll",         icon: DollarSign,      roles: ["manager"] },
-      { href: "/productivity", label: "Productivity",    icon: BarChart3,       roles: ["manager"] },
+      { href: "/employees",    labelKey: "employees",    icon: Users,         roles: ["manager"] },
+      { href: "/assignments",  labelKey: "assignments",  icon: ClipboardList, roles: ["manager", "supervisor"] },
+      { href: "/attendance",   labelKey: "attendance",   icon: CalendarCheck, roles: ["manager", "supervisor"] },
+      { href: "/payroll",      labelKey: "payroll",      icon: DollarSign,    roles: ["manager"] },
+      { href: "/productivity", labelKey: "productivity", icon: BarChart3,     roles: ["manager"] },
     ],
   },
   {
-    label: "Reports",
+    groupKey: "reports",
     items: [
-      { href: "/reports",    label: "Analytics",       icon: FileBarChart,    roles: ["manager"] },
-      { href: "/scan",       label: "QR Codes",        icon: QrCode,          roles: ["manager", "supervisor"] },
+      { href: "/reports", labelKey: "analytics", icon: FileBarChart, roles: ["manager"] },
+      { href: "/scan",    labelKey: "qrCodes",   icon: QrCode,       roles: ["manager", "supervisor"] },
     ],
   },
   {
-    label: "Intelligence",
+    groupKey: "intelligence",
     items: [
-      { href: "/ai",         label: "AI Alerts & Forecast", icon: Zap,      roles: ["manager", "supervisor"] },
+      { href: "/ai", labelKey: "aiAlerts", icon: Zap, roles: ["manager", "supervisor"] },
     ],
   },
 ];
@@ -92,6 +93,8 @@ const NAV_GROUPS: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { toggle, isAm } = useLang();
+  const t = isAm ? AM : EN;
   const role = user?.role ?? "manager";
 
   if (pathname === "/login") return null;
@@ -115,7 +118,9 @@ export function Sidebar() {
       {user && (
         <div className="mx-3 mt-3 px-2 py-1.5 rounded-md bg-white/4 border border-white/6 flex items-center gap-1.5">
           <span className={`size-1.5 rounded-full ${role === "manager" ? "bg-amber-400" : role === "supervisor" ? "bg-blue-400" : "bg-emerald-400"}`} />
-          <span className="text-[11px] text-slate-400 capitalize">{role} access</span>
+          <span className="text-[11px] text-slate-400 capitalize">
+            {role === "manager" ? t.common.managerAccess : t.common.supervisorAccess}
+          </span>
         </div>
       )}
 
@@ -125,20 +130,20 @@ export function Sidebar() {
           const visibleItems = group.items.filter(i => i.roles.includes(role));
           if (visibleItems.length === 0) return null;
           return (
-            <div key={group.label}>
+            <div key={group.groupKey}>
               <div className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">
-                {group.label}
+                {t.nav[group.groupKey]}
               </div>
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {
+                  const label = t.item[item.labelKey];
                   const active = item.href === "/" ? pathname === "/"
                     : item.href === "/supervisor" && role === "supervisor" ? pathname === "/supervisor" || pathname === "/"
                     : pathname.startsWith(item.href);
                   return (
                     <Link
-                      key={`${item.href}-${item.label}`}
+                      key={`${item.href}-${item.labelKey}`}
                       href={item.href}
-                      title={item.title}
                       className={cn(
                         "group flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-all",
                         active
@@ -152,7 +157,7 @@ export function Sidebar() {
                         ? <item.icon className={cn("size-3.5 shrink-0", active ? "text-emerald-400" : "text-slate-500 group-hover:text-slate-300")} />
                         : null
                       }
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate">{label}</span>
                       {active && <ChevronRight className="size-3 ml-auto text-emerald-500" />}
                     </Link>
                   );
@@ -163,22 +168,37 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Account switcher */}
+      {/* Footer: account + language */}
       <div className="px-2 pb-3 pt-2 border-t border-white/5 space-y-2">
         {user ? (
           <AccountSwitcher />
         ) : (
           <Link href="/login" className="flex items-center gap-2 px-3 py-2 rounded-md text-slate-400 hover:text-white hover:bg-white/5 text-sm">
-            <LogIn className="size-4" /> Sign in
+            <LogIn className="size-4" /> {isAm ? "ግባ" : "Sign in"}
           </Link>
         )}
         <div className="flex items-center justify-between px-2 text-[10px] text-slate-600">
           <span className="flex items-center gap-1">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Live · ERP v2.0
+            {t.common.liveErp}
           </span>
-          <span>🇪🇹 Addis Ababa</span>
+          <span>{t.common.addisAbaba}</span>
         </div>
+
+        {/* Language toggle */}
+        <button
+          onClick={toggle}
+          className="w-full flex items-center justify-between px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/8 transition-colors"
+        >
+          <span className="flex items-center gap-2 text-[11px] text-slate-400">
+            <Languages className="size-3 text-slate-500" />
+            {isAm ? "ቋንቋ" : "Language"}
+          </span>
+          <div className="flex items-center gap-0.5 text-[10px]">
+            <span className={cn("px-1.5 py-0.5 rounded font-bold transition-colors", !isAm ? "bg-emerald-600 text-white" : "text-slate-600")}>EN</span>
+            <span className={cn("px-1.5 py-0.5 rounded font-bold transition-colors", isAm ? "bg-emerald-600 text-white" : "text-slate-600")}>አማ</span>
+          </div>
+        </button>
       </div>
     </aside>
   );

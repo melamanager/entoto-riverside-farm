@@ -8,10 +8,12 @@ import {
   FileBarChart, CalendarCheck, LogOut, Check, ChevronRight,
   Shield, UserCircle2, Package, ShoppingCart, TrendingUp,
   DollarSign, UserCog, Beaker, ClipboardList, BarChart3,
-  CalendarDays, Zap,
+  CalendarDays, Zap, Languages,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 import { FARMERS } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { ValveIcon } from "@/components/valve-icon";
@@ -83,17 +85,20 @@ const ROLE_COLORS = {
   farmer:     { bg: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800 border-emerald-300" },
 };
 
+const PRIMARY_TAB_KEYS = ["home", "map", "diseases", "tasks"] as const;
 const PRIMARY_TABS = [
-  { href: "/",           label: "Home",     managerIcon: LayoutDashboard, supervisorHref: "/supervisor", supervisorIcon: ShieldCheck },
-  { href: "/map",        label: "Map",      icon: Map         },
-  { href: "/diseases",   label: "Diseases", icon: Bug         },
-  { href: "/tasks",      label: "Tasks",    icon: ListChecks  },
+  { href: "/",           tabKey: "home",     managerIcon: LayoutDashboard, supervisorHref: "/supervisor", supervisorIcon: ShieldCheck },
+  { href: "/map",        tabKey: "map",      icon: Map         },
+  { href: "/diseases",   tabKey: "diseases", icon: Bug         },
+  { href: "/tasks",      tabKey: "tasks",    icon: ListChecks  },
 ] as const;
 
 export function MobileNav() {
   const pathname = usePathname();
   const router   = useRouter();
   const { user, login, logout, isManager, isSupervisor } = useAuth();
+  const { toggle, isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (pathname === "/login") return null;
@@ -140,7 +145,7 @@ export function MobileNav() {
               >
                 {active && <span className="absolute top-0 inset-x-3 h-0.5 bg-emerald-500 rounded-b-full" />}
                 <Icon className="size-5" />
-                <span className="text-[10px] font-semibold">{tab.label}</span>
+                <span className="text-[10px] font-semibold">{t.tabs[tab.tabKey]}</span>
               </Link>
             );
           })}
@@ -154,7 +159,7 @@ export function MobileNav() {
             )}
           >
             <MoreHorizontal className="size-5" />
-            <span className="text-[10px] font-semibold">More</span>
+            <span className="text-[10px] font-semibold">{t.tabs.more}</span>
           </button>
         </div>
       </nav>
@@ -253,7 +258,7 @@ export function MobileNav() {
               {/* Account switcher */}
               <div className="mx-3 mt-2 mb-3 rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Switch Account</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t.tabs.switchAccount}</div>
                 </div>
                 {FARMERS.filter(f => f.role !== "farmer").map(f => {
                   const isActive = user?.id === f.id;
@@ -293,6 +298,20 @@ export function MobileNav() {
                 })}
               </div>
 
+              {/* Language toggle */}
+              <div className="px-3 pb-2">
+                <button
+                  onClick={toggle}
+                  className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <span className="flex items-center gap-2"><Languages className="size-4 text-slate-400" />{isAm ? "ቋንቋ" : "Language"}</span>
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className={cn("px-2 py-0.5 rounded font-bold", !isAm ? "bg-emerald-600 text-white" : "text-slate-400")}>EN</span>
+                    <span className={cn("px-2 py-0.5 rounded font-bold", isAm ? "bg-emerald-600 text-white" : "text-slate-400")}>አማ</span>
+                  </div>
+                </button>
+              </div>
+
               {/* Sign out */}
               <div className="px-3 pb-6">
                 <button
@@ -300,7 +319,7 @@ export function MobileNav() {
                   className="flex items-center gap-2.5 w-full px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 border border-red-100 transition-colors text-sm font-semibold"
                 >
                   <LogOut className="size-4" />
-                  Sign Out
+                  {t.tabs.signOut}
                 </button>
               </div>
             </div>

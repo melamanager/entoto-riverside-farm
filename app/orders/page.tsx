@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { CUSTOMER_ORDERS, PACKAGING_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
 import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const PAYMENT_STYLE: Record<PaymentStatus, string> = {
   paid:    "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -39,6 +41,8 @@ const EMPTY_FORM = {
 };
 
 export default function OrdersPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [orders, setOrders] = useState<CustomerOrder[]>(CUSTOMER_ORDERS);
   const [filter, setFilter]         = useState<"all" | PaymentStatus>("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -144,8 +148,8 @@ export default function OrdersPage() {
               onChange={e => setForm(p => ({ ...p, customerType: e.target.value as CustomerType }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
             >
-              {(Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map(t => (
-                <option key={t} value={t}>{CUSTOMER_ICONS[t]} {CUSTOMER_TYPE_LABELS[t]}</option>
+              {(Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map(ct => (
+                <option key={ct} value={ct}>{CUSTOMER_ICONS[ct]} {CUSTOMER_TYPE_LABELS[ct]}</option>
               ))}
             </select>
           </div>
@@ -238,12 +242,12 @@ export default function OrdersPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <ShoppingCart className="size-5 text-indigo-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Customer Orders</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.orders.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Order tracking, delivery status & payment collection</p>
+          <p className="text-slate-500 text-sm">{t.orders.subtitle}</p>
         </div>
         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
-          <Plus className="size-4" /> New Order
+          <Plus className="size-4" /> {t.orders.newOrder}
         </Button>
       </div>
 
@@ -399,8 +403,8 @@ export default function OrdersPage() {
           </DialogHeader>
           <OrderForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={handleCreate}>Create Order</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={handleCreate}>{t.common.create}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -415,8 +419,8 @@ export default function OrdersPage() {
           </DialogHeader>
           <OrderForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={handleEdit}>Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={handleEdit}>{t.common.save}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -436,8 +440,8 @@ export default function OrdersPage() {
             )}
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>Delete</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>{t.common.delete}</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,11 +1,17 @@
+"use client";
+
 import { FarmMap } from "@/components/farm-map";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VALVES, BEDS, HARVESTS, FARM, plantsInBed } from "@/lib/data";
 import { Mountain, Sprout } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 export default function MapPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const beds = BEDS();
   const today = "2026-05-17";
   const harvestKgByBed: Record<string, number> = {};
@@ -17,7 +23,7 @@ export default function MapPage() {
     <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">🗺 Virtual Farm Map</h1>
+          <h1 className="text-2xl font-bold text-stone-900">🗺 {t.map.title}</h1>
           <p className="text-stone-500 text-sm flex items-center gap-2">
             <Mountain className="size-3.5" /> {FARM.location} · {FARM.altitudeM}m · {FARM.totalAreaHa} ha
           </p>

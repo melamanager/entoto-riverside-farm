@@ -18,6 +18,8 @@ import type { FollowUp, FollowUpEntityType, FollowUpStatus, FollowUpPriority } f
 import {
   FOLLOW_UP_ENTITY_LABELS, FOLLOW_UP_ENTITY_ICONS,
 } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const TODAY = "2026-05-19";
 
@@ -62,6 +64,8 @@ const EMPTY_FORM = {
 type FilterTab = "all" | "pending" | "overdue" | "done" | "today";
 
 export default function FollowUpsPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [followUps, setFollowUps]   = useState<FollowUp[]>(FOLLOW_UPS);
   const [tab, setTab]               = useState<FilterTab>("all");
   const [entityFilter, setEntity]   = useState<FollowUpEntityType | "all">("all");
@@ -212,25 +216,23 @@ export default function FollowUpsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Bell className="size-5 text-amber-500" />
-            <h1 className="text-2xl font-bold text-slate-900">Follow-ups & Reminders</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.followUps.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">
-            Track pending actions across disease treatment, planting, feeding schedules, and tasks.
-          </p>
+          <p className="text-slate-500 text-sm">{t.followUps.subtitle}</p>
         </div>
         <Button onClick={() => { setForm({ ...EMPTY_FORM, assignedTo: managers[0]?.id ?? "" }); setCreateOpen(true); }}
           className="bg-amber-500 hover:bg-amber-600 gap-2">
-          <Plus className="size-4" /> New Follow-up
+          <Plus className="size-4" /> {t.followUps.newFollowUp}
         </Button>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Pending",  value: counts.pending, color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",   tab: "pending" as FilterTab },
-          { label: "Overdue",  value: counts.overdue, color: "text-rose-700",   bg: "bg-rose-50 border-rose-200",   tab: "overdue" as FilterTab },
-          { label: "Due Today",value: counts.today,   color: "text-amber-700",  bg: "bg-amber-50 border-amber-200", tab: "today" as FilterTab },
-          { label: "Done",     value: counts.done,    color: "text-emerald-700",bg: "bg-emerald-50 border-emerald-200", tab: "done" as FilterTab },
+          { label: t.common.pending,      value: counts.pending, color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",   tab: "pending" as FilterTab },
+          { label: t.common.overdue,      value: counts.overdue, color: "text-rose-700",   bg: "bg-rose-50 border-rose-200",   tab: "overdue" as FilterTab },
+          { label: t.followUps.dueToday,  value: counts.today,   color: "text-amber-700",  bg: "bg-amber-50 border-amber-200", tab: "today" as FilterTab },
+          { label: t.common.done,         value: counts.done,    color: "text-emerald-700",bg: "bg-emerald-50 border-emerald-200", tab: "done" as FilterTab },
         ].map(({ label, value, color, bg, tab: t }) => (
           <button key={label} onClick={() => setTab(t)}
             className={`rounded-xl border p-4 text-left transition-all hover:shadow-sm ${bg} ${tab === t ? "ring-2 ring-offset-1 ring-slate-400" : ""}`}>
@@ -243,12 +245,12 @@ export default function FollowUpsPage() {
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
-          {(["all", "pending", "overdue", "today", "done"] as FilterTab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
+          {(["all", "pending", "overdue", "today", "done"] as FilterTab[]).map(f => (
+            <button key={f} onClick={() => setTab(f)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${
-                tab === t ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"
+                tab === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"
               }`}>
-              {t === "today" ? "Due Today" : t}
+              {f === "today" ? t.followUps.dueToday : f}
             </button>
           ))}
         </div>
@@ -261,7 +263,7 @@ export default function FollowUpsPage() {
                   ? "bg-slate-800 text-white border-slate-800"
                   : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
               }`}>
-              {e === "all" ? "All types" : `${FOLLOW_UP_ENTITY_ICONS[e]} ${FOLLOW_UP_ENTITY_LABELS[e]}`}
+              {e === "all" ? t.followUps.allTypes : `${FOLLOW_UP_ENTITY_ICONS[e]} ${FOLLOW_UP_ENTITY_LABELS[e]}`}
             </button>
           ))}
         </div>
@@ -329,9 +331,9 @@ export default function FollowUpsPage() {
                       <div className={`text-[11px] mt-0.5 ${isOverdue ? "text-rose-600 font-bold" : "text-slate-400"}`}>
                         {fu.status === "done"
                           ? `Done ${fu.completedAt ? new Date(fu.completedAt).toLocaleDateString("en", { month: "short", day: "numeric" }) : ""}`
-                          : isOverdue ? `${Math.abs(days)}d overdue`
-                          : days === 0 ? "Due today"
-                          : `Due in ${days}d`}
+                          : isOverdue ? `${Math.abs(days)}${t.followUps.dOverdue}`
+                          : days === 0 ? t.common.today
+                          : `${t.followUps.dueIn} ${days}${t.followUps.dDays}`}
                       </div>
                       <div className="text-[10px] text-slate-400">
                         {new Date(fu.dueDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
@@ -385,19 +387,19 @@ export default function FollowUpsPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" /> Mark as Complete
+              <CheckCircle2 className="size-4 text-emerald-600" /> {t.followUps.markComplete}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-slate-600">{doneTarget?.title}</p>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Completion note (optional)</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">{t.followUps.completionNote}</label>
             <Textarea value={doneNote} onChange={e => setDoneNote(e.target.value)}
               placeholder="Describe what was done, any observations..."
               className="text-sm min-h-[80px]" />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDoneTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={markDone}>Confirm Done</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDoneTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={markDone}>{t.followUps.confirmDone}</Button>
           </div>
         </DialogContent>
       </Dialog>

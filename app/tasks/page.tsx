@@ -16,6 +16,8 @@ import {
 import { toast } from "sonner";
 import { TASKS, FARMERS, getFarmer, getBed, BEDS, VALVES } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 import type { Task } from "@/lib/types";
 
 const PRIORITY_COLORS = {
@@ -33,6 +35,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function TasksPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
   const [tasks, setTasks] = useState<Task[]>(TASKS);
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "done">("all");
@@ -128,13 +132,9 @@ export default function TasksPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <ListChecks className="size-5 text-blue-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Task Manager</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.tasks.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">
-            {isSupervisor
-              ? "Tasks assigned to you by the manager"
-              : "Create, assign, and track all field tasks"}
-          </p>
+          <p className="text-slate-500 text-sm">{t.tasks.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           {isSupervisor && (
@@ -145,7 +145,7 @@ export default function TasksPage() {
           )}
           {isManager && (
             <Button onClick={() => setNewTaskOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-              <Plus className="size-4" /> New Task
+              <Plus className="size-4" /> {t.tasks.newTask}
             </Button>
           )}
         </div>
@@ -157,7 +157,7 @@ export default function TasksPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-amber-700">{pending}</div>
-              <div className="text-xs text-amber-600 font-medium">Pending</div>
+              <div className="text-xs text-amber-600 font-medium">{t.common.pending}</div>
             </div>
             <AlertCircle className="size-8 text-amber-400" />
           </div>
@@ -166,7 +166,7 @@ export default function TasksPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-blue-700">{inProgress}</div>
-              <div className="text-xs text-blue-600 font-medium">In Progress</div>
+              <div className="text-xs text-blue-600 font-medium">{t.tasks.inProgress}</div>
             </div>
             <Clock className="size-8 text-blue-400" />
           </div>
@@ -175,7 +175,7 @@ export default function TasksPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-emerald-700">{done}</div>
-              <div className="text-xs text-emerald-600 font-medium">Completed</div>
+              <div className="text-xs text-emerald-600 font-medium">{t.tasks.complete}</div>
             </div>
             <CheckCircle2 className="size-8 text-emerald-400" />
           </div>
@@ -215,7 +215,7 @@ export default function TasksPage() {
         {filtered.length === 0 && (
           <div className="text-center py-12 text-slate-400">
             <ListChecks className="size-10 mx-auto mb-2 opacity-20" />
-            <p className="text-sm">No tasks found.</p>
+            <p className="text-sm">{t.tasks.noTasks}</p>
           </div>
         )}
         {filtered.map(task => {
@@ -471,7 +471,7 @@ export default function TasksPage() {
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Plus className="size-4" /> Create New Task
+                <Plus className="size-4" /> {t.tasks.createTask}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
@@ -565,7 +565,7 @@ export default function TasksPage() {
                 disabled={!newTask.title}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2"
               >
-                <Plus className="size-4" /> Create & Assign Task
+                <Plus className="size-4" /> {t.tasks.createTask}
               </Button>
             </div>
           </DialogContent>

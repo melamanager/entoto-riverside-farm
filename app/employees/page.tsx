@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { FARMERS, VALVES, TASKS } from "@/lib/data";
 import { WORKER_ASSIGNMENTS } from "@/lib/erp-data";
 import type { Farmer } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const ROLE_STYLE = {
   manager:    { badge: "bg-amber-100 text-amber-800 border-amber-200",    dot: "bg-amber-400"   },
@@ -34,6 +36,8 @@ function initials(name: string) {
 }
 
 export default function EmployeesPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [farmers, setFarmers] = useState<Farmer[]>(FARMERS);
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<Farmer | null>(null);
@@ -218,7 +222,7 @@ export default function EmployeesPage() {
           {people.map(f => {
             const style = ROLE_STYLE[f.role];
             const valves = VALVES.filter(v => f.assignedValves.includes(v.id));
-            const tasks = TASKS.filter(t => t.assignedTo === f.id);
+            const tasks = TASKS.filter(task => task.assignedTo === f.id);
             const assignments = WORKER_ASSIGNMENTS.filter(a => a.farmerId === f.id);
             const completedJobs = assignments.filter(a => a.status === "completed").length;
 
@@ -282,7 +286,7 @@ export default function EmployeesPage() {
                     <div className="text-[10px] text-slate-400">Jobs done</div>
                   </div>
                   <div className="bg-slate-50 rounded-lg py-2">
-                    <div className="text-sm font-bold text-slate-800">{tasks.filter(t => t.status === "done").length}</div>
+                    <div className="text-sm font-bold text-slate-800">{tasks.filter(task => task.status === "done").length}</div>
                     <div className="text-[10px] text-slate-400">Tasks done</div>
                   </div>
                   <div className="bg-slate-50 rounded-lg py-2">
@@ -338,12 +342,12 @@ export default function EmployeesPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Users className="size-5 text-blue-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Employees</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.employees.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Manage all farm staff — add, edit, or remove workers and supervisors</p>
+          <p className="text-slate-500 text-sm">{t.employees.subtitle}</p>
         </div>
         <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-          <Plus className="size-4" /> Add Staff Member
+          <Plus className="size-4" /> {t.common.new}
         </Button>
       </div>
 
@@ -377,8 +381,8 @@ export default function EmployeesPage() {
           </DialogHeader>
           <StaffForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Add to Staff</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>{t.common.create}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -393,8 +397,8 @@ export default function EmployeesPage() {
           </DialogHeader>
           <StaffForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>{t.common.save}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -411,8 +415,8 @@ export default function EmployeesPage() {
             This will remove <strong>{deleteTarget?.name}</strong> from the farm staff roster. Their historical records will be preserved.
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>Remove Staff</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>{t.common.delete}</Button>
           </div>
         </DialogContent>
       </Dialog>

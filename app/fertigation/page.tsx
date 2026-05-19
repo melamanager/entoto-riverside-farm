@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { FERTIGATION_RECORDS, STOCK_ITEMS } from "@/lib/erp-data";
 import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import type { FertigationRecord, FertigationStatus, ApplicationMethod } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const STATUS_STYLE: Record<FertigationStatus, string> = {
   applied:   "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -39,6 +41,8 @@ const EMPTY_FORM = {
 };
 
 export default function FertigationPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [records, setRecords] = useState<FertigationRecord[]>(FERTIGATION_RECORDS);
   const [filter, setFilter]   = useState<FertigationStatus | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -163,7 +167,7 @@ export default function FertigationPage() {
             <div className={`mt-2 rounded-lg border px-3 py-2 ${!hasEnough ? "bg-red-50 border-red-200" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className={`font-semibold ${!hasEnough ? "text-red-700" : stockItem.currentQty <= stockItem.reorderLevel ? "text-amber-700" : "text-emerald-700"}`}>
-                  {!hasEnough ? "⚠ Insufficient stock" : stockItem.currentQty <= stockItem.reorderLevel ? "⚠ Low stock" : "✓ Stock OK"}
+                  {!hasEnough ? t.fertigation.insufficientStock : stockItem.currentQty <= stockItem.reorderLevel ? t.fertigation.lowStock : t.fertigation.stockOk}
                 </span>
                 <span className="text-slate-500 tabular-nums">{stockItem.currentQty.toFixed(2)} / {stockItem.maxCapacity} {stockItem.unit}</span>
               </div>
@@ -172,8 +176,8 @@ export default function FertigationPage() {
                   style={{ width: `${stockPct}%` }} />
               </div>
               <div className="flex justify-between text-[10px] mt-1 text-slate-500">
-                <span>Needed: <strong>{neededKg.toFixed(2)} kg</strong> ({form.dosageGPerL}g/L × {form.waterVolumeLiters}L)</span>
-                <span>After: {Math.max(0, stockItem.currentQty - neededKg).toFixed(2)} kg</span>
+                <span>{t.fertigation.needed}: <strong>{neededKg.toFixed(2)} kg</strong> ({form.dosageGPerL}g/L × {form.waterVolumeLiters}L)</span>
+                <span>{t.fertigation.afterUse}: {Math.max(0, stockItem.currentQty - neededKg).toFixed(2)} kg</span>
               </div>
             </div>
           )}
@@ -263,12 +267,12 @@ export default function FertigationPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Beaker className="size-5 text-violet-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Fertigation</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.fertigation.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Fertilizer applications, scheduling & nutrient tracking</p>
+          <p className="text-slate-500 text-sm">{t.fertigation.subtitle}</p>
         </div>
         <Button onClick={openCreate} className="bg-violet-600 hover:bg-violet-700 gap-2">
-          <Plus className="size-4" /> Schedule Application
+          <Plus className="size-4" /> {t.fertigation.scheduleApplication}
         </Button>
       </div>
 
@@ -276,19 +280,19 @@ export default function FertigationPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4 bg-emerald-50 border-emerald-200">
           <div className="text-2xl font-bold text-emerald-700 tabular-nums">{applied}</div>
-          <div className="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-0.5"><CheckCircle2 className="size-3" /> Applied</div>
+          <div className="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-0.5"><CheckCircle2 className="size-3" /> {t.common.applied}</div>
         </Card>
         <Card className="p-4 bg-blue-50 border-blue-200">
           <div className="text-2xl font-bold text-blue-700 tabular-nums">{scheduled}</div>
-          <div className="text-xs text-blue-600 font-medium flex items-center gap-1 mt-0.5"><Clock className="size-3" /> Scheduled</div>
+          <div className="text-xs text-blue-600 font-medium flex items-center gap-1 mt-0.5"><Clock className="size-3" /> {t.common.scheduled}</div>
         </Card>
         <Card className="p-4 bg-violet-50 border-violet-200">
           <div className="text-lg font-bold text-violet-700 tabular-nums">{totalLiters.toLocaleString()} L</div>
-          <div className="text-xs text-violet-600 font-medium flex items-center gap-1 mt-0.5"><Droplets className="size-3" /> Water Applied</div>
+          <div className="text-xs text-violet-600 font-medium flex items-center gap-1 mt-0.5"><Droplets className="size-3" /> {t.fertigation.waterApplied}</div>
         </Card>
         <Card className="p-4 bg-amber-50 border-amber-200">
           <div className="text-lg font-bold text-amber-700 tabular-nums">{totalCost.toLocaleString()} ETB</div>
-          <div className="text-xs text-amber-600 font-medium flex items-center gap-1 mt-0.5"><Beaker className="size-3" /> Input Cost</div>
+          <div className="text-xs text-amber-600 font-medium flex items-center gap-1 mt-0.5"><Beaker className="size-3" /> {t.fertigation.inputCost}</div>
         </Card>
       </div>
 
@@ -368,13 +372,13 @@ export default function FertigationPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-violet-600" /> Schedule Fertigation
+              <Plus className="size-4 text-violet-600" /> {t.fertigation.scheduleApplication}
             </DialogTitle>
           </DialogHeader>
           <FertigationForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-violet-600 hover:bg-violet-700" onClick={handleCreate}>Create</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-violet-600 hover:bg-violet-700" onClick={handleCreate}>{t.common.create}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -384,13 +388,13 @@ export default function FertigationPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit Fertigation Record
+              <Pencil className="size-4 text-slate-600" /> {t.common.edit} {t.fertigation.title}
             </DialogTitle>
           </DialogHeader>
           <FertigationForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-violet-600 hover:bg-violet-700" onClick={handleEdit}>Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-violet-600 hover:bg-violet-700" onClick={handleEdit}>{t.common.save}</Button>
           </div>
         </DialogContent>
       </Dialog>

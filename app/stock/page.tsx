@@ -16,6 +16,8 @@ import { STOCK_ITEMS, STOCK_TRANSACTIONS, FERTIGATION_RECORDS } from "@/lib/erp-
 import { FARMERS } from "@/lib/data";
 import type { StockItem, StockTransaction, StockCategory, TransactionType } from "@/lib/erp-types";
 import { STOCK_CATEGORY_LABELS, STOCK_CATEGORY_ICONS } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const CATEGORY_FILTER = ["all", "fertilizer", "pesticide", "packaging", "tool", "seed", "other"] as const;
 
@@ -45,6 +47,8 @@ const EMPTY_TX: { itemId: string; type: TransactionType; quantity: number; notes
 };
 
 export default function StockPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [items, setItems]         = useState<StockItem[]>(STOCK_ITEMS);
   const [transactions, setTx]     = useState<StockTransaction[]>(STOCK_TRANSACTIONS);
   const [catFilter, setCatFilter] = useState<typeof CATEGORY_FILTER[number]>("all");
@@ -75,7 +79,7 @@ export default function StockPage() {
   }, [items]);
 
   function itemTransactions(itemId: string) {
-    return transactions.filter(t => t.itemId === itemId).sort((a, b) => b.date.localeCompare(a.date));
+    return transactions.filter(tx => tx.itemId === itemId).sort((a, b) => b.date.localeCompare(a.date));
   }
 
   function openTxDialog(itemId?: string, type: TransactionType = "stock_in") {
@@ -148,18 +152,16 @@ export default function StockPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Package className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Input Store</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.stock.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">
-            Track fertilizers, pesticides, packaging & tools. Stock deducts automatically when applications are logged.
-          </p>
+          <p className="text-slate-500 text-sm">{t.stock.subtitle}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => openTxDialog(undefined, "stock_out")} className="gap-2">
-            <ArrowDownCircle className="size-4 text-rose-500" /> Record Use
+            <ArrowDownCircle className="size-4 text-rose-500" /> {t.stock.stockOut}
           </Button>
           <Button onClick={() => { setItemForm({ ...EMPTY_ITEM }); setNewItemOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-            <Plus className="size-4" /> Add Item
+            <Plus className="size-4" /> {t.stock.addItem}
           </Button>
         </div>
       </div>
@@ -169,27 +171,27 @@ export default function StockPage() {
         <Card className="p-4">
           <div className="text-2xl font-bold text-slate-900">{items.length}</div>
           <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-            <Package className="size-3" /> Items tracked
+            <Package className="size-3" /> {t.stock.totalItems}
           </div>
         </Card>
         <Card className={`p-4 ${lowCount > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200"}`}>
           <div className={`text-2xl font-bold ${lowCount > 0 ? "text-rose-700" : "text-emerald-700"}`}>{lowCount}</div>
           <div className={`text-xs font-medium mt-0.5 flex items-center gap-1 ${lowCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-            <AlertTriangle className="size-3" /> Low / out of stock
+            <AlertTriangle className="size-3" /> {t.stock.lowStock}
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xl font-bold text-slate-900">
             {totalValue.toLocaleString()} ETB
           </div>
-          <div className="text-xs text-slate-500 mt-0.5">Total inventory value</div>
+          <div className="text-xs text-slate-500 mt-0.5">{t.stock.stockValue}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xl font-bold text-slate-900">
-            {transactions.filter(t => t.type === "stock_out").length}
+            {transactions.filter(tx => tx.type === "stock_out").length}
           </div>
           <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-            <TrendingDown className="size-3" /> Usage transactions
+            <TrendingDown className="size-3" /> {t.stock.transactions}
           </div>
         </Card>
       </div>

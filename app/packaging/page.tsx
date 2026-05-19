@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { PACKAGING_RECORDS, CUSTOMER_ORDERS } from "@/lib/erp-data";
 import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose } from "@/lib/erp-types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
 
 const STATUS_STYLE: Record<PackagingStatus, string> = {
   in_progress: "bg-blue-100 text-blue-700 border-blue-200",
@@ -44,6 +46,8 @@ const EMPTY_FORM = {
 };
 
 export default function PackagingPage() {
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
   const [records, setRecords] = useState<PackagingRecord[]>(PACKAGING_RECORDS);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PackagingRecord | null>(null);
@@ -292,12 +296,12 @@ export default function PackagingPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Package className="size-5 text-amber-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Packaging</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t.packaging.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">Batch tracking, grading & dispatch management</p>
+          <p className="text-slate-500 text-sm">{t.packaging.subtitle}</p>
         </div>
         <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-700 gap-2">
-          <Plus className="size-4" /> New Batch
+          <Plus className="size-4" /> {t.packaging.newBatch}
         </Button>
       </div>
 
@@ -614,8 +618,8 @@ export default function PackagingPage() {
           </DialogHeader>
           <BatchForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={handleCreate}>Create Batch</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={handleCreate}>{t.common.create}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -630,8 +634,8 @@ export default function PackagingPage() {
           </DialogHeader>
           <BatchForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={handleEdit}>Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
+            <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={handleEdit}>{t.common.save}</Button>
           </div>
         </DialogContent>
       </Dialog>
