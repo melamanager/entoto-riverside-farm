@@ -8,6 +8,7 @@ import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle, ImageUp, Langua
 import { toast } from "sonner";
 import type { AIDetectionResult } from "@/lib/ai";
 import { useAuth } from "@/lib/auth";
+import { getBed, getValve, addTask } from "@/lib/data";
 
 interface Props {
   bedId?: string;
@@ -114,8 +115,25 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
       }),
     });
     if (res.ok) {
+      // Flow 9: auto-create a supervisor task alongside the disease report
+      const bed   = getBed(bedId);
+      const valve = bed ? getValve(bed.valveId) : null;
+      if (valve?.supervisorId) {
+        addTask({
+          title: `AI Alert: ${result.diseaseLabel} detected — ${bedId}`,
+          description: `AI confidence ${result.confidence}%. ${result.suggestedTreatment}`,
+          assignedTo: valve.supervisorId,
+          createdBy: user?.id ?? "f-008",
+          bedId,
+          status: "pending",
+          priority: result.severity > 60 ? "high" : "medium",
+          category: "disease",
+          createdAt: new Date().toISOString(),
+          dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+        });
+      }
       toast.success("Disease report filed", {
-        description: "Manager notified via Telegram/SMS · Task assigned to supervisor",
+        description: "Manager notified · Supervisor task auto-created",
       });
       setOpen(false);
     }

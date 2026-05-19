@@ -9,11 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
   Bell, CheckCircle2, Clock, AlertTriangle, Plus, Pencil,
-  Bug, Sprout, Droplets, ListChecks, FileText, Filter,
+  Bug, Sprout, Droplets, ListChecks, FileText, Filter, ClipboardPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FOLLOW_UPS } from "@/lib/erp-data";
-import { FARMERS, VALVES, BEDS } from "@/lib/data";
+import { FARMERS, VALVES, BEDS, addTask } from "@/lib/data";
 import type { FollowUp, FollowUpEntityType, FollowUpStatus, FollowUpPriority } from "@/lib/erp-types";
 import {
   FOLLOW_UP_ENTITY_LABELS, FOLLOW_UP_ENTITY_ICONS,
@@ -179,6 +179,32 @@ export default function FollowUpsPage() {
     toast.success("Follow-up removed");
   }
 
+  // Flow 10: convert follow-up to a formal Task
+  function assignAsTask(fu: FollowUp) {
+    const categoryMap: Record<FollowUpEntityType, string> = {
+      disease:    "disease",
+      planting:   "general",
+      fertigation:"general",
+      task:       "general",
+      general:    "general",
+    };
+    addTask({
+      title:       fu.title,
+      description: fu.description ?? "",
+      assignedTo:  fu.assignedTo,
+      createdBy:   fu.createdBy,
+      bedId:       fu.bedId,
+      status:      "pending",
+      priority:    fu.priority === "urgent" ? "high" : fu.priority === "normal" ? "medium" : "low",
+      category:    categoryMap[fu.entityType] as "disease" | "harvest" | "irrigation" | "general",
+      createdAt:   new Date().toISOString(),
+      dueDate:     fu.dueDate,
+    });
+    toast.success("Assigned as Task", {
+      description: `"${fu.title.slice(0, 40)}…" added to daily tasks`,
+    });
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-[1200px] mx-auto space-y-6">
       {/* Header */}
@@ -322,6 +348,15 @@ export default function FollowUpsPage() {
                         onClick={() => { setDoneTarget(fu); setDoneNote(""); }}
                         className="size-7 rounded-md bg-emerald-100 hover:bg-emerald-200 grid place-items-center transition-colors">
                         <CheckCircle2 className="size-3.5 text-emerald-700" />
+                      </button>
+                    </Tooltip>
+                  )}
+                  {fu.status !== "done" && (
+                    <Tooltip content="Assign as Task">
+                      <button
+                        onClick={() => assignAsTask(fu)}
+                        className="size-7 rounded-md bg-blue-100 hover:bg-blue-200 grid place-items-center transition-colors">
+                        <ClipboardPlus className="size-3.5 text-blue-700" />
                       </button>
                     </Tooltip>
                   )}

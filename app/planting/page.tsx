@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CalendarDays, Sprout, CheckCircle2, Clock, AlertTriangle, Plus, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { PLANTING_RECORDS } from "@/lib/erp-data";
-import { BEDS, VALVES, FARMERS } from "@/lib/data";
+import { BEDS, VALVES, FARMERS, getBed } from "@/lib/data";
 import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
+import type { GrowthStage } from "@/lib/types";
 
 const STATUS_STYLE: Record<PlantingStatus, { badge: string; dot: string }> = {
   planned:   { badge: "bg-slate-100 text-slate-600 border-slate-200",       dot: "bg-slate-400"   },
@@ -76,6 +77,7 @@ export default function PlantingPage() {
     if (!editTarget) return;
     const idx = PLANTING_RECORDS.findIndex(r => r.id === editTarget.id);
     if (idx < 0) return;
+    const prevStatus = editTarget.status;
     Object.assign(PLANTING_RECORDS[idx], {
       bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
@@ -83,8 +85,26 @@ export default function PlantingPage() {
       seedsPerMeter: form.seedsPerMeter, seedSource: form.seedSource,
       status: form.status, notes: form.notes || undefined,
     });
+
+    // Flow 3: sync bed stage when planting status changes
+    if (prevStatus !== form.status && form.bedId) {
+      const stageMap: Partial<Record<PlantingStatus, GrowthStage>> = {
+        planted:   "vegetative",
+        growing:   "flowering",
+        harvested: "harvest",
+      };
+      const newStage = stageMap[form.status as PlantingStatus];
+      const bed = getBed(form.bedId);
+      if (bed && newStage) {
+        bed.stage = newStage;
+        toast.success(`Planting record updated`, { description: `Bed ${form.bedId} stage synced → ${newStage}` });
+      } else {
+        toast.success(`Planting record updated`);
+      }
+    } else {
+      toast.success(`Planting record updated`);
+    }
     setPlantings([...PLANTING_RECORDS]);
-    toast.success(`Planting record updated`);
     setEditTarget(null);
   }
 

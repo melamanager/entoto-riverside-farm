@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
 import { ManualReportDialog } from "@/components/manual-report-dialog";
-import { DISEASES, getBed, getFarmer, FARMERS, VALVES } from "@/lib/data";
+import { DISEASES, getBed, getFarmer, FARMERS, VALVES, addTask, getValve } from "@/lib/data";
 import { DISEASE_LABELS, DISEASE_TREATMENT_STEPS, DISEASE_TREATMENTS } from "@/lib/types";
 import type { DiseaseReport } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
@@ -50,6 +50,9 @@ export default function DiseasesPage() {
 
   // Preview proof image
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Flow 5: proof review before manager resolves
+  const [proofReviewTarget, setProofReviewTarget] = useState<DiseaseReport | null>(null);
 
   // Filter diseases for supervisors — only beds in their assigned valves
   const supervisorValveIds = user?.assignedValves ?? [];
@@ -86,16 +89,48 @@ export default function DiseasesPage() {
         requiresImageProof: requireImage,
       } : d
     ));
+
+    // Flow 1: auto-create a task for the valve's supervisor
+    const bed = getBed(recommendTarget.bedId);
+    const valve = bed ? getValve(bed.valveId) : null;
+    const supervisorId = valve?.supervisorId ?? "f-006";
+    addTask({
+      title: `Treat ${DISEASE_LABELS[recommendTarget.type]} — ${recommendTarget.bedId}`,
+      description: recommendation,
+      assignedTo: supervisorId,
+      createdBy: "f-008",
+      bedId: recommendTarget.bedId,
+      status: "pending",
+      priority: recommendTarget.severity > 60 ? "high" : "medium",
+      category: "disease",
+      createdAt: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+    });
+
     toast.success("Recommendation sent", {
-      description: `📱 SMS & Telegram sent to supervisor. ${requireImage ? "Photo proof required." : ""}`,
+      description: `📱 SMS & Telegram sent to supervisor. Task auto-created.${requireImage ? " Photo proof required." : ""}`,
       duration: 5000,
     });
     setRecommendOpen(false);
     setRecommendTarget(null);
   }
 
-  function markResolved(id: string) {
+  function markResolved(d: DiseaseReport) {
+    // Flow 5: if proof was required, make manager review it first
+    if (d.requiresImageProof && d.proofImageUrl) {
+      setProofReviewTarget(d);
+      return;
+    }
+    if (d.requiresImageProof && !d.proofImageUrl) {
+      toast.error("Cannot resolve — supervisor has not uploaded proof photo yet.");
+      return;
+    }
+    confirmResolve(d.id);
+  }
+
+  function confirmResolve(id: string) {
     setDiseases(prev => prev.map(d => d.id === id ? { ...d, status: "resolved" } : d));
+    setProofReviewTarget(null);
     toast.success("Disease marked as resolved");
   }
 
@@ -354,9 +389,10 @@ export default function DiseasesPage() {
                           <Button
                             size="sm"
                             className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs w-full"
-                            onClick={() => markResolved(d.id)}
+                            onClick={() => markResolved(d)}
                           >
-                            <CheckCircle2 className="size-3.5" /> Mark Resolved
+                            <CheckCircle2 className="size-3.5" />
+                            {d.requiresImageProof && d.proofImageUrl ? "Review & Resolve" : "Mark Resolved"}
                           </Button>
                         )}
 
@@ -628,6 +664,44 @@ export default function DiseasesPage() {
               >
                 <CheckCircle2 className="size-4" /> Confirm & Save Treatment Record
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* Flow 5: Manager reviews supervisor proof before resolving        */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <Dialog open={!!proofReviewTarget} onOpenChange={o => !o && setProofReviewTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="size-4 text-purple-600" />
+              Review Supervisor Proof Before Resolving
+            </DialogTitle>
+          </DialogHeader>
+          {proofReviewTarget && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+                <div className="font-semibold text-slate-800">{DISEASE_LABELS[proofReviewTarget.type]}</div>
+                <div className="text-slate-500 text-xs mt-0.5">Bed {proofReviewTarget.bedId} · Severity {proofReviewTarget.severity}%</div>
+              </div>
+              {proofReviewTarget.treatmentNote && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 italic">
+                  "{proofReviewTarget.treatmentNote}"
+                </div>
+              )}
+              <div>
+                <div className="text-xs font-semibold text-slate-700 mb-2">Supervisor's Proof Photo</div>
+                <img src={proofReviewTarget.proofImageUrl} alt="Treatment proof" className="w-full rounded-lg border border-slate-200 max-h-64 object-cover" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setProofReviewTarget(null)}>Cancel</Button>
+                <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 gap-2"
+                  onClick={() => confirmResolve(proofReviewTarget.id)}>
+                  <CheckCircle2 className="size-4" /> Confirm Resolved
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

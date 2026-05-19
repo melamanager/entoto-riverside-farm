@@ -5,11 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DollarSign, CheckCircle2, Clock, Download, Users } from "lucide-react";
+import { DollarSign, CheckCircle2, Clock, Download, Users, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { PAYROLL_RECORDS } from "@/lib/erp-data";
-import { FARMERS } from "@/lib/data";
-import type { PayrollStatus } from "@/lib/erp-types";
+import { FARMERS, ATTENDANCE } from "@/lib/data";
+import type { PayrollRecord, PayrollStatus } from "@/lib/erp-types";
 
 const STATUS_STYLE: Record<PayrollStatus, string> = {
   paid:      "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -21,8 +21,10 @@ const MONTHS = [...new Set(PAYROLL_RECORDS.map(r => r.month))].sort().reverse();
 
 export default function PayrollPage() {
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[0]);
+  const [overrides, setOverrides] = useState<Record<string, Partial<PayrollRecord>>>({});
 
-  const records = PAYROLL_RECORDS.filter(r => r.month === selectedMonth);
+  const baseRecords = PAYROLL_RECORDS.filter(r => r.month === selectedMonth);
+  const records = baseRecords.map(r => ({ ...r, ...overrides[r.id] }));
 
   const totalNetPay   = records.reduce((s, r) => s + r.netPay, 0);
   const totalBasePay  = records.reduce((s, r) => s + r.basePay, 0);
@@ -34,6 +36,30 @@ export default function PayrollPage() {
   function processAll() {
     toast.success(`Processing ${pendingCount} payroll records`, {
       description: `Total disbursement: ${totalNetPay.toLocaleString()} ETB`,
+    });
+  }
+
+  // Flow 7: auto-calculate days & hours from attendance
+  function autoCalculate() {
+    const allAttendance = ATTENDANCE();
+    const monthPrefix   = selectedMonth; // "2026-05"
+    const newOverrides: Record<string, Partial<PayrollRecord>> = { ...overrides };
+
+    records.forEach(rec => {
+      const farmerAtt = allAttendance.filter(a =>
+        a.farmerId === rec.farmerId && a.date.startsWith(monthPrefix)
+      );
+      const daysWorked = farmerAtt.filter(a => a.status === "present" || a.status === "late").length;
+      const totalHours = farmerAtt.reduce((s, a) => s + (a.hoursWorked ?? 0), 0);
+      const overtimeHours = Math.max(0, totalHours - daysWorked * 8);
+      const basePay   = daysWorked * rec.dailyWage;
+      const overtimePay = Math.round(overtimeHours * (rec.dailyWage / 8) * 1.5);
+      const netPay    = basePay + overtimePay + rec.bonus - rec.deductions;
+      newOverrides[rec.id] = { daysWorked, overtimeHours, basePay, overtimePay, netPay };
+    });
+    setOverrides(newOverrides);
+    toast.success("Payroll recalculated from attendance records", {
+      description: `Based on ${monthPrefix} attendance data`,
     });
   }
 
@@ -59,6 +85,9 @@ export default function PayrollPage() {
               </option>
             ))}
           </select>
+          <Button variant="outline" size="sm" className="gap-2" onClick={autoCalculate}>
+            <Calculator className="size-3.5" /> Auto-calculate from Attendance
+          </Button>
           <Button variant="outline" size="sm" className="gap-2">
             <Download className="size-3.5" /> Export
           </Button>

@@ -7,13 +7,14 @@ import { Separator } from "@/components/ui/separator";
 import {
   ShieldCheck, Sprout, Bug, CalendarCheck, ListChecks,
   Wheat, AlertTriangle, CheckCircle2, Clock, ArrowRight,
-  Phone, Activity,
+  Phone, Activity, Bell,
 } from "lucide-react";
 import {
   FARMERS, BEDS, TASKS, DISEASES, HARVESTS, ATTENDANCE,
   plantsInBed, totalKgBed, bedsInValve, VALVES,
 } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
+import { FOLLOW_UPS } from "@/lib/erp-data";
 
 const TODAY = "2026-05-17";
 
@@ -98,7 +99,7 @@ export default function SupervisorPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+            <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
               {/* Beds under supervision */}
               <div className="p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -178,6 +179,46 @@ export default function SupervisorPage() {
                   {pendingTasks.length === 0 && <div className="text-xs text-emerald-700 flex items-center gap-1"><CheckCircle2 className="size-3"/>All tasks complete</div>}
                 </div>
               </div>
+
+              {/* Flow 6: My Follow-ups */}
+              {(() => {
+                const TODAY_STR = "2026-05-19";
+                const myFollowUps = FOLLOW_UPS.filter(f => f.assignedTo === sup.id && f.status !== "done");
+                const overdueFUs  = myFollowUps.filter(f => new Date(f.dueDate) < new Date(TODAY_STR));
+                const todayFUs    = myFollowUps.filter(f => f.dueDate === TODAY_STR);
+                const urgentFUs   = myFollowUps.filter(f => f.priority === "urgent" && !overdueFUs.includes(f) && !todayFUs.includes(f));
+                const shownFUs    = [...overdueFUs, ...todayFUs, ...urgentFUs].slice(0, 4);
+                return (
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                        <Bell className="size-3.5 text-amber-500"/>My Follow-ups
+                      </h3>
+                      <Link href="/follow-ups" className="text-[11px] text-emerald-600 hover:underline">View all →</Link>
+                    </div>
+                    {myFollowUps.length === 0 ? (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-700"><CheckCircle2 className="size-3"/>All clear</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {shownFUs.map(fu => {
+                          const isOverdue = new Date(fu.dueDate) < new Date(TODAY_STR);
+                          return (
+                            <div key={fu.id} className={`p-2 rounded-md border text-xs ${isOverdue ? "bg-red-50 border-red-200" : fu.priority === "urgent" ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+                              <div className={`font-semibold truncate ${isOverdue ? "text-red-700" : "text-slate-800"}`}>{fu.title}</div>
+                              <div className={`text-[10px] mt-0.5 ${isOverdue ? "text-red-600 font-bold" : "text-slate-400"}`}>
+                                {isOverdue ? `Overdue: ${fu.dueDate}` : `Due: ${fu.dueDate}`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {myFollowUps.length > 4 && (
+                          <div className="text-[11px] text-slate-400">+{myFollowUps.length - 4} more follow-ups</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </Card>
         );

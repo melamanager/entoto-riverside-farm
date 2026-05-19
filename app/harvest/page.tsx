@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Wheat, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Wheat, Plus, Package, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { BEDS, FARMERS, HARVESTS, getBed, getValve, getFarmer } from "@/lib/data";
+
+type PackPrompt = { bedId: string; kg: number; grade: "A" | "B" | "C" };
 
 export default function HarvestPage() {
   const [bedId, setBedId] = useState("A-BED-01");
@@ -17,6 +20,7 @@ export default function HarvestPage() {
   const [farmerId, setFarmerId] = useState("f-001");
   const [grade, setGrade] = useState<"A"|"B"|"C">("A");
   const [refresh, setRefresh] = useState(0);
+  const [packPrompt, setPackPrompt] = useState<PackPrompt | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +38,8 @@ export default function HarvestPage() {
     });
     if (res.ok) {
       toast.success(`Logged ${kg}kg from ${bedId}`, { description: "Updated valve totals & farmer performance." });
+      // Flow 4: prompt to create packaging batch
+      setPackPrompt({ bedId, kg: +kg, grade });
       setKg("");
       setRefresh(r => r + 1);
     } else {
@@ -46,6 +52,7 @@ export default function HarvestPage() {
   void refresh;
 
   return (
+    <>
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Wheat className="size-6 text-rose-600" /> Harvest Collection</h1>
@@ -120,5 +127,37 @@ export default function HarvestPage() {
         </Card>
       </div>
     </div>
+    {/* Flow 4: packaging prompt after harvest log */}
+    <Dialog open={!!packPrompt} onOpenChange={o => !o && setPackPrompt(null)}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="size-4 text-violet-600" /> Pack this harvest?
+          </DialogTitle>
+        </DialogHeader>
+        {packPrompt && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+              <div className="font-semibold text-slate-800">{packPrompt.kg} kg from {packPrompt.bedId}</div>
+              <div className="text-slate-500 text-xs mt-0.5">Grade {packPrompt.grade} · Logged just now</div>
+            </div>
+            <p className="text-sm text-slate-600">
+              Ready to create a packaging batch for this harvest? This will open the packaging page with the details pre-filled.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setPackPrompt(null)}>
+                Later
+              </Button>
+              <Link href={`/packaging?bedId=${packPrompt.bedId}&kg=${packPrompt.kg}&grade=${packPrompt.grade}`} className="flex-1">
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 gap-2" onClick={() => setPackPrompt(null)}>
+                  Pack Now <ArrowRight className="size-3.5" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Beaker, CheckCircle2, Clock, Droplets, Calendar, Plus, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { FERTIGATION_RECORDS } from "@/lib/erp-data";
+import { FERTIGATION_RECORDS, STOCK_ITEMS } from "@/lib/erp-data";
 import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import type { FertigationRecord, FertigationStatus, ApplicationMethod } from "@/lib/erp-types";
 
@@ -107,7 +107,21 @@ export default function FertigationPage() {
 
   const valveBeds = (valveId: string) => beds.filter(b => b.valveId === valveId);
 
+  function findStockItem(fertType: string) {
+    if (!fertType) return null;
+    const lower = fertType.toLowerCase();
+    return STOCK_ITEMS.find(s =>
+      s.category === "fertilizer" &&
+      (s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase().split(" ")[0]))
+    ) ?? null;
+  }
+
   function FertigationForm() {
+    const stockItem = findStockItem(form.fertilizerType);
+    const neededKg  = (form.dosageGPerL * form.waterVolumeLiters) / 1000;
+    const hasEnough = stockItem ? stockItem.currentQty >= neededKg : true;
+    const stockPct  = stockItem ? Math.min(100, (stockItem.currentQty / stockItem.maxCapacity) * 100) : null;
+
     return (
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -143,6 +157,25 @@ export default function FertigationPage() {
               onChange={e => setForm(p => ({ ...p, fertilizerType: e.target.value }))}
               placeholder="Enter fertilizer name..."
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm mt-1" />
+          )}
+          {/* Flow 2: live stock check */}
+          {stockItem && (
+            <div className={`mt-2 rounded-lg border px-3 py-2 ${!hasEnough ? "bg-red-50 border-red-200" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className={`font-semibold ${!hasEnough ? "text-red-700" : stockItem.currentQty <= stockItem.reorderLevel ? "text-amber-700" : "text-emerald-700"}`}>
+                  {!hasEnough ? "⚠ Insufficient stock" : stockItem.currentQty <= stockItem.reorderLevel ? "⚠ Low stock" : "✓ Stock OK"}
+                </span>
+                <span className="text-slate-500 tabular-nums">{stockItem.currentQty.toFixed(2)} / {stockItem.maxCapacity} {stockItem.unit}</span>
+              </div>
+              <div className="w-full bg-white/60 rounded-full h-1.5 overflow-hidden">
+                <div className={`h-full rounded-full ${!hasEnough ? "bg-red-500" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-400" : "bg-emerald-500"}`}
+                  style={{ width: `${stockPct}%` }} />
+              </div>
+              <div className="flex justify-between text-[10px] mt-1 text-slate-500">
+                <span>Needed: <strong>{neededKg.toFixed(2)} kg</strong> ({form.dosageGPerL}g/L × {form.waterVolumeLiters}L)</span>
+                <span>After: {Math.max(0, stockItem.currentQty - neededKg).toFixed(2)} kg</span>
+              </div>
+            </div>
           )}
         </div>
         <div>
