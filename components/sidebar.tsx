@@ -7,7 +7,7 @@ import {
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   TrendingUp, DollarSign, UserCog, Beaker, ClipboardList,
-  BarChart3, CalendarDays, Zap,
+  BarChart3, CalendarDays, Zap, Bell, Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -20,6 +20,7 @@ type NavItem = {
   icon?: React.ComponentType<{ className?: string }>;
   isValve?: boolean;
   roles: string[];
+  title?: string;
 };
 
 type NavGroup = {
@@ -46,10 +47,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { href: "/valves",     label: "Valves",          isValve: true,         roles: ["manager"] },
-      { href: "/fertigation",label: "Fertigation",     icon: Beaker,          roles: ["manager", "supervisor"] },
-      { href: "/diseases",   label: "Disease Mgmt",    icon: Bug,             roles: ["manager", "supervisor"] },
-      { href: "/tasks",      label: "Daily Tasks",     icon: ListChecks,      roles: ["manager", "supervisor"] },
+      { href: "/valves",      label: "Irrigation Zones",   isValve: true,        roles: ["manager"], title: "Valves: each valve controls water to a section of raised beds" },
+      { href: "/fertigation", label: "Nutrient Feeding",   icon: Beaker,         roles: ["manager", "supervisor"], title: "Fertigation: delivering fertilizer through the drip irrigation lines" },
+      { href: "/diseases",    label: "Disease Management", icon: Bug,            roles: ["manager", "supervisor"] },
+      { href: "/tasks",       label: "Daily Tasks",        icon: ListChecks,     roles: ["manager", "supervisor"] },
+      { href: "/stock",       label: "Input Store",        icon: Warehouse,      roles: ["manager", "supervisor"], title: "Track fertilizers, pesticides, packaging & tool inventory" },
+      { href: "/follow-ups",  label: "Follow-ups",         icon: Bell,           roles: ["manager", "supervisor"], title: "Pending actions, reminders & scheduled checks across all activities" },
     ],
   },
   {
@@ -135,6 +138,7 @@ export function Sidebar() {
                     <Link
                       key={`${item.href}-${item.label}`}
                       href={item.href}
+                      title={item.title}
                       className={cn(
                         "group flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-all",
                         active

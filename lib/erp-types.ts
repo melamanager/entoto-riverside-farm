@@ -151,3 +151,91 @@ export const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
   direct:       "Direct / Market",
   export:       "Export",
 };
+
+// ─── Stock / Inventory Management ────────────────────────────────────────────
+export type StockCategory = "fertilizer" | "pesticide" | "packaging" | "tool" | "seed" | "other";
+export type StockUnit = "kg" | "L" | "g" | "ml" | "piece" | "box" | "bag" | "roll";
+export type TransactionType = "stock_in" | "stock_out" | "adjustment" | "waste";
+
+export interface StockItem {
+  id: string;
+  name: string;
+  category: StockCategory;
+  unit: StockUnit;
+  currentQty: number;
+  reorderLevel: number;   // warn when stock falls below this
+  maxCapacity: number;
+  costPerUnit: number;    // ETB per unit
+  supplier?: string;
+  lastRestockedDate?: string;
+  notes?: string;
+}
+
+export interface StockTransaction {
+  id: string;
+  itemId: string;
+  type: TransactionType;
+  quantity: number;
+  date: string;
+  referenceType?: "fertigation" | "packaging" | "disease" | "manual";
+  referenceId?: string;
+  performedBy: string;
+  notes?: string;
+}
+
+// ─── Follow-up System ─────────────────────────────────────────────────────────
+export type FollowUpEntityType = "disease" | "planting" | "fertigation" | "task" | "general";
+export type FollowUpStatus = "pending" | "done" | "overdue";
+export type FollowUpPriority = "low" | "normal" | "urgent";
+
+export interface FollowUp {
+  id: string;
+  entityType: FollowUpEntityType;
+  entityId: string;
+  title: string;
+  description?: string;
+  dueDate: string;
+  status: FollowUpStatus;
+  priority: FollowUpPriority;
+  assignedTo: string;   // farmerId
+  createdBy: string;
+  completedAt?: string;
+  completionNote?: string;
+  bedId?: string;
+  valveId?: string;
+}
+
+// ─── Label maps ──────────────────────────────────────────────────────────────
+export const STOCK_CATEGORY_LABELS: Record<StockCategory, string> = {
+  fertilizer: "Fertilizer",
+  pesticide:  "Pesticide / Fungicide",
+  packaging:  "Packaging Material",
+  tool:       "Tool / Equipment",
+  seed:       "Seeds / Runners",
+  other:      "Other",
+};
+
+export const STOCK_CATEGORY_ICONS: Record<StockCategory, string> = {
+  fertilizer: "🧪",
+  pesticide:  "🛡️",
+  packaging:  "📦",
+  tool:       "🔧",
+  seed:       "🌱",
+  other:      "📋",
+};
+
+export const FOLLOW_UP_ENTITY_LABELS: Record<FollowUpEntityType, string> = {
+  disease:    "Disease Treatment",
+  planting:   "Planting",
+  fertigation:"Nutrient Application",
+  task:       "Task",
+  general:    "General",
+};
+
+export const FOLLOW_UP_ENTITY_ICONS: Record<FollowUpEntityType, string> = {
+  disease:    "🐛",
+  planting:   "🌱",
+  fertigation:"💧",
+  task:       "✅",
+  general:    "📋",
+};

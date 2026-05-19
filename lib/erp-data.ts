@@ -1,6 +1,7 @@
 import type {
   PlantingRecord, WorkerAssignment, FertigationRecord,
   PackagingRecord, CustomerOrder, PayrollRecord, PackagingPurpose,
+  StockItem, StockTransaction, FollowUp,
 } from "./erp-types";
 
 // ─── Planting Schedule ───────────────────────────────────────────────────────
@@ -85,4 +86,69 @@ export const PAYROLL_RECORDS: PayrollRecord[] = [
   { id: "pay-010", farmerId: "f-002", month: "2026-04", daysWorked: 24, dailyWage: 550, basePay: 13200, overtimeHours: 2, overtimePay: 275, bonus: 0, deductions: 664, netPay: 12811, paymentStatus: "paid", paidDate: "2026-04-30" },
   { id: "pay-011", farmerId: "f-003", month: "2026-04", daysWorked: 23, dailyWage: 550, basePay: 12650, overtimeHours: 0, overtimePay: 0, bonus: 0, deductions: 633, netPay: 12017, paymentStatus: "paid", paidDate: "2026-04-30" },
   { id: "pay-012", farmerId: "f-006", month: "2026-04", daysWorked: 26, dailyWage: 920, basePay: 23920, overtimeHours: 6, overtimePay: 1380, bonus: 1000, deductions: 2630, netPay: 23670, paymentStatus: "paid", paidDate: "2026-04-30" },
+];
+
+// ─── Stock / Inventory ────────────────────────────────────────────────────────
+// currentQty reflects stock after known fertigation & packaging usage this month
+export const STOCK_ITEMS: StockItem[] = [
+  // Fertilizers
+  { id: "si-001", name: "NPK 20-20-20", category: "fertilizer", unit: "kg", currentQty: 23.25, reorderLevel: 5, maxCapacity: 50, costPerUnit: 128, supplier: "Agri Supply Addis", lastRestockedDate: "2026-05-01", notes: "Balanced weekly feed" },
+  { id: "si-002", name: "Calcium Nitrate", category: "fertilizer", unit: "kg", currentQty: 14.47, reorderLevel: 4, maxCapacity: 30, costPerUnit: 110, supplier: "Agri Supply Addis", lastRestockedDate: "2026-05-01", notes: "Improves fruit firmness" },
+  { id: "si-003", name: "Potassium Sulfate (K₂SO₄)", category: "fertilizer", unit: "kg", currentQty: 10.7, reorderLevel: 3, maxCapacity: 25, costPerUnit: 225, supplier: "Ethiopian Agro Chem", lastRestockedDate: "2026-04-25", notes: "Pre-harvest sweetness boost" },
+  { id: "si-004", name: "Humic Acid", category: "fertilizer", unit: "kg", currentQty: 7.6, reorderLevel: 2, maxCapacity: 20, costPerUnit: 450, supplier: "Ethiopian Agro Chem", lastRestockedDate: "2026-04-28", notes: "Soil conditioner — improves nutrient uptake" },
+  { id: "si-005", name: "Iron Chelate (EDTA-Fe 13%)", category: "fertilizer", unit: "kg", currentQty: 1.82, reorderLevel: 1, maxCapacity: 5, costPerUnit: 3544, supplier: "Specialty Fert KE", lastRestockedDate: "2026-04-10", notes: "Treats leaf yellowing. Store below 25°C." },
+  { id: "si-006", name: "Magnesium Sulfate (Epsom)", category: "fertilizer", unit: "kg", currentQty: 5.4, reorderLevel: 2, maxCapacity: 15, costPerUnit: 94, supplier: "Agri Supply Addis", lastRestockedDate: "2026-04-25" },
+  // Pesticides / Fungicides
+  { id: "si-007", name: "Kumulus DF (Sulfur 80%)", category: "pesticide", unit: "kg", currentQty: 2.5, reorderLevel: 0.5, maxCapacity: 10, costPerUnit: 340, supplier: "Bayer Ethiopia", lastRestockedDate: "2026-04-20", notes: "Controls powdery mildew" },
+  { id: "si-008", name: "Switch 62.5 WG (Botryticide)", category: "pesticide", unit: "kg", currentQty: 0.28, reorderLevel: 0.5, maxCapacity: 2, costPerUnit: 8800, supplier: "Syngenta Ethiopia", lastRestockedDate: "2026-03-15", notes: "⚠ BELOW REORDER — place order now. Controls gray mold." },
+  { id: "si-009", name: "Kocide 3000 (Copper Hydroxide)", category: "pesticide", unit: "kg", currentQty: 1.5, reorderLevel: 0.4, maxCapacity: 5, costPerUnit: 620, supplier: "Bayer Ethiopia", lastRestockedDate: "2026-04-20", notes: "Controls leaf spot & bacterial diseases" },
+  // Packaging
+  { id: "si-010", name: "500g Punnets (PET clear)", category: "packaging", unit: "piece", currentQty: 164, reorderLevel: 50, maxCapacity: 500, costPerUnit: 5, supplier: "Addis Packaging Ltd", lastRestockedDate: "2026-05-10" },
+  { id: "si-011", name: "1kg Export Cartons", category: "packaging", unit: "piece", currentQty: 22, reorderLevel: 20, maxCapacity: 100, costPerUnit: 28, supplier: "Addis Packaging Ltd", lastRestockedDate: "2026-05-10", notes: "For Dubai export — reorder urgently" },
+  { id: "si-012", name: "250g Clamshells", category: "packaging", unit: "piece", currentQty: 200, reorderLevel: 40, maxCapacity: 400, costPerUnit: 4, supplier: "Addis Packaging Ltd", lastRestockedDate: "2026-05-10" },
+  // Tools / Equipment
+  { id: "si-013", name: "Plastic Mulch Film (100m roll)", category: "tool", unit: "roll", currentQty: 2, reorderLevel: 1, maxCapacity: 10, costPerUnit: 2800, supplier: "Drip Irrigation ET", lastRestockedDate: "2026-02-01" },
+  { id: "si-014", name: "Drip Tape (100m roll, 16mm)", category: "tool", unit: "roll", currentQty: 3, reorderLevel: 1, maxCapacity: 10, costPerUnit: 1200, supplier: "Drip Irrigation ET", lastRestockedDate: "2026-02-01" },
+  // Seeds
+  { id: "si-015", name: "Festival Strawberry Runners", category: "seed", unit: "piece", currentQty: 250, reorderLevel: 100, maxCapacity: 2000, costPerUnit: 12, supplier: "Nakuru Horticulture KE", lastRestockedDate: "2026-04-05", notes: "For planned beds C-BED-03 & C-BED-04" },
+];
+
+export const STOCK_TRANSACTIONS: StockTransaction[] = [
+  // Stock-in (restocking events)
+  { id: "st-001", itemId: "si-001", type: "stock_in", quantity: 25,    date: "2026-05-01", referenceType: "manual", performedBy: "f-008", notes: "Monthly restock" },
+  { id: "st-002", itemId: "si-002", type: "stock_in", quantity: 15,    date: "2026-05-01", referenceType: "manual", performedBy: "f-008", notes: "Monthly restock" },
+  { id: "st-003", itemId: "si-003", type: "stock_in", quantity: 12,    date: "2026-04-25", referenceType: "manual", performedBy: "f-008" },
+  { id: "st-004", itemId: "si-010", type: "stock_in", quantity: 500,   date: "2026-05-10", referenceType: "manual", performedBy: "f-008", notes: "Restocked from Addis Packaging" },
+  { id: "st-005", itemId: "si-011", type: "stock_in", quantity: 30,    date: "2026-05-10", referenceType: "manual", performedBy: "f-008" },
+  // Stock-out from fertigation (dosage g/L × water L / 1000 = kg used)
+  { id: "st-006", itemId: "si-001", type: "stock_out", quantity: 1.0,  date: "2026-05-15", referenceType: "fertigation", referenceId: "ft-001", performedBy: "f-001", notes: "NPK to Valve A — 400L × 2.5g/L" },
+  { id: "st-007", itemId: "si-002", type: "stock_out", quantity: 0.53, date: "2026-05-14", referenceType: "fertigation", referenceId: "ft-002", performedBy: "f-002", notes: "Ca(NO₃)₂ to Valve B — 350L × 1.5g/L" },
+  { id: "st-008", itemId: "si-003", type: "stock_out", quantity: 0.6,  date: "2026-05-13", referenceType: "fertigation", referenceId: "ft-003", performedBy: "f-005", notes: "K₂SO₄ to Valve C — 300L × 2.0g/L" },
+  { id: "st-009", itemId: "si-001", type: "stock_out", quantity: 0.75, date: "2026-05-12", referenceType: "fertigation", referenceId: "ft-006", performedBy: "f-005", notes: "NPK to Valve C — 300L × 2.5g/L" },
+  { id: "st-010", itemId: "si-006", type: "stock_out", quantity: 0.6,  date: "2026-05-10", referenceType: "fertigation", referenceId: "ft-007", performedBy: "f-001", notes: "MgSO₄ foliar — Valve A 400L × 1.5g/L" },
+  // Stock-out from packaging
+  { id: "st-011", itemId: "si-010", type: "stock_out", quantity: 164,  date: "2026-05-17", referenceType: "packaging", referenceId: "pk-001", performedBy: "f-004", notes: "500g punnets used across PKG-2026-051/050/048/047" },
+  { id: "st-012", itemId: "si-011", type: "stock_out", quantity: 8,    date: "2026-05-16", referenceType: "packaging", referenceId: "pk-002", performedBy: "f-004", notes: "Export cartons for hotel & export batches" },
+];
+
+// ─── Follow-ups ───────────────────────────────────────────────────────────────
+export const FOLLOW_UPS: FollowUp[] = [
+  // Disease follow-ups
+  { id: "fu-001", entityType: "disease", entityId: "dis-001", title: "Re-inspect B-BED-02 — check powdery mildew treatment", description: "Kumulus DF was applied 7 days ago. Check if leaves are clear, measure humidity.", dueDate: "2026-05-22", status: "pending", priority: "urgent", assignedTo: "f-006", createdBy: "f-008", bedId: "B-BED-02", valveId: "valve-b" },
+  { id: "fu-002", entityType: "disease", entityId: "dis-002", title: "Confirm root rot treatment on A-BED-04", description: "Trichoderma applied 5 days ago. Check soil moisture and root color. Remove any dead plants.", dueDate: "2026-05-17", status: "overdue", priority: "urgent", assignedTo: "f-003", createdBy: "f-008", bedId: "A-BED-04", valveId: "valve-a" },
+  { id: "fu-003", entityType: "disease", entityId: "dis-003", title: "Gray mold 2nd spray — C-BED-01", description: "First Switch 62.5 WG spray done. Apply 2nd spray and check humidity below 85%.", dueDate: "2026-05-21", status: "pending", priority: "urgent", assignedTo: "f-007", createdBy: "f-008", bedId: "C-BED-01", valveId: "valve-c" },
+  // Planting follow-ups
+  { id: "fu-004", entityType: "planting", entityId: "pl-003", title: "Stage check — A-BED-03 Festival (103 days)", description: "Plant is at vegetative stage. Inspect for runner formation, canopy density, any early disease signs.", dueDate: "2026-05-21", status: "pending", priority: "normal", assignedTo: "f-006", createdBy: "f-008", bedId: "A-BED-03", valveId: "valve-a" },
+  { id: "fu-005", entityType: "planting", entityId: "pl-011", title: "Prepare C-BED-03 for Seascape planting", description: "Planned planting is overdue. Inspect bed, confirm runner availability, prep plastic mulch.", dueDate: "2026-05-15", status: "overdue", priority: "urgent", assignedTo: "f-007", createdBy: "f-008", bedId: "C-BED-03", valveId: "valve-c" },
+  { id: "fu-006", entityType: "planting", entityId: "pl-007", title: "Root establishment check — B-BED-03 Seascape (84 days)", description: "Verify root development and vegetative growth progress.", dueDate: "2026-05-20", status: "pending", priority: "normal", assignedTo: "f-007", createdBy: "f-008", bedId: "B-BED-03", valveId: "valve-b" },
+  // Fertigation follow-ups (from nextScheduleDate)
+  { id: "fu-007", entityType: "fertigation", entityId: "ft-001", title: "NPK 20-20-20 weekly feed — Valve A", description: "Next scheduled application due. Check stock (si-001) before applying. 400L × 2.5g/L.", dueDate: "2026-05-22", status: "pending", priority: "normal", assignedTo: "f-001", createdBy: "f-008", valveId: "valve-a" },
+  { id: "fu-008", entityType: "fertigation", entityId: "ft-002", title: "Calcium Nitrate dose — Valve B fruit firmness", description: "Fruit firmness programme. Next dose due. 350L × 1.5g/L via drip.", dueDate: "2026-05-21", status: "pending", priority: "normal", assignedTo: "f-002", createdBy: "f-008", valveId: "valve-b" },
+  { id: "fu-009", entityType: "fertigation", entityId: "ft-003", title: "Potassium Sulfate — Valve C pre-harvest", description: "Sweetness enhancement before harvest. Check stock (si-003) — 300L × 2.0g/L.", dueDate: "2026-05-20", status: "pending", priority: "normal", assignedTo: "f-005", createdBy: "f-008", valveId: "valve-c" },
+  // Stock / general follow-ups
+  { id: "fu-010", entityType: "general", entityId: "si-008", title: "⚠ URGENT: Restock Switch 62.5 WG (botryticide)", description: "Only 0.28 kg left — below reorder level of 0.5 kg. Gray mold is active. Contact Syngenta Ethiopia immediately.", dueDate: "2026-05-18", status: "overdue", priority: "urgent", assignedTo: "f-008", createdBy: "f-008" },
+  { id: "fu-011", entityType: "general", entityId: "si-011", title: "Reorder 1kg Export Cartons", description: "Only 22 pieces left (reorder at 20). Dubai export order needs 100 kg of product. Place order with Addis Packaging.", dueDate: "2026-05-20", status: "pending", priority: "urgent", assignedTo: "f-008", createdBy: "f-008" },
+  // Completed examples
+  { id: "fu-012", entityType: "disease", entityId: "dis-004", title: "Leaf spot first treatment — A-BED-06", description: "Kocide 3000 applied", dueDate: "2026-05-14", status: "done", priority: "normal", assignedTo: "f-001", createdBy: "f-006", bedId: "A-BED-06", valveId: "valve-a", completedAt: "2026-05-14", completionNote: "Sprayed fully. Switched to drip only, no more overhead watering on this bed." },
+  { id: "fu-013", entityType: "planting", entityId: "pl-001", title: "Final harvest check — A-BED-01 Festival", description: "Confirm all plants cleared post-harvest and prepare for next planting cycle.", dueDate: "2026-05-10", status: "done", priority: "low", assignedTo: "f-001", createdBy: "f-008", bedId: "A-BED-01", valveId: "valve-a", completedAt: "2026-05-11", completionNote: "Bed cleared. Old mulch removed. Ready for replanting." },
 ];
