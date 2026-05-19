@@ -136,7 +136,7 @@ export function MobileNav() {
               pathname.startsWith(href);
             return (
               <Link
-                key={tab.label}
+                key={tab.tabKey}
                 href={href}
                 className={cn(
                   "flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-colors",
