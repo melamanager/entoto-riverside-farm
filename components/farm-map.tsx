@@ -1,354 +1,448 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Bed, Valve } from "@/lib/types";
 import { plantsInBed } from "@/lib/data";
+
+type ViewMode = "health" | "yield" | "stage";
 
 interface Props {
   valves: Valve[];
   beds: Bed[];
   harvestKgByBed: Record<string, number>;
-  /** Optional: highlight only beds for this supervisor's valves */
   highlightValves?: string[];
 }
 
-// Health → fill/stroke palette
-const HEALTH = {
-  healthy:  { fill: "#22c55e", fillLight: "#dcfce7", stroke: "#16a34a", label: "Healthy",  dot: "#16a34a" },
-  warning:  { fill: "#f59e0b", fillLight: "#fef9c3", stroke: "#d97706", label: "Warning",  dot: "#d97706" },
-  infected: { fill: "#ef4444", fillLight: "#fee2e2", stroke: "#dc2626", label: "Infected", dot: "#dc2626" },
+const VALVE_COLORS = ["#10b981", "#3b82f6", "#a855f7"] as const;
+
+const HEALTH_COLOR = {
+  healthy: "#22c55e",
+  warning: "#f59e0b",
+  infected: "#ef4444",
+} as const;
+
+const STAGE_COLOR: Record<string, string> = {
+  planted:    "#94a3b8",
+  vegetative: "#4ade80",
+  flowering:  "#f9a8d4",
+  fruiting:   "#fb923c",
+  ripening:   "#f87171",
+  harvest:    "#22c55e",
 };
 
-// Stage labels
-const STAGE_ICONS: Record<string, string> = {
-  planted: "🌱", vegetative: "🌿", flowering: "🌸", fruiting: "🍓", ripening: "🍓", harvest: "🍓",
+const STAGE_LABEL: Record<string, string> = {
+  planted: "Planted", vegetative: "Vegetative", flowering: "Flowering",
+  fruiting: "Fruiting", ripening: "Ripening", harvest: "Harvest",
 };
 
-const VALVE_COLORS = ["#10b981","#3b82f6","#a855f7"] as const;
+const SOIL   = "#6a2d10";
+const MULCH  = "#bfc3cb";
+const MULCH2 = "#d6d9df";
 
 export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props) {
-  const [hovered, setHovered] = useState<Bed | null>(null);
-  const [hoveredPos, setHoveredPos] = useState({ x: 0, y: 0 });
+  const [selected, setSelected]     = useState<string | null>(null);
+  const [viewMode, setViewMode]     = useState<ViewMode>("health");
+  const [perspective, setPerspective] = useState(true);
 
-  // Layout constants
-  const W = 960, H = 380;
-  const HEADER_H = 22;
-  const PAD = { top: 38, bottom: 18, left: 14, right: 14 };
-  const VALVE_GAP = 14;
-  const totalValveW = (W - VALVE_GAP * (valves.length - 1));
+  const selectedBed = beds.find(b => b.id === selected);
+
+  // SVG layout constants
+  const W         = 420;
+  const PAD_X     = 10;
+  const BED_W     = W - PAD_X * 2;
+  const STRIPE_W  = 4;
+  const SOIL_GAP  = 8;
+  const ZONE_H    = 32;
+  const ZONE_GAP  = 14;
+
+  // Build layout positions
+  const layout = useMemo(() => {
+    let y = 8;
+    return valves.map((valve, vi) => {
+      const zoneBeds = beds.filter(b => b.valveId === valve.id);
+      const headerY = y;
+      y += ZONE_H;
+      const bedRows = zoneBeds.map(bed => {
+        const h = Math.max(26, Math.round(bed.lengthM * 0.65));
+        const bedY = y;
+        y += h + SOIL_GAP;
+        return { bed, y: bedY, h };
+      });
+      y += ZONE_GAP;
+      return { valve, vi, headerY, bedRows };
+    });
+  }, [valves, beds]);
+
+  const totalH = useMemo(() => {
+    let y = 8;
+    valves.forEach(valve => {
+      y += ZONE_H;
+      beds.filter(b => b.valveId === valve.id).forEach(bed => {
+        y += Math.max(26, Math.round(bed.lengthM * 0.65)) + SOIL_GAP;
+      });
+      y += ZONE_GAP;
+    });
+    return y + 6;
+  }, [valves, beds]);
+
+  const maxYield = Math.max(...beds.map(b => harvestKgByBed[b.id] ?? 0), 1);
+
+  function plantColor(bed: Bed): string {
+    if (viewMode === "stage")  return STAGE_COLOR[bed.stage]  ?? "#94a3b8";
+    if (viewMode === "yield") {
+      const r = (harvestKgByBed[bed.id] ?? 0) / maxYield;
+      if (r > 0.75) return "#14532d";
+      if (r > 0.45) return "#16a34a";
+      if (r > 0.15) return "#4ade80";
+      return "#bbf7d0";
+    }
+    return HEALTH_COLOR[bed.health] ?? "#22c55e";
+  }
 
   return (
-    <div className="relative w-full select-none">
-      {/* Mobile scroll hint */}
-      <div className="md:hidden flex items-center justify-center gap-1.5 text-[11px] text-slate-400 mb-2">
-        <span>←</span>
-        <span>Scroll to explore the farm map</span>
-        <span>→</span>
+    <div className="space-y-3">
+
+      {/* ── Controls ──────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {(["health", "yield", "stage"] as ViewMode[]).map(m => (
+          <button
+            key={m}
+            onClick={() => setViewMode(m)}
+            className={`text-[11px] px-3 py-1.5 rounded-full font-semibold transition-all border ${
+              viewMode === m
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+            }`}
+          >
+            {m === "health" ? "🌿 Health" : m === "yield" ? "🌾 Yield" : "🌸 Stage"}
+          </button>
+        ))}
+        <button
+          onClick={() => setPerspective(p => !p)}
+          className={`ml-auto text-[11px] px-3 py-1.5 rounded-full font-semibold border transition-all ${
+            perspective
+              ? "bg-indigo-600 text-white border-indigo-600"
+              : "bg-white text-slate-600 border-slate-200"
+          }`}
+        >
+          {perspective ? "◈ 3D" : "⬜ 2D"}
+        </button>
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div style={{ minWidth: 640 }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-auto"
-        style={{ display: "block", minWidth: 640 }}
-      >
-        <defs>
-          {/* Ground pattern */}
-          <pattern id="soil" width="8" height="8" patternUnits="userSpaceOnUse">
-            <rect width="8" height="8" fill="#f5ede0" />
-            <circle cx="2" cy="6" r="0.7" fill="#d6b896" opacity="0.5" />
-            <circle cx="6" cy="2" r="0.7" fill="#d6b896" opacity="0.4" />
-          </pattern>
 
-          {/* Path/walkway */}
-          <pattern id="path" width="12" height="12" patternUnits="userSpaceOnUse">
-            <rect width="12" height="12" fill="#e9e0d4"/>
-            <rect y="6" width="12" height="1" fill="#d6c9b8" opacity="0.4"/>
-          </pattern>
+      {/* ── Map ───────────────────────────────────────────────────────── */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-md bg-[#6a2d10]">
+        <div style={perspective ? { perspective: "900px", perspectiveOrigin: "50% -10%" } : {}}>
+          <div style={perspective ? {
+            transform: "rotateX(22deg) scaleY(0.96)",
+            transformOrigin: "50% 0%",
+            transformStyle: "preserve-3d",
+          } : {}}>
+            <svg
+              viewBox={`0 0 ${W} ${totalH}`}
+              width="100%"
+              style={{ display: "block" }}
+            >
+              <defs>
+                {/* Silver plastic mulch — horizontal sheen lines */}
+                <linearGradient id="mulchGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={MULCH2} />
+                  <stop offset="40%"  stopColor={MULCH}  />
+                  <stop offset="100%" stopColor="#a8acb4" />
+                </linearGradient>
+                <pattern id="mulchPat" width="1" height="5" patternUnits="userSpaceOnUse">
+                  <rect width="1" height="5" fill="url(#mulchGrad)" />
+                  <rect y="2.5" width="1" height="0.7" fill={MULCH2} opacity="0.5" />
+                </pattern>
 
-          {/* Subtle overlay for dimmed beds */}
-          <filter id="dim">
-            <feColorMatrix type="saturate" values="0.3" />
-          </filter>
+                {/* Ethiopian red soil */}
+                <pattern id="soilPat" width="14" height="14" patternUnits="userSpaceOnUse">
+                  <rect width="14" height="14" fill={SOIL} />
+                  <circle cx="3"  cy="5"  r="1"   fill="#4e1f08" opacity="0.35" />
+                  <circle cx="10" cy="10" r="0.8" fill="#4e1f08" opacity="0.28" />
+                  <circle cx="7"  cy="2"  r="0.6" fill="#832512" opacity="0.2"  />
+                </pattern>
 
-          {/* Glow effect for infected */}
-          <filter id="redglow">
-            <feGaussianBlur stdDeviation="2" result="blur"/>
-            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-          </filter>
+                {/* Drip tape line */}
+                <pattern id="dripPat" width="12" height="1" patternUnits="userSpaceOnUse">
+                  <rect width="8" height="1" fill="#8899bb" opacity="0.55" />
+                  <rect x="8" width="4" height="1" fill="transparent" />
+                </pattern>
 
-          {/* Bed shadow */}
-          <filter id="bshadow" x="-10%" y="-10%" width="120%" height="130%">
-            <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#00000030"/>
-          </filter>
+                {/* Infected pulse */}
+                <style>{`
+                  @keyframes mpulse { 0%,100%{opacity:.9} 50%{opacity:.3} }
+                  .mpulse { animation: mpulse 1.4s ease-in-out infinite; }
+                  @keyframes mring { 0%{r:5;opacity:.8} 100%{r:11;opacity:0} }
+                  .mring { animation: mring 1.8s ease-out infinite; }
+                `}</style>
+              </defs>
 
-          {/* Valve zone gradient overlays */}
-          {valves.map((v, i) => (
-            <linearGradient key={v.id} id={`valveBg${i}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={VALVE_COLORS[i % 3]} stopOpacity="0.06"/>
-              <stop offset="100%" stopColor={VALVE_COLORS[i % 3]} stopOpacity="0.02"/>
-            </linearGradient>
-          ))}
+              {/* Soil background */}
+              <rect x="0" y="0" width={W} height={totalH} fill="url(#soilPat)" />
 
-          {/* Plastic mulch texture */}
-          <pattern id="plastic" width="4" height="4" patternUnits="userSpaceOnUse">
-            <rect width="4" height="4" fill="white"/>
-            <line x1="0" y1="2" x2="4" y2="2" stroke="#e2e8f0" strokeWidth="0.5"/>
-          </pattern>
-        </defs>
-
-        {/* ─── BACKGROUND ─── */}
-        <rect x="0" y="0" width={W} height={H} fill="url(#soil)" />
-
-        {/* Mountain silhouette (decorative top) */}
-        <path d={`M0,${H*0.18} Q${W*0.15},${H*0.04} ${W*0.3},${H*0.14} Q${W*0.45},${H*0.02} ${W*0.6},${H*0.12} Q${W*0.8},${H*0.0} ${W},${H*0.10} L${W},0 L0,0Z`}
-          fill="#f0f7ee" opacity="0.4"/>
-
-        {/* Bottom walkway */}
-        <rect x="0" y={H - 44} width={W} height={44} fill="url(#path)" />
-        <line x1="0" y1={H-44} x2={W} y2={H-44} stroke="#c9bfb0" strokeWidth="1"/>
-        {/* Walkway centre line */}
-        <line x1="0" y1={H-22} x2={W} y2={H-22} stroke="#c9bfb0" strokeWidth="0.5" strokeDasharray="8 6" opacity="0.6"/>
-
-        {/* ─── IRRIGATION MAIN PIPE ─── */}
-        <rect x="0" y={HEADER_H + 30} width={W} height={4} rx="2" fill="#94a3b8" opacity="0.4"/>
-        {/* Pipe highlight */}
-        <rect x="0" y={HEADER_H + 30} width={W} height={1.5} rx="1" fill="white" opacity="0.4"/>
-
-        {/* ─── VALVE ZONES ─── */}
-        {valves.map((valve, vi) => {
-          const vW = Math.floor((W - (valves.length - 1) * VALVE_GAP) / valves.length);
-          const vX = vi * (vW + VALVE_GAP);
-          const vY = HEADER_H;
-          const vH = H - HEADER_H - 44;
-
-          const vBeds = beds.filter(b => b.valveId === valve.id);
-          const bedCount = vBeds.length;
-          const isDimmed = highlightValves && !highlightValves.includes(valve.id);
-
-          // Bed layout: vertical parallel strips
-          const BED_COLS = bedCount;
-          const BED_PAD_L = PAD.left, BED_PAD_R = PAD.right;
-          const BED_TOP = PAD.top + 12, BED_BOT = PAD.bottom + 4;
-          const bedAreaW = vW - BED_PAD_L - BED_PAD_R;
-          const bedAreaH = vH - BED_TOP - BED_BOT;
-          const bedW = Math.floor(bedAreaW / BED_COLS) - 4;
-          const bedGap = Math.floor((bedAreaW - bedW * BED_COLS) / Math.max(BED_COLS - 1, 1));
-
-          // Valve pipe connector
-          const pipeX = vX + vW / 2;
-
-          return (
-            <g key={valve.id} filter={isDimmed ? "url(#dim)" : undefined}>
-              {/* Zone background */}
-              <rect x={vX} y={vY} width={vW} height={vH} fill={`url(#valveBg${vi})`} rx="4"/>
-              <rect x={vX} y={vY} width={vW} height={vH} fill="none" rx="4"
-                stroke={VALVE_COLORS[vi % 3]} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.4"/>
-
-              {/* Valve symbol */}
-              <line x1={pipeX} y1={HEADER_H + 30} x2={pipeX} y2={vY + PAD.top - 8}
-                stroke={VALVE_COLORS[vi % 3]} strokeWidth="2" opacity="0.5"/>
-              <circle cx={pipeX} cy={vY + PAD.top - 10} r="6"
-                fill={VALVE_COLORS[vi % 3]} opacity="0.9"/>
-              <text x={pipeX} y={vY + PAD.top - 7} textAnchor="middle" fontSize="7" fill="white" fontWeight="800">
-                {valve.name.split(" ")[1]}
-              </text>
-
-              {/* Zone label */}
-              <text x={vX + 10} y={vY + 14} fontSize="10" fontWeight="700" fill={VALVE_COLORS[vi % 3]} opacity="0.8">
-                {valve.name}
-              </text>
-              <text x={vX + 10} y={vY + 24} fontSize="7.5" fill="#64748b">
-                {vBeds.length} beds · {vBeds.reduce((s,b)=>s+plantsInBed(b),0).toLocaleString()} plants
-              </text>
-
-              {/* ── BEDS ── */}
-              {vBeds.map((bed, bi) => {
-                const bX = vX + BED_PAD_L + bi * (bedW + bedGap);
-                const bH = Math.round(bedAreaH * (bed.lengthM / 45));
-                const bY = vY + vH - BED_BOT - bH - 2;
-                const h = HEALTH[bed.health];
-                const ready = bed.stage === "ripening" || bed.stage === "harvest";
-                const todayKg = harvestKgByBed[bed.id] ?? 0;
-                const isHovered = hovered?.id === bed.id;
+              {layout.map(({ valve, vi, headerY, bedRows }) => {
+                const zc       = VALVE_COLORS[vi % 3];
+                const isDimmed = highlightValves && !highlightValves.includes(valve.id);
+                const totalKg  = bedRows.reduce((s, { bed }) => s + (harvestKgByBed[bed.id] ?? 0), 0);
 
                 return (
-                  <Link key={bed.id} href={`/beds/${bed.id}`}>
-                    <g
-                      className="cursor-pointer"
-                      onMouseEnter={e => {
-                        setHovered(bed);
-                        const svg = (e.currentTarget as SVGGElement).closest("svg")!;
-                        const pt = svg.createSVGPoint();
-                        pt.x = e.clientX; pt.y = e.clientY;
-                        const svgPt = pt.matrixTransform(svg.getScreenCTM()!.inverse());
-                        setHoveredPos({ x: svgPt.x, y: svgPt.y });
-                      }}
-                      onMouseLeave={() => setHovered(null)}
-                    >
-                      {/* Bed shadow/base */}
-                      <rect x={bX - 1} y={bY + 2} width={bedW + 2} height={bH} rx="2"
-                        fill="#00000018" />
+                  <g key={valve.id} opacity={isDimmed ? 0.35 : 1}>
 
-                      {/* Bed body — plastic mulch */}
-                      <rect x={bX} y={bY} width={bedW} height={bH} rx="2"
-                        fill="url(#plastic)"
-                        stroke={h.stroke} strokeWidth={isHovered ? 2 : 1}
-                      />
+                    {/* ── Zone header bar ──────────────────────────────── */}
+                    <rect x={PAD_X} y={headerY} width={BED_W} height={ZONE_H - 4}
+                      rx="3" fill={zc} opacity="0.18" />
+                    <rect x={PAD_X} y={headerY} width={STRIPE_W} height={ZONE_H - 4}
+                      rx="2" fill={zc} />
+                    <text x={PAD_X + 10} y={headerY + 13} fontSize="11" fontWeight="800" fill={zc}>
+                      {valve.name}
+                    </text>
+                    <text x={PAD_X + 10} y={headerY + 24} fontSize="8" fill="#c4b5a8">
+                      {bedRows.length} beds
+                      {totalKg > 0 ? ` · 🌾 ${totalKg.toFixed(1)} kg today` : ""}
+                      {` · ${valve.irrigationSchedule}`}
+                    </text>
 
-                      {/* Health colour overlay */}
-                      <rect x={bX} y={bY} width={bedW} height={bH} rx="2"
-                        fill={h.fill} opacity={isHovered ? 0.35 : 0.22}/>
+                    {/* ── Beds ─────────────────────────────────────────── */}
+                    {bedRows.map(({ bed, y: bY, h: bH }) => {
+                      const pColor   = plantColor(bed);
+                      const isSelected = selected === bed.id;
+                      const yieldKg  = harvestKgByBed[bed.id] ?? 0;
+                      const readyFruit = bed.stage === "fruiting" || bed.stage === "ripening" || bed.stage === "harvest";
 
-                      {/* Drip tape lines */}
-                      {[0.2, 0.5, 0.8].map(p => (
-                        <line key={p}
-                          x1={bX + 2} y1={bY + bH * p}
-                          x2={bX + bedW - 2} y2={bY + bH * p}
-                          stroke={VALVE_COLORS[vi % 3]} strokeWidth="0.5" opacity="0.35"
-                        />
-                      ))}
+                      // How many plant columns fit?
+                      const plantSpacing = 15;
+                      const plantCols    = Math.floor((BED_W - STRIPE_W - 12) / plantSpacing);
+                      const row1Y = bY + bH * 0.28;
+                      const row2Y = bY + bH * 0.72;
 
-                      {/* Plant rows (dots) */}
-                      {Array.from({ length: Math.min(8, Math.floor(bH / 7)) }).map((_, pi) => (
-                        <circle key={pi}
-                          cx={bX + bedW / 2}
-                          cy={bY + 5 + pi * (bH - 10) / Math.max(7, 1)}
-                          r="1.5"
-                          fill={h.fill} opacity="0.7"
-                        />
-                      ))}
+                      return (
+                        <g
+                          key={bed.id}
+                          className="cursor-pointer"
+                          onClick={() => setSelected(isSelected ? null : bed.id)}
+                        >
+                          {/* Mulch bed */}
+                          <rect
+                            x={PAD_X} y={bY} width={BED_W} height={bH}
+                            fill="url(#mulchPat)"
+                            rx="2"
+                          />
 
-                      {/* Health indicator bar (left edge) */}
-                      <rect x={bX} y={bY} width="3" height={bH} rx="1.5"
-                        fill={h.fill} opacity="0.9"/>
+                          {/* Selection highlight */}
+                          {isSelected && (
+                            <rect x={PAD_X} y={bY} width={BED_W} height={bH}
+                              rx="2" fill={zc} opacity="0.2"
+                              stroke={zc} strokeWidth="1.5"
+                            />
+                          )}
 
-                      {/* Status icon center */}
-                      {bed.health === "infected" && (
-                        <>
-                          <circle cx={bX + bedW/2} cy={bY + bH/2} r="7"
-                            fill="#dc2626" opacity="0.9" filter="url(#redglow)"/>
-                          <text x={bX + bedW/2} y={bY + bH/2 + 3.5}
-                            textAnchor="middle" fontSize="8" fill="white" fontWeight="900">!</text>
-                        </>
-                      )}
-                      {bed.health === "warning" && (
-                        <>
-                          <circle cx={bX + bedW/2} cy={bY + bH/2} r="6" fill="#f59e0b" opacity="0.85"/>
-                          <text x={bX + bedW/2} y={bY + bH/2 + 3} textAnchor="middle" fontSize="7" fill="white" fontWeight="800">!</text>
-                        </>
-                      )}
-                      {ready && bed.health === "healthy" && (
-                        <text x={bX + bedW/2} y={bY + bH/2 + 4} textAnchor="middle" fontSize="10">🍓</text>
-                      )}
+                          {/* Health tint for infected/warning */}
+                          {viewMode === "health" && bed.health !== "healthy" && (
+                            <rect x={PAD_X} y={bY} width={BED_W} height={bH}
+                              rx="2" fill={HEALTH_COLOR[bed.health]} opacity="0.14" />
+                          )}
 
-                      {/* Today harvest badge */}
-                      {todayKg > 0 && (
-                        <g>
-                          <rect x={bX + 1} y={bY + 1} width={bedW - 2} height="10" rx="1.5"
-                            fill="#0f172a" opacity="0.82"/>
-                          <text x={bX + bedW/2} y={bY + 8.5}
-                            textAnchor="middle" fontSize="6" fill="white" fontWeight="700">
-                            {todayKg.toFixed(1)}kg
+                          {/* Zone color left stripe */}
+                          <rect x={PAD_X} y={bY} width={STRIPE_W} height={bH}
+                            rx="1.5" fill={zc} opacity="0.85" />
+
+                          {/* Drip irrigation tape (dashed center line) */}
+                          <rect
+                            x={PAD_X + STRIPE_W + 4} y={bY + bH / 2 - 0.5}
+                            width={BED_W - STRIPE_W - 8} height="1"
+                            fill="url(#dripPat)"
+                          />
+
+                          {/* ── Plant dots — 2 rows ──────────────────── */}
+                          {Array.from({ length: plantCols }).map((_, ci) => {
+                            const cx1 = PAD_X + STRIPE_W + 8 + ci * plantSpacing;
+                            const cx2 = cx1 + plantSpacing * 0.5; // stagger row 2
+                            if (cx2 >= PAD_X + BED_W - 4) return null;
+
+                            return (
+                              <g key={ci}>
+                                {/* Row 1 */}
+                                <circle cx={cx1} cy={row1Y} r="3.8" fill={pColor} opacity="0.88" />
+                                {/* Red fruit dot for ripening/harvest */}
+                                {readyFruit && ci % 2 === 0 && (
+                                  <circle cx={cx1 + 4} cy={row1Y + 4} r="1.8" fill="#dc2626" opacity="0.9" />
+                                )}
+
+                                {/* Row 2 (staggered) */}
+                                {cx2 < PAD_X + BED_W - 4 && (
+                                  <>
+                                    <circle cx={cx2} cy={row2Y} r="3.8" fill={pColor} opacity="0.78" />
+                                    {readyFruit && ci % 2 === 1 && (
+                                      <circle cx={cx2 + 4} cy={row2Y + 4} r="1.8" fill="#dc2626" opacity="0.9" />
+                                    )}
+                                  </>
+                                )}
+                              </g>
+                            );
+                          })}
+
+                          {/* Infected pulse rings */}
+                          {bed.health === "infected" && (
+                            <>
+                              <circle cx={PAD_X + BED_W / 2} cy={bY + bH / 2} r="5"
+                                fill="#dc2626" className="mring" />
+                              <circle cx={PAD_X + BED_W / 2} cy={bY + bH / 2} r="5.5"
+                                fill="#dc2626" opacity="0.9" className="mpulse" />
+                              <text x={PAD_X + BED_W / 2} y={bY + bH / 2 + 4}
+                                textAnchor="middle" fontSize="8.5" fill="white" fontWeight="900">!</text>
+                            </>
+                          )}
+
+                          {/* Harvest badge (top-right) */}
+                          {yieldKg > 0 && (
+                            <>
+                              <rect x={PAD_X + BED_W - 46} y={bY + 2}
+                                width="46" height="12" rx="6" fill="#0f172a" opacity="0.82" />
+                              <text x={PAD_X + BED_W - 23} y={bY + 10.5}
+                                textAnchor="middle" fontSize="7.5" fill="white" fontWeight="700">
+                                🌾 {yieldKg.toFixed(1)} kg
+                              </text>
+                            </>
+                          )}
+
+                          {/* Bed ID label (bottom-right, subtle) */}
+                          <text
+                            x={PAD_X + BED_W - STRIPE_W - 4} y={bY + bH - 3}
+                            textAnchor="end" fontSize="7" fill="#7a8a9a" fontWeight="600"
+                          >
+                            {bed.id.replace("-BED-", " ")}
                           </text>
                         </g>
-                      )}
-
-                      {/* Bed label below */}
-                      <text x={bX + bedW/2} y={bY + bH + 10}
-                        textAnchor="middle" fontSize="6.5" fill="#64748b" fontWeight="600">
-                        {bed.id.replace("-BED-","")}
-                      </text>
-                    </g>
-                  </Link>
+                      );
+                    })}
+                  </g>
                 );
               })}
 
-              {/* Irrigation lateral lines */}
-              {vBeds.map((bed, bi) => {
-                const bX = vX + BED_PAD_L + bi * (bedW + bedGap) + bedW / 2;
-                const topY = vY + PAD.top + 4;
-                return (
-                  <line key={bed.id}
-                    x1={bX} y1={topY + 8}
-                    x2={bX} y2={vY + PAD.top - 8}
-                    stroke={VALVE_COLORS[vi % 3]} strokeWidth="1" strokeDasharray="2 2" opacity="0.25"/>
-                );
-              })}
-            </g>
-          );
-        })}
-
-        {/* ─── HOVER TOOLTIP ─── */}
-        {hovered && (() => {
-          const h = HEALTH[hovered.health];
-          const tx = Math.min(hoveredPos.x + 14, W - 165);
-          const ty = Math.max(hoveredPos.y - 80, 4);
-          return (
-            <g>
-              <rect x={tx} y={ty} width="160" height="78" rx="6"
-                fill="#0f172a" opacity="0.95"
-                filter="url(#bshadow)"/>
-              <rect x={tx} y={ty} width="3" height="78" rx="1.5" fill={h.fill}/>
-              <text x={tx+10} y={ty+14} fontSize="10" fontWeight="800" fill="white">{hovered.id}</text>
-              <text x={tx+10} y={ty+25} fontSize="8" fill="#94a3b8">{hovered.variety}</text>
-              <text x={tx+10} y={ty+37} fontSize="8" fill="#94a3b8">{hovered.origin}</text>
-              <g>
-                <circle cx={tx+12} cy={ty+48} r="4" fill={h.fill}/>
-                <text x={tx+20} y={ty+51} fontSize="7.5" fill={h.fillLight} fontWeight="600">{h.label.charAt(0).toUpperCase() + h.label.slice(1)}</text>
+              {/* ── Scale + compass ───────────────────────────────────── */}
+              <g transform={`translate(${W - 36}, ${totalH - 36})`}>
+                <circle r="16" fill="#0f172a" opacity="0.65" />
+                <text y="-3"  textAnchor="middle" fontSize="7"   fontWeight="800" fill="#f87171">N</text>
+                <text y="10"  textAnchor="middle" fontSize="5.5" fill="#94a3b8">S</text>
+                <text x="9"   y="2.5" textAnchor="middle" fontSize="5.5" fill="#94a3b8">E</text>
+                <text x="-9"  y="2.5" textAnchor="middle" fontSize="5.5" fill="#94a3b8">W</text>
               </g>
-              <text x={tx+10} y={ty+62} fontSize="7.5" fill="#64748b">
-                {`📏 ${hovered.lengthM}m · 🌱 ${plantsInBed(hovered)} plants · ${STAGE_ICONS[hovered.stage]} ${hovered.stage}`}
-              </text>
-              <text x={tx+10} y={ty+73} fontSize="7.5" fill="#64748b">
-                {`Planted ${new Date(hovered.plantedDate).toLocaleDateString("en",{month:"short",day:"numeric"})}`}
-              </text>
-            </g>
-          );
-        })()}
+            </svg>
+          </div>
+        </div>
 
-        {/* ─── COMPASS ─── */}
-        <g transform={`translate(${W - 28}, ${H - 34})`}>
-          <circle r="16" fill="white" stroke="#e2e8f0" strokeWidth="1"/>
-          <text y="-3" textAnchor="middle" fontSize="7" fontWeight="800" fill="#dc2626">N</text>
-          <text y="10" textAnchor="middle" fontSize="5.5" fill="#94a3b8">S</text>
-          <text x="9" y="2" textAnchor="middle" fontSize="5.5" fill="#94a3b8">E</text>
-          <text x="-9" y="2" textAnchor="middle" fontSize="5.5" fill="#94a3b8">W</text>
-          <line x1="0" y1="-12" x2="0" y2="12" stroke="#e2e8f0" strokeWidth="0.5"/>
-          <line x1="-12" y1="0" x2="12" y2="0" stroke="#e2e8f0" strokeWidth="0.5"/>
-        </g>
-
-        {/* ─── SCALE BAR ─── */}
-        <g transform={`translate(18, ${H - 30})`}>
-          <rect x="0" y="4" width="40" height="4" fill="none" stroke="#94a3b8" strokeWidth="1"/>
-          <rect x="0" y="4" width="20" height="4" fill="#94a3b8" opacity="0.5"/>
-          <line x1="0" y1="0" x2="0" y2="8" stroke="#94a3b8" strokeWidth="1"/>
-          <line x1="40" y1="0" x2="40" y2="8" stroke="#94a3b8" strokeWidth="1"/>
-          <text x="20" y="16" textAnchor="middle" fontSize="6.5" fill="#94a3b8">≈ 20m</text>
-        </g>
-
-        {/* ─── TITLE BAR ─── */}
-        <rect x="0" y="0" width={W} height={HEADER_H - 2} fill="#f8fafc"/>
-        <text x="14" y="14" fontSize="10" fontWeight="700" fill="#1e293b">ENTOTO Riverside Farm — Field Plan</text>
-        <text x={W - 14} y="14" textAnchor="end" fontSize="8.5" fill="#94a3b8">2026 · Addis Ababa, Ethiopia · 2800m</text>
-        <line x1="0" y1={HEADER_H - 2} x2={W} y2={HEADER_H - 2} stroke="#e2e8f0" strokeWidth="1"/>
-      </svg>
-
-      {/* ─── LEGEND ─── */}
-      <div className="flex items-center gap-4 px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex-wrap">
-        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1">Legend</span>
-        {Object.entries(HEALTH).map(([k, v]) => (
-          <span key={k} className="flex items-center gap-1.5 text-[11px] text-slate-600">
-            <span className="size-3 rounded" style={{background: v.fill, opacity: 0.9}}/>
-            {v.label}
-          </span>
-        ))}
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-600"><span>🍓</span>Ready to harvest</span>
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-600 ml-auto">Click any bed to open profile</span>
+        {/* ── Legend strip ────────────────────────────────────────────── */}
+        <div className="px-4 py-2.5 flex items-center gap-3 flex-wrap text-[10px] border-t border-white/10 bg-[#4a1e08]">
+          {viewMode === "health" && (
+            <>
+              {Object.entries(HEALTH_COLOR).map(([k, v]) => (
+                <span key={k} className="flex items-center gap-1.5 text-white/70 font-medium capitalize">
+                  <span className="size-2.5 rounded-full inline-block" style={{ background: v }} />
+                  {k}
+                </span>
+              ))}
+              <span className="flex items-center gap-1.5 text-white/70 font-medium">
+                <span className="size-2.5 rounded-full bg-red-500 inline-block animate-ping" />
+                Infected
+              </span>
+            </>
+          )}
+          {viewMode === "stage" && (
+            Object.entries(STAGE_LABEL).map(([k, label]) => (
+              <span key={k} className="flex items-center gap-1.5 text-white/70 font-medium">
+                <span className="size-2.5 rounded-full inline-block" style={{ background: STAGE_COLOR[k] }} />
+                {label}
+              </span>
+            ))
+          )}
+          {viewMode === "yield" && (
+            <>
+              {[["#14532d","High yield"],["#16a34a","Med"],["#4ade80","Low"],["#bbf7d0","None"]].map(([c, l]) => (
+                <span key={l} className="flex items-center gap-1.5 text-white/70 font-medium">
+                  <span className="size-2.5 rounded-full inline-block" style={{ background: c }} />{l}
+                </span>
+              ))}
+            </>
+          )}
+          <span className="ml-auto text-white/40 italic">Tap any bed to inspect</span>
+        </div>
       </div>
-      </div>{/* /minWidth wrapper */}
-      </div>{/* /overflow-x-auto */}
+
+      {/* ── Selected bed panel ──────────────────────────────────────── */}
+      {selectedBed && (() => {
+        const vi       = valves.findIndex(v => v.id === selectedBed.valveId);
+        const zc       = VALVE_COLORS[vi % 3] ?? "#10b981";
+        const yieldKg  = harvestKgByBed[selectedBed.id] ?? 0;
+        return (
+          <div
+            className="rounded-2xl border bg-white shadow-md overflow-hidden"
+            style={{ borderColor: `${zc}60` }}
+          >
+            <div className="h-1" style={{ background: `linear-gradient(90deg, ${zc}, ${zc}88)` }} />
+            <div className="p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="font-bold text-slate-900 text-base">{selectedBed.id}</div>
+                  <div className="text-sm text-slate-500">{selectedBed.variety}</div>
+                  <div className="text-xs text-slate-400">{selectedBed.origin}</div>
+                </div>
+                <button
+                  onClick={() => setSelected(null)}
+                  className="text-slate-400 text-xl leading-none hover:text-slate-600 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {[
+                  { label: "Length",  value: `${selectedBed.lengthM} m` },
+                  { label: "Plants",  value: plantsInBed(selectedBed).toString() },
+                  { label: "Stage",   value: STAGE_LABEL[selectedBed.stage] ?? selectedBed.stage },
+                  { label: "Harvest", value: yieldKg > 0 ? `${yieldKg.toFixed(1)} kg` : "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 rounded-xl p-2 text-center">
+                    <div className="text-sm font-black text-slate-800 leading-tight">{value}</div>
+                    <div className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wide">{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                  style={{
+                    background: `${HEALTH_COLOR[selectedBed.health]}20`,
+                    color: HEALTH_COLOR[selectedBed.health],
+                    border: `1px solid ${HEALTH_COLOR[selectedBed.health]}50`,
+                  }}
+                >
+                  ● {selectedBed.health.charAt(0).toUpperCase() + selectedBed.health.slice(1)}
+                </span>
+                <span
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                  style={{ background: `${STAGE_COLOR[selectedBed.stage]}20`, color: STAGE_COLOR[selectedBed.stage], border: `1px solid ${STAGE_COLOR[selectedBed.stage]}50` }}
+                >
+                  {STAGE_LABEL[selectedBed.stage] ?? selectedBed.stage}
+                </span>
+                <span className="text-[10px] text-slate-400 ml-auto">
+                  Planted {new Date(selectedBed.plantedDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+
+              <Link
+                href={`/beds/${selectedBed.id}`}
+                className="block w-full text-center text-sm font-bold py-2.5 rounded-xl text-white transition-opacity hover:opacity-90"
+                style={{ background: `linear-gradient(90deg, ${zc}, ${zc}cc)` }}
+              >
+                Open Bed Profile →
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
