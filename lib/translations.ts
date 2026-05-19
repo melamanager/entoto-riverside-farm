@@ -1,6 +1,8 @@
 // ─── App-wide EN / Amharic translations ──────────────────────────────────────
 // Usage: const { isAm } = useLang(); const t = isAm ? AM : EN;
 
+type Stringify<T> = T extends string ? string : { [K in keyof T]: Stringify<T[K]> };
+
 export const EN = {
   // ── Navigation groups ───────────────────────────────────────────────────────
   nav: {
@@ -251,7 +253,7 @@ export const EN = {
   },
 } as const;
 
-export const AM: typeof EN = {
+export const AM: Stringify<typeof EN> = {
   nav: {
     overview:      "አጠቃቀም",
     cropMgmt:      "የሰብል አስተዳደር",
