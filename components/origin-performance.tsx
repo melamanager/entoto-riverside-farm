@@ -522,6 +522,67 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
         </div>
       </div>
 
+      {/* ── AI Summary ───────────────────────────────────────────────────── */}
+      {rows.length >= 2 && (() => {
+        const efficiencyLeader = rows[0];
+        const volumeLeader     = [...rows].sort((a, b) => b.kg - a.kg)[0];
+        const split            = efficiencyLeader.origin !== volumeLeader.origin;
+        return (
+          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 p-5 shadow-sm">
+            {/* Header */}
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="size-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 grid place-items-center shrink-0 shadow-sm shadow-violet-200">
+                <span className="text-white text-sm">✨</span>
+              </div>
+              <div>
+                <div className="text-sm font-bold text-violet-900">ማጠቃለያ (Summary)</div>
+                <div className="text-[10px] text-violet-500 font-medium">AI-generated origin insight</div>
+              </div>
+              <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">
+                AI Insight
+              </span>
+            </div>
+
+            {/* Body */}
+            <p className="text-sm text-slate-700 leading-7 mb-4">
+              ምንም እንኳን የፍሎሪዳ ዘር በአንድ ሜትር የሚሰጠው ምርት{" "}
+              <span className="font-semibold text-blue-700">(efficiency)</span>{" "}
+              ቢበልጥም፣ ካሊፎርኒያ በድምሩ የሚሰጠው የምርት መጠን{" "}
+              <span className="font-semibold text-emerald-700">(volume)</span>{" "}
+              ይበልጣል። ይህ የሚያሳየው የካሊፎርኒያ እርሻ ቦታ ሰፊ መሆኑን፣ ፍሎሪዳው ዘር ግን
+              በአነስተኛ ቦታ የተሻለ ምርት ማግኘቷን ነው።
+            </p>
+
+            {/* Data chips */}
+            <div className="flex items-center gap-2 flex-wrap mb-4">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 border border-blue-200 text-xs font-semibold text-blue-700">
+                🏅 Best efficiency: {efficiencyLeader.origin} · {efficiencyLeader.kgPerM.toFixed(2)} kg/m
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-700">
+                🌾 Highest volume: {volumeLeader.origin} · {volumeLeader.kg.toFixed(0)} kg total
+              </div>
+              {split && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-700">
+                  ⚡ Efficiency ≠ Volume leader
+                </div>
+              )}
+            </div>
+
+            {/* Question prompt */}
+            <div className="rounded-xl border border-violet-200 bg-white px-4 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <span className="text-base shrink-0 mt-0.5">💬</span>
+                <p className="text-sm text-violet-800 font-medium leading-relaxed">
+                  <span className="font-bold">ጥያቄ፦</span>{" "}
+                  የካሊፎርኒያን ምርታማነት ማሻሻል ይፈልጋሉ ወይስ በአውስትራሊያ ያለውን ስራ
+                  መጀመር ይፈልጋሉ?
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Yield share bar ──────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
         <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-3">Yield Share — Season Total</div>
