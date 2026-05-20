@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, AlertTriangle, FlaskConical, Package, Bug, Droplets, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, AlertTriangle, FlaskConical, Package, Bug, Droplets, CheckCircle2, TrendingUp } from "lucide-react";
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
 import { BedQR } from "@/components/bed-qr";
 import { HarvestChart } from "@/components/harvest-chart";
@@ -16,6 +16,15 @@ import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
 import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
 
 const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
+
+const STAGE_DAYS_FROM_PLANTED: Record<string, number> = {
+  planted: 0, vegetative: 14, flowering: 28, fruiting: 38, ripening: 52, harvest: 56,
+};
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
 
 export default async function BedPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,8 +54,24 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
   const yieldPerMeter = totalKg / bed.lengthM;
   const yieldPerPlant = totalKg / plants;
 
+  const KG_PER_M_TARGET = 0.38;
+  const plannedHarvestStart = addDays(bed.plantedDate, 56);
+  const harvestsSorted = [...harvests].sort((a, b) => a.date.localeCompare(b.date));
+  const actualHarvestStart = harvestsSorted[0]?.date ?? null;
+  const plannedKgPerPick = Math.round(bed.lengthM * KG_PER_M_TARGET * 10) / 10;
+  const avgKgPerPick = harvests.length > 0 ? Math.round((totalKg / harvests.length) * 10) / 10 : 0;
+  const gradeACount = harvests.filter(h => h.qualityGrade === "A").length;
+  const gradeAPct = harvests.length > 0 ? Math.round((gradeACount / harvests.length) * 100) : 0;
+  const gradeATarget = 75;
+  const yieldEfficiency = KG_PER_M_TARGET > 0 ? Math.round((yieldPerMeter / KG_PER_M_TARGET) * 100) : 0;
+
   // ── Activity log ──────────────────────────────────────────────────────────
-  type LogEntry = { date: string; kind: "harvest"|"disease"|"fertigation"|"packaging"; data: unknown };
+  type LogEntry = { date: string; kind: "harvest"|"disease"|"fertigation"|"packaging"|"stage"; data: unknown };
+  const stageHistory = STAGES.slice(0, stageIdx + 1).map(s => ({
+    date: addDays(bed.plantedDate, STAGE_DAYS_FROM_PLANTED[s]),
+    kind: "stage" as const,
+    data: s,
+  }));
   const log: LogEntry[] = [
     ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
     ...diseases.map(d => ({ date: d.reportedAt.slice(0,10), kind: "disease" as const, data: d })),
@@ -56,6 +81,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
     ...PACKAGING_RECORDS
       .filter(p => p.valveId === bed.valveId && p.variety === bed.variety)
       .map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
+    ...stageHistory,
   ].sort((a,b) => b.date.localeCompare(a.date));
 
   return (
@@ -85,6 +111,28 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <Badge className={`${bed.health==="healthy"?"bg-emerald-100 text-emerald-700":bed.health==="warning"?"bg-amber-100 text-amber-700":"bg-rose-100 text-rose-700"} capitalize`}>● {bed.health}</Badge>
           <Badge variant="outline">{GROWTH_STAGE_LABELS[bed.stage]}</Badge>
           <AIDetectDialog bedId={bed.id} />
+        </div>
+      </div>
+
+      {/* Bed Summary */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-800 to-slate-700 p-4 shadow-lg">
+        <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-3">Bed Summary</div>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          {[
+            { icon: "🌾", label: "Total Yield",   value: `${totalKg.toFixed(1)} kg`,           sub: `${harvests.length} picks` },
+            { icon: "📏", label: "Efficiency",     value: `${yieldPerMeter.toFixed(2)} kg/m`,   sub: "yield per metre" },
+            { icon: "🌱", label: "Age",            value: `${Math.floor((new Date("2026-05-20").getTime() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
+            { icon: "📊", label: "Stage",          value: GROWTH_STAGE_LABELS[bed.stage],       sub: `${stageIdx + 1} of ${STAGES.length}` },
+            { icon: "⭐", label: "Grade A",         value: `${gradeAPct}%`,                      sub: `${gradeACount}/${harvests.length} picks` },
+            { icon: "💚", label: "Health",          value: bed.health.charAt(0).toUpperCase() + bed.health.slice(1), sub: diseases.length > 0 ? `${diseases.length} issue${diseases.length > 1 ? "s" : ""}` : "No issues" },
+          ].map(kpi => (
+            <div key={kpi.label} className="bg-white/8 rounded-xl p-3 border border-white/8">
+              <div className="text-lg mb-1">{kpi.icon}</div>
+              <div className="text-white font-bold text-sm tabular-nums leading-tight">{kpi.value}</div>
+              <div className="text-slate-400 text-[9px] mt-0.5 uppercase tracking-wide">{kpi.label}</div>
+              <div className="text-slate-500 text-[9px]">{kpi.sub}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -130,6 +178,68 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <div className="absolute top-3.5 left-0 right-0 h-0.5 bg-stone-100 -z-10">
             <div className="h-full bg-emerald-500" style={{width:`${(stageIdx/(STAGES.length-1))*100}%`}} />
           </div>
+        </div>
+      </Card>
+
+      {/* Planned vs Achievement */}
+      <Card className="p-5">
+        <h3 className="font-bold mb-4 flex items-center gap-2">
+          <TrendingUp className="size-4 text-blue-500" /> Planned vs Achievement
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            {
+              label: "Harvest Start",
+              planned: new Date(plannedHarvestStart).toLocaleDateString("en", { month: "short", day: "numeric" }),
+              actual: actualHarvestStart
+                ? new Date(actualHarvestStart).toLocaleDateString("en", { month: "short", day: "numeric" })
+                : "Not yet",
+              good: actualHarvestStart !== null && actualHarvestStart <= plannedHarvestStart,
+              unit: "",
+            },
+            {
+              label: "Avg kg / Pick",
+              planned: `${plannedKgPerPick} kg`,
+              actual: `${avgKgPerPick} kg`,
+              good: avgKgPerPick >= plannedKgPerPick,
+              unit: "kg",
+            },
+            {
+              label: "Grade A Rate",
+              planned: `${gradeATarget}%`,
+              actual: `${gradeAPct}%`,
+              good: gradeAPct >= gradeATarget,
+              unit: "%",
+            },
+            {
+              label: "Yield Efficiency",
+              planned: "100%",
+              actual: `${yieldEfficiency}%`,
+              good: yieldEfficiency >= 100,
+              unit: "%",
+            },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl border border-slate-200 p-3">
+              <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-2">{item.label}</div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">Planned</span>
+                  <span className="text-xs font-semibold text-slate-600">{item.planned}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">Actual</span>
+                  <span className={`text-xs font-bold ${item.actual === "Not yet" ? "text-slate-400" : item.good ? "text-emerald-600" : "text-red-500"}`}>
+                    {item.actual}
+                  </span>
+                </div>
+              </div>
+              {item.actual !== "Not yet" && (
+                <div className={`mt-2 text-[10px] font-semibold flex items-center gap-0.5 ${item.good ? "text-emerald-600" : "text-red-500"}`}>
+                  {item.good ? "↑ On track" : "↓ Below target"}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -270,6 +380,31 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                         <span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                       </div>
                       <div className="text-amber-700 mt-0.5">{p.packedKg}kg packed · {p.cartonCount} cartons · {p.plateCount} plates{p.lostKg > 0 ? ` · ${p.lostKg.toFixed(1)} kg lost` : ""}</div>
+                    </div>
+                  </div>
+                );
+              }
+              if (entry.kind === "stage") {
+                const s = entry.data as string;
+                const isCurrentStage = s === bed.stage;
+                return (
+                  <div key={`stage-${s}`} className="relative">
+                    <div className={`${iconClass} ${isCurrentStage ? "bg-emerald-500 border-emerald-600" : "bg-slate-100 border-slate-300"}`}>
+                      <Sprout className={`size-2.5 ${isCurrentStage ? "text-white" : "text-slate-500"}`} />
+                    </div>
+                    <div className={`border rounded-lg px-3 py-2 text-xs ${isCurrentStage ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-100"}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-semibold ${isCurrentStage ? "text-emerald-800" : "text-slate-700"}`}>
+                          Stage: {GROWTH_STAGE_LABELS[s as keyof typeof GROWTH_STAGE_LABELS]}
+                          {isCurrentStage && <span className="ml-1.5 text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-full">Current</span>}
+                        </span>
+                        <span className={`tabular-nums ${isCurrentStage ? "text-emerald-600" : "text-slate-400"}`}>
+                          {new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      </div>
+                      <div className={`mt-0.5 text-[10px] ${isCurrentStage ? "text-emerald-600" : "text-slate-400"}`}>
+                        {STAGE_DAYS_FROM_PLANTED[s]} days from planting
+                      </div>
                     </div>
                   </div>
                 );
