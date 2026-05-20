@@ -79,6 +79,11 @@ export interface DiseaseReport {
   proofImageUrl?: string;           // supervisor's uploaded proof image (data URL)
 }
 
+export interface TaskWorkerAssignment {
+  farmerId: string;
+  shift: "morning" | "afternoon" | "full_day";
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -94,8 +99,11 @@ export interface Task {
   dueDate: string;
   completedAt?: string;
   progressNote?: string;
-  requiresImageProof?: boolean;     // manager marks task as requiring a completion photo
-  proofImageUrl?: string;           // supervisor's uploaded completion photo (data URL)
+  requiresImageProof?: boolean;
+  proofImageUrl?: string;
+  workerAssignments?: TaskWorkerAssignment[];
+  requiresFollowUp?: boolean;
+  followUpDueDate?: string;
 }
 
 export interface AttendanceRecord {
@@ -154,6 +162,15 @@ export const EXPENSE_CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   packaging: "bg-cyan-100 text-cyan-700 border-cyan-200",
   repairs:   "bg-amber-100 text-amber-700 border-amber-200",
   other:     "bg-slate-100 text-slate-700 border-slate-200",
+};
+
+export const GROWTH_STAGE_LABELS: Record<GrowthStage, string> = {
+  planted:    "Planted",
+  vegetative: "Vegetative",
+  flowering:  "Flowering",
+  fruiting:   "Fruiting",
+  ripening:   "Ripening",
+  harvest:    "Harvest-ready",
 };
 
 export const DISEASE_LABELS: Record<DiseaseType, string> = {

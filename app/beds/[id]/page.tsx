@@ -12,7 +12,7 @@ import {
   getBed, getValve, getFarmer, harvestsForBed, diseasesForBed,
   plantsInBed, totalKgBed, FARMERS,
 } from "@/lib/data";
-import { DISEASE_LABELS } from "@/lib/types";
+import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
 import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
 
 const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
@@ -83,7 +83,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Badge className={`${bed.health==="healthy"?"bg-emerald-100 text-emerald-700":bed.health==="warning"?"bg-amber-100 text-amber-700":"bg-rose-100 text-rose-700"} capitalize`}>● {bed.health}</Badge>
-          <Badge variant="outline" className="capitalize">{bed.stage}</Badge>
+          <Badge variant="outline">{GROWTH_STAGE_LABELS[bed.stage]}</Badge>
           <AIDetectDialog bedId={bed.id} />
         </div>
       </div>
@@ -123,7 +123,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 <div className={`size-7 rounded-full grid place-items-center text-[10px] font-bold ${i<=stageIdx?"bg-emerald-500 text-white":"bg-stone-100 text-stone-400"}`}>
                   {i+1}
                 </div>
-                <span className={`text-[10px] capitalize ${i<=stageIdx?"text-emerald-700 font-medium":"text-stone-400"}`}>{s}</span>
+                <span className={`text-[10px] text-center leading-tight ${i<=stageIdx?"text-emerald-700 font-medium":"text-stone-400"}`}>{GROWTH_STAGE_LABELS[s]}</span>
               </div>
             ))}
           </div>

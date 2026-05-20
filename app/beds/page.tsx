@@ -195,7 +195,7 @@ export default function BedsIndex() {
               onChange={e => setForm(p => ({ ...p, stage: e.target.value as GrowthStage }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize"
             >
-              {STAGES.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+              {STAGES.map(s => <option key={s} value={s}>{t.growthStages[s]}</option>)}
             </select>
           </div>
           <div>
@@ -260,7 +260,7 @@ export default function BedsIndex() {
                   <td className="py-2.5 tabular-nums">{plantsInBed(b)}</td>
                   <td className="py-2.5 text-stone-600 max-w-[140px] truncate">{b.variety}</td>
                   <td className="py-2.5">
-                    <Badge variant="outline" className="text-[10px] capitalize">{b.stage}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{t.growthStages[b.stage]}</Badge>
                   </td>
                   <td className="py-2.5">
                     <Badge className={`text-[10px] capitalize ${healthClass(b.health)}`}>{b.health}</Badge>

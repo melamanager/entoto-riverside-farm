@@ -230,6 +230,14 @@ export const EN = {
     title: "Raised Beds",
     subtitle: "Manage all raised beds, growth stages and health",
   },
+  growthStages: {
+    planted:    "Planted",
+    vegetative: "Vegetative",
+    flowering:  "Flowering",
+    fruiting:   "Fruiting",
+    ripening:   "Ripening",
+    harvest:    "Harvest-ready",
+  },
   orders: {
     title: "Customer Orders",
     subtitle: "Track deliveries, invoices and payment status",
@@ -492,6 +500,14 @@ export const AM: Stringify<typeof EN> = {
   beds: {
     title: "ከፍ ያሉ አልጋዎች",
     subtitle: "ሁሉም አልጋዎች፣ እድገት ደረጃዎች እና ጤና ክትትል",
+  },
+  growthStages: {
+    planted:    "ተተክሏል",
+    vegetative: "የቅጠል/የግንድ እድገት",
+    flowering:  "የአበባ ወቅት",
+    fruiting:   "የፍሬ ማፍራት",
+    ripening:   "መብሰል",
+    harvest:    "ለመለቀም የደረሰ",
   },
   orders: {
     title: "የደንበኛ ትዕዛዞች",
