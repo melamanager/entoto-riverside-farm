@@ -6,8 +6,8 @@ import {
   LayoutDashboard, Map, Sprout, Users, Bug, Wheat,
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
-  TrendingUp, DollarSign, Beaker, ClipboardList,
-  BarChart3, CalendarDays, Zap, Bell, Warehouse, Languages,
+  DollarSign, Beaker,
+  BarChart3, CalendarDays, Zap, Warehouse, Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -51,9 +51,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/valves",      labelKey: "irrigationZones",  isValve: true,    roles: ["manager"] },
       { href: "/fertigation", labelKey: "nutrientFeeding",  icon: Beaker,     roles: ["manager", "supervisor"] },
       { href: "/diseases",    labelKey: "diseaseMgmt",      icon: Bug,        roles: ["manager", "supervisor"] },
-      { href: "/tasks",       labelKey: "dailyTasks",       icon: ListChecks, roles: ["manager", "supervisor"] },
-      { href: "/stock",       labelKey: "inputStore",       icon: Warehouse,  roles: ["manager", "supervisor"] },
-      { href: "/follow-ups",  labelKey: "followUps",        icon: Bell,       roles: ["manager", "supervisor"] },
+      { href: "/tasks",  labelKey: "dailyTasks", icon: ListChecks, roles: ["manager", "supervisor"] },
+      { href: "/stock",  labelKey: "inputStore", icon: Warehouse,  roles: ["manager", "supervisor"] },
     ],
   },
   {
@@ -61,17 +60,15 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/harvest",    labelKey: "harvestLog",      icon: Wheat,        roles: ["manager", "supervisor"] },
       { href: "/packaging",  labelKey: "packaging",        icon: Package,      roles: ["manager", "supervisor"] },
-      { href: "/orders",     labelKey: "customerOrders",   icon: ShoppingCart, roles: ["manager"] },
-      { href: "/revenue",    labelKey: "revenue",          icon: TrendingUp,   roles: ["manager"] },
-      { href: "/expenses",   labelKey: "expenses",         icon: DollarSign,   roles: ["manager"] },
+      { href: "/orders",   labelKey: "customerOrders", icon: ShoppingCart, roles: ["manager"] },
+      { href: "/expenses", labelKey: "expenses",        icon: DollarSign,   roles: ["manager"] },
     ],
   },
   {
     groupKey: "workforce",
     items: [
-      { href: "/employees",    labelKey: "employees",    icon: Users,         roles: ["manager"] },
-      { href: "/assignments",  labelKey: "assignments",  icon: ClipboardList, roles: ["manager", "supervisor"] },
-      { href: "/attendance",   labelKey: "attendance",   icon: CalendarCheck, roles: ["manager", "supervisor"] },
+      { href: "/employees",  labelKey: "employees",  icon: Users,         roles: ["manager"] },
+      { href: "/attendance", labelKey: "attendance", icon: CalendarCheck, roles: ["manager", "supervisor"] },
       { href: "/payroll",      labelKey: "payroll",      icon: DollarSign,    roles: ["manager"] },
       { href: "/productivity", labelKey: "productivity", icon: BarChart3,     roles: ["manager"] },
     ],

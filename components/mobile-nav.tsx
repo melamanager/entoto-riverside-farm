@@ -6,9 +6,9 @@ import {
   LayoutDashboard, Map, Bug, ListChecks, QrCode, ShieldCheck,
   MoreHorizontal, X, Sprout, Users, Wheat,
   FileBarChart, CalendarCheck, LogOut, Check, ChevronRight,
-  Shield, UserCircle2, Package, ShoppingCart, TrendingUp,
-  DollarSign, UserCog, Beaker, ClipboardList, BarChart3,
-  CalendarDays, Zap, Languages, Warehouse, Bell,
+  Shield, UserCircle2, Package, ShoppingCart,
+  DollarSign, Beaker, BarChart3,
+  CalendarDays, Zap, Languages, Warehouse,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
@@ -41,10 +41,9 @@ const NAV_GROUPS = [
     items: [
       { href: "/valves",      label: "Valves",       icon: null,       roles: ["manager"],              isValve: true },
       { href: "/fertigation", label: "Fertigation",  icon: Beaker,     roles: ["manager", "supervisor"] },
-      { href: "/diseases",    label: "Disease Mgmt", icon: Bug,        roles: ["manager", "supervisor"] },
-      { href: "/tasks",       label: "Daily Tasks",  icon: ListChecks, roles: ["manager", "supervisor"] },
-      { href: "/stock",       label: "Input Store",  icon: Warehouse,  roles: ["manager", "supervisor"] },
-      { href: "/follow-ups",  label: "Follow-ups",   icon: Bell,       roles: ["manager", "supervisor"] },
+      { href: "/diseases", label: "Disease Mgmt", icon: Bug,        roles: ["manager", "supervisor"] },
+      { href: "/tasks",    label: "Daily Tasks",  icon: ListChecks, roles: ["manager", "supervisor"] },
+      { href: "/stock",    label: "Input Store",  icon: Warehouse,  roles: ["manager", "supervisor"] },
     ],
   },
   {
@@ -52,17 +51,15 @@ const NAV_GROUPS = [
     items: [
       { href: "/harvest",   label: "Harvest Log",     icon: Wheat,         roles: ["manager", "supervisor"] },
       { href: "/packaging", label: "Packaging",        icon: Package,       roles: ["manager", "supervisor"] },
-      { href: "/orders",    label: "Customer Orders",  icon: ShoppingCart,  roles: ["manager"] },
-      { href: "/revenue",   label: "Revenue",          icon: TrendingUp,    roles: ["manager"] },
-      { href: "/expenses",  label: "Expenses",         icon: DollarSign,    roles: ["manager"] },
+      { href: "/orders",   label: "Customer Orders", icon: ShoppingCart, roles: ["manager"] },
+      { href: "/expenses", label: "Expenses",         icon: DollarSign,   roles: ["manager"] },
     ],
   },
   {
     label: "Workforce",
     items: [
-      { href: "/employees",   label: "Employees",   icon: Users,         roles: ["manager"] },
-      { href: "/assignments", label: "Assignments", icon: ClipboardList, roles: ["manager", "supervisor"] },
-      { href: "/attendance",  label: "Attendance",  icon: CalendarCheck, roles: ["manager", "supervisor"] },
+      { href: "/employees",  label: "Employees",  icon: Users,         roles: ["manager"] },
+      { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ["manager", "supervisor"] },
       { href: "/payroll",     label: "Payroll",     icon: DollarSign,    roles: ["manager"] },
       { href: "/productivity",label: "Productivity",icon: BarChart3,     roles: ["manager"] },
     ],

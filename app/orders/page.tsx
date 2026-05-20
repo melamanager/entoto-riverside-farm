@@ -5,9 +5,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingCart, Truck, Phone, Plus, Pencil, Trash2, Package, ChevronDown } from "lucide-react";
+import {
+  ShoppingCart, Truck, Phone, Plus, Pencil, Trash2, Package, ChevronDown,
+  TrendingUp, DollarSign, BarChart3, TrendingDown,
+} from "lucide-react";
 import { toast } from "sonner";
-import { CUSTOMER_ORDERS, PACKAGING_RECORDS } from "@/lib/erp-data";
+import { CUSTOMER_ORDERS, PACKAGING_RECORDS, FERTIGATION_RECORDS, PAYROLL_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
 import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
@@ -40,15 +43,18 @@ const EMPTY_FORM = {
   variety: "", phone: "", notes: "",
 };
 
+type ActiveTab = "orders" | "revenue";
+
 export default function OrdersPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [orders, setOrders] = useState<CustomerOrder[]>(CUSTOMER_ORDERS);
-  const [filter, setFilter]         = useState<"all" | PaymentStatus>("all");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<CustomerOrder | null>(null);
+  const [activeTab, setActiveTab]       = useState<ActiveTab>("orders");
+  const [orders, setOrders]             = useState<CustomerOrder[]>(CUSTOMER_ORDERS);
+  const [filter, setFilter]             = useState<"all" | PaymentStatus>("all");
+  const [createOpen, setCreateOpen]     = useState(false);
+  const [editTarget, setEditTarget]     = useState<CustomerOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerOrder | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm]                 = useState(EMPTY_FORM);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
 
   function openCreate() { setForm(EMPTY_FORM); setCreateOpen(true); }
@@ -102,7 +108,7 @@ export default function OrdersPage() {
       phone: form.phone || undefined, notes: form.notes || undefined,
     });
     setOrders([...CUSTOMER_ORDERS]);
-    toast.success(`Order updated`);
+    toast.success("Order updated");
     setEditTarget(null);
   }
 
@@ -116,16 +122,34 @@ export default function OrdersPage() {
     const idx = CUSTOMER_ORDERS.findIndex(o => o.id === deleteTarget.id);
     if (idx >= 0) CUSTOMER_ORDERS.splice(idx, 1);
     setOrders([...CUSTOMER_ORDERS]);
-    toast.success(`Order deleted`);
+    toast.success("Order deleted");
     setDeleteTarget(null);
   }
 
-  const records = filter === "all" ? orders : orders.filter(o => o.paymentStatus === filter);
+  const records      = filter === "all" ? orders : orders.filter(o => o.paymentStatus === filter);
   const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
   const collected    = orders.reduce((s, o) => s + o.advancePaid, 0);
   const outstanding  = totalRevenue - collected;
   const delivered    = orders.filter(o => o.deliveryStatus === "delivered").length;
   const pending      = orders.filter(o => o.deliveryStatus === "pending").length;
+
+  // Revenue tab data
+  const fertCost   = FERTIGATION_RECORDS.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
+  const payrollMay = PAYROLL_RECORDS.filter(r => r.month === "2026-05").reduce((s, r) => s + r.netPay, 0);
+  const totalCosts = fertCost + payrollMay;
+  const grossProfit = collected - totalCosts;
+  const totalKg    = orders.reduce((s, o) => s + o.quantityKg, 0);
+  const avgPrice   = totalKg > 0 ? totalRevenue / totalKg : 0;
+  const byType     = orders.reduce<Record<string, { revenue: number; kg: number; count: number }>>((acc, o) => {
+    if (!acc[o.customerType]) acc[o.customerType] = { revenue: 0, kg: 0, count: 0 };
+    acc[o.customerType].revenue += o.totalAmount;
+    acc[o.customerType].kg += o.quantityKg;
+    acc[o.customerType].count += 1;
+    return acc;
+  }, {});
+  const sortedTypes  = Object.entries(byType).sort((a, b) => b[1].revenue - a[1].revenue);
+  const maxRevenue   = Math.max(...sortedTypes.map(([, v]) => v.revenue));
+  const topCustomers = [...orders].sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 5);
 
   function OrderForm() {
     const total = form.quantityKg * form.pricePerKg;
@@ -133,21 +157,17 @@ export default function OrdersPage() {
       <div className="space-y-3">
         <div>
           <label className="text-xs font-semibold text-slate-700 block mb-1">Customer Name <span className="text-red-500">*</span></label>
-          <input
-            value={form.customerName}
+          <input value={form.customerName}
             onChange={e => setForm(p => ({ ...p, customerName: e.target.value }))}
             placeholder="e.g. Skylight Hotel"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Customer Type</label>
-            <select
-              value={form.customerType}
+            <select value={form.customerType}
               onChange={e => setForm(p => ({ ...p, customerType: e.target.value as CustomerType }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
-            >
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               {(Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map(ct => (
                 <option key={ct} value={ct}>{CUSTOMER_ICONS[ct]} {CUSTOMER_TYPE_LABELS[ct]}</option>
               ))}
@@ -155,12 +175,10 @@ export default function OrdersPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Phone</label>
-            <input
-              value={form.phone}
+            <input value={form.phone}
               onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
               placeholder="+251..."
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
-            />
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -238,6 +256,7 @@ export default function OrdersPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -246,154 +265,293 @@ export default function OrdersPage() {
           </div>
           <p className="text-slate-500 text-sm">{t.orders.subtitle}</p>
         </div>
-        <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
-          <Plus className="size-4" /> {t.orders.newOrder}
-        </Button>
+        {activeTab === "orders" && (
+          <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+            <Plus className="size-4" /> {t.orders.newOrder}
+          </Button>
+        )}
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 bg-indigo-50 border-indigo-200">
-          <div className="text-xl font-bold text-indigo-700 tabular-nums">{(totalRevenue / 1000).toFixed(1)}k ETB</div>
-          <div className="text-xs text-indigo-600 font-medium mt-0.5">Total Order Value</div>
-        </Card>
-        <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="text-xl font-bold text-emerald-700 tabular-nums">{(collected / 1000).toFixed(1)}k ETB</div>
-          <div className="text-xs text-emerald-600 font-medium mt-0.5">Collected</div>
-        </Card>
-        <Card className="p-4 bg-red-50 border-red-200">
-          <div className="text-xl font-bold text-red-700 tabular-nums">{(outstanding / 1000).toFixed(1)}k ETB</div>
-          <div className="text-xs text-red-600 font-medium mt-0.5">Outstanding</div>
-        </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xl font-bold text-slate-700 tabular-nums">{delivered}/{orders.length}</div>
-              <div className="text-xs text-slate-500 font-medium mt-0.5">Delivered · {pending} pending</div>
-            </div>
-            <Truck className="size-7 text-slate-300" />
-          </div>
-        </Card>
-      </div>
-
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg w-fit">
-        {(["all", "paid", "partial", "pending", "overdue"] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>
-            {f}
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        {([
+          { key: "orders",  label: "Customer Orders", icon: ShoppingCart },
+          { key: "revenue", label: "Revenue & P&L",    icon: TrendingUp  },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === key ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700"
+            }`}>
+            <Icon className="size-4" />
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Table */}
-      <Card className="border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full pro-table">
-            <thead>
-              <tr>
-                <th>Customer</th><th>Type</th><th>Order</th><th>Delivery</th>
-                <th>Qty</th><th>Price</th><th>Total</th>
-                <th>Advance</th><th>Balance</th><th>Payment</th><th>Delivery</th>
-                <th>Batches</th><th className="w-16"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map(ord => {
-                const balance = ord.totalAmount - ord.advancePaid;
-                const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
-                const batches = PACKAGING_RECORDS.filter(p => p.orderId === ord.id);
-                const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
-                const isExpanded = expandedOrder === ord.id;
-                return (
-                  <>
-                  <tr key={ord.id} className="group">
-                    <td>
-                      <div className="font-semibold text-slate-800 text-sm">{ord.customerName}</div>
-                      {ord.phone && (
-                        <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
-                          <Phone className="size-2.5" /> {ord.phone}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <span className="flex items-center gap-1 text-xs">
-                        <span>{CUSTOMER_ICONS[ord.customerType]}</span>
-                        <span className="text-slate-600">{CUSTOMER_TYPE_LABELS[ord.customerType]}</span>
-                      </span>
-                    </td>
-                    <td className="tabular-nums text-xs">
-                      {new Date(ord.orderDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
-                    </td>
-                    <td className="tabular-nums text-xs">
-                      <span className={isOverdue ? "text-red-600 font-semibold" : ""}>
-                        {new Date(ord.deliveryDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
-                        {isOverdue && " ⚠️"}
-                      </span>
-                    </td>
-                    <td className="tabular-nums font-semibold">{ord.quantityKg}</td>
-                    <td className="tabular-nums">{ord.pricePerKg}</td>
-                    <td className="tabular-nums font-bold text-slate-800">{ord.totalAmount.toLocaleString()}</td>
-                    <td className="tabular-nums text-emerald-700">{ord.advancePaid.toLocaleString()}</td>
-                    <td className={`tabular-nums font-semibold ${balance > 0 ? "text-red-600" : "text-slate-400"}`}>
-                      {balance > 0 ? balance.toLocaleString() : "—"}
-                    </td>
-                    <td><Badge className={`text-[10px] capitalize ${PAYMENT_STYLE[ord.paymentStatus]}`}>{ord.paymentStatus}</Badge></td>
-                    <td><Badge className={`text-[10px] capitalize ${DELIVERY_STYLE[ord.deliveryStatus]}`}>{ord.deliveryStatus.replace("_", " ")}</Badge></td>
-                    <td>
-                      {batches.length > 0 ? (
-                        <button onClick={() => setExpandedOrder(isExpanded ? null : ord.id)}
-                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
-                          <Package className="size-3" /> {batches.length}
-                          <ChevronDown className={`size-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                        </button>
-                      ) : <span className="text-slate-300 text-xs">—</span>}
-                    </td>
-                    <td>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEdit(ord)}
-                          className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center" title="Edit">
-                          <Pencil className="size-3 text-slate-600" />
-                        </button>
-                        <button onClick={() => setDeleteTarget(ord)}
-                          className="size-6 rounded bg-slate-100 hover:bg-red-100 grid place-items-center" title="Delete">
-                          <Trash2 className="size-3 text-slate-600" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr key={`${ord.id}-batches`} className="bg-indigo-50/50">
-                      <td colSpan={13} className="px-4 py-3">
-                        <div className="text-xs font-semibold text-indigo-700 mb-2 flex items-center gap-1.5">
-                          <Package className="size-3.5" /> Fulfilled by {batches.length} batch{batches.length > 1 ? "es" : ""} · {fulfilledKg.toFixed(1)} kg packed of {ord.quantityKg} kg ordered
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {batches.map(b => (
-                            <div key={b.id} className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-2">
-                              <Package className="size-3.5 text-indigo-500 shrink-0" />
-                              <div>
-                                <div className="font-mono text-xs font-bold text-slate-800">{b.batchNumber}</div>
-                                <div className="text-[10px] text-slate-500">{b.packedKg} kg · {b.variety} · {b.packedDate}</div>
-                              </div>
-                              <Badge className={`text-[10px] ml-1 ${b.status === "dispatched" ? "bg-amber-100 text-amber-700 border-amber-200" : b.status === "packed" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-blue-100 text-blue-700 border-blue-200"}`}>
-                                {b.status.replace("_"," ")}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {/* ── Orders tab ─────────────────────────────────────────────────── */}
+      {activeTab === "orders" && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-4 bg-indigo-50 border-indigo-200">
+              <div className="text-xl font-bold text-indigo-700 tabular-nums">{(totalRevenue / 1000).toFixed(1)}k ETB</div>
+              <div className="text-xs text-indigo-600 font-medium mt-0.5">Total Order Value</div>
+            </Card>
+            <Card className="p-4 bg-emerald-50 border-emerald-200">
+              <div className="text-xl font-bold text-emerald-700 tabular-nums">{(collected / 1000).toFixed(1)}k ETB</div>
+              <div className="text-xs text-emerald-600 font-medium mt-0.5">Collected</div>
+            </Card>
+            <Card className="p-4 bg-red-50 border-red-200">
+              <div className="text-xl font-bold text-red-700 tabular-nums">{(outstanding / 1000).toFixed(1)}k ETB</div>
+              <div className="text-xs text-red-600 font-medium mt-0.5">Outstanding</div>
+            </Card>
+            <Card className="p-4 bg-slate-50 border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-bold text-slate-700 tabular-nums">{delivered}/{orders.length}</div>
+                  <div className="text-xs text-slate-500 font-medium mt-0.5">Delivered · {pending} pending</div>
+                </div>
+                <Truck className="size-7 text-slate-300" />
+              </div>
+            </Card>
+          </div>
 
-      {/* ── Create ─────────────────────────────────────────────────────────── */}
+          {/* Filter tabs */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+            {(["all", "paid", "partial", "pending", "overdue"] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Table */}
+          <Card className="border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full pro-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th><th>Type</th><th>Order</th><th>Delivery</th>
+                    <th>Qty</th><th>Price</th><th>Total</th>
+                    <th>Advance</th><th>Balance</th><th>Payment</th><th>Delivery</th>
+                    <th>Batches</th><th className="w-16"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map(ord => {
+                    const balance = ord.totalAmount - ord.advancePaid;
+                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
+                    const batches = PACKAGING_RECORDS.filter(p => p.orderId === ord.id);
+                    const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
+                    const isExpanded = expandedOrder === ord.id;
+                    return (
+                      <>
+                        <tr key={ord.id} className="group">
+                          <td>
+                            <div className="font-semibold text-slate-800 text-sm">{ord.customerName}</div>
+                            {ord.phone && (
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                                <Phone className="size-2.5" /> {ord.phone}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <span className="flex items-center gap-1 text-xs">
+                              <span>{CUSTOMER_ICONS[ord.customerType]}</span>
+                              <span className="text-slate-600">{CUSTOMER_TYPE_LABELS[ord.customerType]}</span>
+                            </span>
+                          </td>
+                          <td className="tabular-nums text-xs">{new Date(ord.orderDate).toLocaleDateString("en", { month: "short", day: "numeric" })}</td>
+                          <td className="tabular-nums text-xs">
+                            <span className={isOverdue ? "text-red-600 font-semibold" : ""}>
+                              {new Date(ord.deliveryDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                              {isOverdue && " ⚠️"}
+                            </span>
+                          </td>
+                          <td className="tabular-nums font-semibold">{ord.quantityKg}</td>
+                          <td className="tabular-nums">{ord.pricePerKg}</td>
+                          <td className="tabular-nums font-bold text-slate-800">{ord.totalAmount.toLocaleString()}</td>
+                          <td className="tabular-nums text-emerald-700">{ord.advancePaid.toLocaleString()}</td>
+                          <td className={`tabular-nums font-semibold ${balance > 0 ? "text-red-600" : "text-slate-400"}`}>
+                            {balance > 0 ? balance.toLocaleString() : "—"}
+                          </td>
+                          <td><Badge className={`text-[10px] capitalize ${PAYMENT_STYLE[ord.paymentStatus]}`}>{ord.paymentStatus}</Badge></td>
+                          <td><Badge className={`text-[10px] capitalize ${DELIVERY_STYLE[ord.deliveryStatus]}`}>{ord.deliveryStatus.replace("_", " ")}</Badge></td>
+                          <td>
+                            {batches.length > 0 ? (
+                              <button onClick={() => setExpandedOrder(isExpanded ? null : ord.id)}
+                                className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                                <Package className="size-3" /> {batches.length}
+                                <ChevronDown className={`size-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                              </button>
+                            ) : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(ord)}
+                                className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center">
+                                <Pencil className="size-3 text-slate-600" />
+                              </button>
+                              <button onClick={() => setDeleteTarget(ord)}
+                                className="size-6 rounded bg-slate-100 hover:bg-red-100 grid place-items-center">
+                                <Trash2 className="size-3 text-slate-600" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${ord.id}-batches`} className="bg-indigo-50/50">
+                            <td colSpan={13} className="px-4 py-3">
+                              <div className="text-xs font-semibold text-indigo-700 mb-2 flex items-center gap-1.5">
+                                <Package className="size-3.5" /> Fulfilled by {batches.length} batch{batches.length > 1 ? "es" : ""} · {fulfilledKg.toFixed(1)} kg packed of {ord.quantityKg} kg ordered
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {batches.map(b => (
+                                  <div key={b.id} className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-2">
+                                    <Package className="size-3.5 text-indigo-500 shrink-0" />
+                                    <div>
+                                      <div className="font-mono text-xs font-bold text-slate-800">{b.batchNumber}</div>
+                                      <div className="text-[10px] text-slate-500">{b.packedKg} kg · {b.variety} · {b.packedDate}</div>
+                                    </div>
+                                    <Badge className={`text-[10px] ml-1 ${b.status === "dispatched" ? "bg-amber-100 text-amber-700 border-amber-200" : b.status === "packed" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-blue-100 text-blue-700 border-blue-200"}`}>
+                                      {b.status.replace("_"," ")}
+                                    </Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* ── Revenue tab ────────────────────────────────────────────────── */}
+      {activeTab === "revenue" && (
+        <div className="space-y-6">
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-5 bg-emerald-50 border-emerald-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-2xl font-black text-emerald-700 tabular-nums">{(totalRevenue / 1000).toFixed(1)}k</div>
+                  <div className="text-xs text-emerald-600 font-semibold mt-0.5">Total Revenue (ETB)</div>
+                  <div className="text-[10px] text-emerald-500 mt-1">{orders.length} orders · {totalKg} kg</div>
+                </div>
+                <TrendingUp className="size-7 text-emerald-400 shrink-0" />
+              </div>
+            </Card>
+            <Card className="p-5 bg-blue-50 border-blue-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-2xl font-black text-blue-700 tabular-nums">{(collected / 1000).toFixed(1)}k</div>
+                  <div className="text-xs text-blue-600 font-semibold mt-0.5">Collected (ETB)</div>
+                  <div className="text-[10px] text-blue-500 mt-1">{Math.round((collected / totalRevenue) * 100)}% of total</div>
+                </div>
+                <DollarSign className="size-7 text-blue-400 shrink-0" />
+              </div>
+            </Card>
+            <Card className="p-5 bg-red-50 border-red-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-2xl font-black text-red-700 tabular-nums">{(outstanding / 1000).toFixed(1)}k</div>
+                  <div className="text-xs text-red-600 font-semibold mt-0.5">Outstanding (ETB)</div>
+                  <div className="text-[10px] text-red-500 mt-1">{Math.round((outstanding / totalRevenue) * 100)}% uncollected</div>
+                </div>
+                <TrendingDown className="size-7 text-red-400 shrink-0" />
+              </div>
+            </Card>
+            <Card className="p-5 bg-amber-50 border-amber-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-2xl font-black text-amber-700 tabular-nums">{avgPrice.toFixed(0)}</div>
+                  <div className="text-xs text-amber-600 font-semibold mt-0.5">Avg Price / kg (ETB)</div>
+                  <div className="text-[10px] text-amber-500 mt-1">Across all varieties</div>
+                </div>
+                <BarChart3 className="size-7 text-amber-400 shrink-0" />
+              </div>
+            </Card>
+          </div>
+
+          {/* P&L */}
+          <Card className="p-5 border-slate-200">
+            <h3 className="font-semibold text-slate-900 mb-4">Simplified P&L — May 2026</h3>
+            <div className="space-y-2">
+              {[
+                { label: "Revenue Collected",  value: collected,   color: "text-emerald-700" },
+                { label: "Fertigation Inputs", value: -fertCost,   color: "text-red-600" },
+                { label: "Payroll (May)",       value: -payrollMay, color: "text-red-600" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 text-sm">
+                  <span className="text-slate-600">{label}</span>
+                  <span className={`font-bold tabular-nums ${color}`}>
+                    {value >= 0 ? "+" : "−"} {Math.abs(value).toLocaleString()} ETB
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-slate-300 text-sm font-bold">
+                <span className="text-slate-900">Gross Profit</span>
+                <span className={`tabular-nums text-base ${grossProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                  {grossProfit >= 0 ? "+" : "−"} {Math.abs(grossProfit).toLocaleString()} ETB
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Revenue by customer type */}
+            <Card className="p-5 border-slate-200">
+              <h3 className="font-semibold text-slate-900 mb-4">Revenue by Customer Type</h3>
+              <div className="space-y-4">
+                {sortedTypes.map(([type, data]) => (
+                  <div key={type}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-slate-700">{CUSTOMER_TYPE_LABELS[type as keyof typeof CUSTOMER_TYPE_LABELS]}</span>
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span>{data.count} orders</span>
+                        <span className="font-bold text-slate-800 tabular-nums">{data.revenue.toLocaleString()} ETB</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full"
+                        style={{ width: `${(data.revenue / maxRevenue) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Top customers */}
+            <Card className="p-5 border-slate-200">
+              <h3 className="font-semibold text-slate-900 mb-4">Top Customers</h3>
+              <div className="space-y-3">
+                {topCustomers.map((ord, i) => (
+                  <div key={ord.id} className="flex items-center gap-3">
+                    <span className="size-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold grid place-items-center shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-slate-800 truncate">{ord.customerName}</div>
+                      <div className="text-[10px] text-slate-400">{ord.quantityKg} kg · {ord.pricePerKg} ETB/kg</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-slate-800 tabular-nums">{ord.totalAmount.toLocaleString()}</div>
+                      <div className="text-[10px] text-slate-400">ETB</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Dialogs */}
       <Dialog open={createOpen} onOpenChange={o => !o && setCreateOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -409,7 +567,6 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Edit ───────────────────────────────────────────────────────────── */}
       <Dialog open={!!editTarget} onOpenChange={o => !o && setEditTarget(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -425,7 +582,6 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete ─────────────────────────────────────────────────────────── */}
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
