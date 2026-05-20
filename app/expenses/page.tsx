@@ -283,7 +283,7 @@ type FormProps = {
   form: Omit<Expense, "id">;
   setForm: React.Dispatch<React.SetStateAction<Omit<Expense, "id">>>;
   payers: Array<{ id: string; name: string }>;
-  t: typeof EN;
+  t: typeof AM;
 };
 
 function ExpenseForm({ form, setForm, payers, t }: FormProps) {
