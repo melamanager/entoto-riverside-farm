@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     notifiedAt: new Date().toISOString(),
     notificationChannels: ["telegram", "sms"],
     aiConfidence: body.aiConfidence,
+    infectedLengthM: body.infectedLengthM ? Number(body.infectedLengthM) : undefined,
   });
   console.log(`[NOTIFY] Telegram + SMS dispatched → manager (Meron Tadesse) re: disease at ${body.bedId}`);
   return NextResponse.json({ id, ok: true, notified: ["telegram", "sms"] });

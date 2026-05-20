@@ -65,6 +65,7 @@ export interface DiseaseReport {
   status: DiseaseStatus;
   photo?: string;
   aiConfidence?: number;
+  infectedLengthM?: number;
   suggestedTreatment: string;
   treatmentSteps: string[];
   treatmentApplied: boolean;

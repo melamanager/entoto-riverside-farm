@@ -322,13 +322,31 @@ export default function DiseasesPage() {
                           <span>{new Date(d.reportedAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}</span>
                         </div>
 
-                        <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-[11px] text-slate-500 w-16">Severity</span>
                           <Progress value={d.severity} className="h-2 flex-1" />
                           <span className={`text-xs font-bold tabular-nums ${d.severity > 60 ? "text-red-600" : d.severity > 30 ? "text-amber-600" : "text-emerald-600"}`}>
                             {d.severity}%
                           </span>
                         </div>
+                        {d.infectedLengthM !== undefined && d.infectedLengthM > 0 && (() => {
+                          const bed = getBed(d.bedId);
+                          const pct = bed ? Math.round((d.infectedLengthM / bed.lengthM) * 100) : null;
+                          return (
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-[11px] text-slate-500 w-16">Infected</span>
+                              <div className="h-2 bg-slate-100 rounded-full flex-1 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${d.severity > 60 ? "bg-red-400" : d.severity > 30 ? "bg-amber-400" : "bg-emerald-400"}`}
+                                  style={{ width: `${pct ?? 0}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-bold tabular-nums text-slate-700">
+                                {d.infectedLengthM}m{pct !== null ? ` (${pct}%)` : ""}
+                              </span>
+                            </div>
+                          );
+                        })()}
 
                         {/* Manager recommendation block */}
                         {d.managerRecommendation && (

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bug, Upload, X, Eye, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { VALVES, bedsInValve } from "@/lib/data";
+import { VALVES, bedsInValve, getBed } from "@/lib/data";
 import { DISEASE_LABELS, DISEASE_TREATMENTS, type DiseaseType } from "@/lib/types";
 
 const DISEASE_TYPES = Object.entries(DISEASE_LABELS) as [DiseaseType, string][];
@@ -23,6 +23,7 @@ export function ManualReportDialog({ onReported }: Props) {
   const [bedId, setBedId] = useState("");
   const [type, setType] = useState<DiseaseType | "">("");
   const [severity, setSeverity] = useState(30);
+  const [infectedLengthM, setInfectedLengthM] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState("");
@@ -43,6 +44,7 @@ export function ManualReportDialog({ onReported }: Props) {
     setBedId("");
     setType("");
     setSeverity(30);
+    setInfectedLengthM(0);
     setNotes("");
     setPhoto(null);
     setPhotoName("");
@@ -73,6 +75,7 @@ export function ManualReportDialog({ onReported }: Props) {
           suggestedTreatment: DISEASE_TREATMENTS[type],
           notes: notes || undefined,
           photo: photo || undefined,
+          infectedLengthM: infectedLengthM > 0 ? infectedLengthM : undefined,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -187,6 +190,51 @@ export function ManualReportDialog({ onReported }: Props) {
                 <span>Severe</span>
               </div>
             </div>
+
+            {/* Infected length */}
+            {(() => {
+              const bed = bedId ? getBed(bedId) : null;
+              const bedLen = bed?.lengthM ?? 0;
+              const autoEst = bedLen > 0 ? Math.round(bedLen * (severity / 100) * 10) / 10 : 0;
+              const displayLen = infectedLengthM > 0 ? infectedLengthM : autoEst;
+              const pct = bedLen > 0 ? Math.round((displayLen / bedLen) * 100) : 0;
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Infected Length (metres)
+                    </label>
+                    {bedLen > 0 && (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        pct > 60 ? "bg-red-100 text-red-700" : pct > 30 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                      }`}>
+                        {pct}% of {bedLen}m
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={bedLen || 999}
+                      step={0.5}
+                      value={infectedLengthM || ""}
+                      placeholder={autoEst > 0 ? `${autoEst} (auto)` : "e.g. 12"}
+                      onChange={e => setInfectedLengthM(Number(e.target.value))}
+                      className="w-28 border border-slate-200 rounded-md px-3 py-2 text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                    <span className="text-sm text-slate-500">
+                      {bedLen > 0 ? `of ${bedLen}m total` : "metres infected"}
+                    </span>
+                  </div>
+                  {autoEst > 0 && !infectedLengthM && (
+                    <p className="text-[10px] text-slate-400 mt-1 italic">
+                      Auto-estimated from severity ({severity}%). Enter exact value if known.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Notes */}
             <div>

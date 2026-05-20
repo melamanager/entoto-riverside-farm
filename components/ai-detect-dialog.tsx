@@ -61,6 +61,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
   const [loading, setLoading]         = useState(false);
   const [result, setResult]           = useState<AIDetectionResult | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [infectedLengthM, setInfectedLengthM] = useState<number>(0);
 
   async function runDetection(imageBase64?: string) {
     setLoading(true);
@@ -102,6 +103,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
 
   async function reportAsDisease() {
     if (!result || !bedId || result.disease === "none") return;
+    const bed = getBed(bedId);
     const res = await fetch("/api/disease/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,6 +114,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
         suggestedTreatment: result.suggestedTreatment,
         aiConfidence: result.confidence,
         reportedBy: user?.id ?? "f-006",
+        infectedLengthM: infectedLengthM > 0 ? infectedLengthM : (bed ? Math.round(bed.lengthM * (result.severity / 100) * 10) / 10 : undefined),
       }),
     });
     if (res.ok) {
@@ -319,6 +322,46 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
                 )}
               </div>
             )}
+
+            {result.disease !== "none" && bedId && (() => {
+              const bed = getBed(bedId);
+              const bedLen = bed?.lengthM ?? 0;
+              const autoEst = bedLen > 0 ? Math.round(bedLen * (result.severity / 100) * 10) / 10 : 0;
+              const displayLen = infectedLengthM > 0 ? infectedLengthM : autoEst;
+              const pct = bedLen > 0 ? Math.round((displayLen / bedLen) * 100) : 0;
+              return (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 space-y-2">
+                  <div className="text-xs font-semibold text-rose-800 flex items-center gap-1.5">
+                    📏 {isAm ? "የተጎዳ የአልጋ ርዝመት" : "Infected bed length"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={bedLen || 999}
+                      step={0.5}
+                      value={infectedLengthM || ""}
+                      placeholder={`${autoEst} (auto)`}
+                      onChange={e => setInfectedLengthM(Number(e.target.value))}
+                      className="w-24 border border-rose-200 rounded-md px-2 py-1.5 text-sm bg-white text-center tabular-nums"
+                    />
+                    <span className="text-xs text-rose-700 font-medium">
+                      metres
+                    </span>
+                    {bedLen > 0 && (
+                      <span className="ml-auto text-xs font-bold text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">
+                        {pct}% of {bedLen}m bed
+                      </span>
+                    )}
+                  </div>
+                  {autoEst > 0 && !infectedLengthM && (
+                    <div className="text-[10px] text-rose-500 italic">
+                      {isAm ? "AI ስሌት ላይ ተመስርቶ" : "Auto-estimated from severity"} ({result.severity}%)
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {result.disease !== "none" && bedId && (
               <Button onClick={reportAsDisease} className="w-full bg-rose-600 hover:bg-rose-700">
