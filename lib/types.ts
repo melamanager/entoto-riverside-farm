@@ -120,6 +120,42 @@ export interface Notification {
   link?: string;
 }
 
+export type ExpenseCategory = "fuel" | "chemicals" | "seeds" | "labour" | "equipment" | "packaging" | "repairs" | "other";
+
+export interface Expense {
+  id: string;
+  date: string;
+  category: ExpenseCategory;
+  description: string;
+  amountETB: number;
+  paidBy: string;
+  vendor?: string;
+  receiptRef?: string;
+  note?: string;
+}
+
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  fuel:      "Fuel & Transport",
+  chemicals: "Chemicals & Pesticides",
+  seeds:     "Seeds & Planting",
+  labour:    "Labour (External)",
+  equipment: "Equipment & Tools",
+  packaging: "Packaging Materials",
+  repairs:   "Repairs & Maintenance",
+  other:     "Other",
+};
+
+export const EXPENSE_CATEGORY_COLORS: Record<ExpenseCategory, string> = {
+  fuel:      "bg-orange-100 text-orange-700 border-orange-200",
+  chemicals: "bg-red-100 text-red-700 border-red-200",
+  seeds:     "bg-emerald-100 text-emerald-700 border-emerald-200",
+  labour:    "bg-blue-100 text-blue-700 border-blue-200",
+  equipment: "bg-purple-100 text-purple-700 border-purple-200",
+  packaging: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  repairs:   "bg-amber-100 text-amber-700 border-amber-200",
+  other:     "bg-slate-100 text-slate-700 border-slate-200",
+};
+
 export const DISEASE_LABELS: Record<DiseaseType, string> = {
   powdery_mildew: "Powdery Mildew",
   root_rot: "Root Rot",

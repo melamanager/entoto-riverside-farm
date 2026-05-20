@@ -2,6 +2,7 @@ import type {
   AttendanceRecord,
   Bed,
   DiseaseReport,
+  Expense,
   Farmer,
   HarvestRecord,
   Notification,
@@ -227,6 +228,44 @@ export const NOTIFICATIONS: Notification[] = [
   { id: "n-005", type: "task", channel: "in-app",    message: "📋 New high-priority task assigned to Selam Girma: AI photo inspection.", timestamp: "2026-05-17T07:00:00Z", read: false, link: "/tasks" },
   { id: "n-006", type: "disease", channel: "sms",    message: "🚨 ALERT: C-BED-03 — Nitrogen deficiency flagged. Fertigation required.", timestamp: "2026-05-14T09:00:00Z", read: true, link: "/diseases" },
 ];
+
+// ---- Expenses ----
+export const EXPENSES: Expense[] = [
+  { id: "exp-001", date: "2026-05-01", category: "chemicals",  description: "Kumulus DF sulphur fungicide (5 kg)",        amountETB: 1250,  paidBy: "f-008", vendor: "Agro Supply Co.",     receiptRef: "AGR-2241" },
+  { id: "exp-002", date: "2026-05-02", category: "fuel",        description: "Diesel for water pump — 40 L",              amountETB: 2800,  paidBy: "f-008", vendor: "Total Ethiopia",      receiptRef: "TOT-0551" },
+  { id: "exp-003", date: "2026-05-04", category: "packaging",   description: "250g clamshell punnets × 2000",              amountETB: 5400,  paidBy: "f-006", vendor: "PackEthio Ltd.",      receiptRef: "PKE-3312" },
+  { id: "exp-004", date: "2026-05-05", category: "chemicals",   description: "Trichoderma harzianum biocontrol (1 kg)",   amountETB: 980,   paidBy: "f-008", vendor: "Agro Supply Co.",     receiptRef: "AGR-2255" },
+  { id: "exp-005", date: "2026-05-06", category: "repairs",     description: "Drip-line emitter replacements — Valve B",  amountETB: 760,   paidBy: "f-006", vendor: "IrriTech Ethiopia",   receiptRef: "IRT-0098" },
+  { id: "exp-006", date: "2026-05-08", category: "labour",      description: "Casual labour for bed prep — 10 workers",  amountETB: 3200,  paidBy: "f-008", vendor: "Day Labour Pool",     receiptRef: undefined  },
+  { id: "exp-007", date: "2026-05-09", category: "seeds",       description: "Albion runner plants × 500",                amountETB: 7500,  paidBy: "f-008", vendor: "California Nursery",  receiptRef: "CAL-4401" },
+  { id: "exp-008", date: "2026-05-10", category: "fuel",        description: "Petrol for motorbike deliveries",           amountETB: 650,   paidBy: "f-006", vendor: "Total Ethiopia",      receiptRef: "TOT-0571" },
+  { id: "exp-009", date: "2026-05-12", category: "equipment",   description: "Knapsack sprayer (16 L) — replacement",    amountETB: 1800,  paidBy: "f-008", vendor: "FarmTools Addis",    receiptRef: "FTA-0212" },
+  { id: "exp-010", date: "2026-05-13", category: "chemicals",   description: "NPK 19-19-19 fertiliser (25 kg)",           amountETB: 2100,  paidBy: "f-008", vendor: "Agro Supply Co.",     receiptRef: "AGR-2280" },
+  { id: "exp-011", date: "2026-05-14", category: "packaging",   description: "Cardboard export boxes × 500",              amountETB: 3750,  paidBy: "f-006", vendor: "PackEthio Ltd.",      receiptRef: "PKE-3340" },
+  { id: "exp-012", date: "2026-05-15", category: "repairs",     description: "Pump seal replacement & labour",            amountETB: 1450,  paidBy: "f-008", vendor: "AquaService",        receiptRef: "AQS-0077" },
+  { id: "exp-013", date: "2026-05-16", category: "fuel",        description: "Diesel for generator — 20 L",               amountETB: 1400,  paidBy: "f-006", vendor: "Total Ethiopia",      receiptRef: "TOT-0589" },
+  { id: "exp-014", date: "2026-05-17", category: "other",       description: "Printer ink & admin supplies",              amountETB: 320,   paidBy: "f-008", vendor: "Office Depot AA",     receiptRef: "ODA-0891" },
+];
+
+export function addExpense(rec: Omit<Expense, "id">): string {
+  const id = `exp-${String(EXPENSES.length + 1).padStart(3, "0")}`;
+  EXPENSES.unshift({ ...rec, id });
+  return id;
+}
+
+export function updateExpense(id: string, patch: Partial<Omit<Expense, "id">>): boolean {
+  const idx = EXPENSES.findIndex(e => e.id === id);
+  if (idx < 0) return false;
+  EXPENSES[idx] = { ...EXPENSES[idx], ...patch };
+  return true;
+}
+
+export function deleteExpense(id: string): boolean {
+  const idx = EXPENSES.findIndex(e => e.id === id);
+  if (idx < 0) return false;
+  EXPENSES.splice(idx, 1);
+  return true;
+}
 
 // ---- Helpers ----
 export function getValve(id: string)       { return VALVES.find(v => v.id === id); }

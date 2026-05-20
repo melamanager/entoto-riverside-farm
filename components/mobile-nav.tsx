@@ -8,7 +8,7 @@ import {
   FileBarChart, CalendarCheck, LogOut, Check, ChevronRight,
   Shield, UserCircle2, Package, ShoppingCart, TrendingUp,
   DollarSign, UserCog, Beaker, ClipboardList, BarChart3,
-  CalendarDays, Zap, Languages,
+  CalendarDays, Zap, Languages, Warehouse, Bell,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
@@ -39,10 +39,12 @@ const NAV_GROUPS = [
   {
     label: "Operations",
     items: [
-      { href: "/valves",      label: "Valves",       icon: null,    roles: ["manager"],              isValve: true },
-      { href: "/fertigation", label: "Fertigation",  icon: Beaker,  roles: ["manager", "supervisor"] },
-      { href: "/diseases",    label: "Disease Mgmt", icon: Bug,     roles: ["manager", "supervisor"] },
+      { href: "/valves",      label: "Valves",       icon: null,       roles: ["manager"],              isValve: true },
+      { href: "/fertigation", label: "Fertigation",  icon: Beaker,     roles: ["manager", "supervisor"] },
+      { href: "/diseases",    label: "Disease Mgmt", icon: Bug,        roles: ["manager", "supervisor"] },
       { href: "/tasks",       label: "Daily Tasks",  icon: ListChecks, roles: ["manager", "supervisor"] },
+      { href: "/stock",       label: "Input Store",  icon: Warehouse,  roles: ["manager", "supervisor"] },
+      { href: "/follow-ups",  label: "Follow-ups",   icon: Bell,       roles: ["manager", "supervisor"] },
     ],
   },
   {
@@ -52,6 +54,7 @@ const NAV_GROUPS = [
       { href: "/packaging", label: "Packaging",        icon: Package,       roles: ["manager", "supervisor"] },
       { href: "/orders",    label: "Customer Orders",  icon: ShoppingCart,  roles: ["manager"] },
       { href: "/revenue",   label: "Revenue",          icon: TrendingUp,    roles: ["manager"] },
+      { href: "/expenses",  label: "Expenses",         icon: DollarSign,    roles: ["manager"] },
     ],
   },
   {

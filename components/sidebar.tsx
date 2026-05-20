@@ -63,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/packaging",  labelKey: "packaging",        icon: Package,      roles: ["manager", "supervisor"] },
       { href: "/orders",     labelKey: "customerOrders",   icon: ShoppingCart, roles: ["manager"] },
       { href: "/revenue",    labelKey: "revenue",          icon: TrendingUp,   roles: ["manager"] },
+      { href: "/expenses",   labelKey: "expenses",         icon: DollarSign,   roles: ["manager"] },
     ],
   },
   {

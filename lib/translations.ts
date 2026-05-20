@@ -39,6 +39,7 @@ export const EN = {
     analytics:       "Analytics",
     qrCodes:         "QR Codes",
     aiAlerts:        "AI Alerts & Forecast",
+    expenses:        "Expenses",
   },
   // ── Mobile nav tabs ─────────────────────────────────────────────────────────
   tabs: {
@@ -251,6 +252,23 @@ export const EN = {
     title: "AI Alerts & Forecast",
     subtitle: "Predictive insights, weather integration & crop intelligence",
   },
+  expenses: {
+    title: "Expense Tracker",
+    subtitle: "Log and monitor all farm operating costs",
+    addExpense:   "Add Expense",
+    totalMonth:   "This Month",
+    totalAll:     "All-time Total",
+    transactions: "Entries",
+    topCategory:  "Top Category",
+    description:  "Description",
+    amount:       "Amount (ETB)",
+    vendor:       "Vendor",
+    receiptRef:   "Receipt Ref",
+    category:     "Category",
+    paidBy:       "Paid By",
+    noExpenses:   "No expenses recorded",
+    all:          "All Categories",
+  },
 } as const;
 
 export const AM: Stringify<typeof EN> = {
@@ -287,6 +305,7 @@ export const AM: Stringify<typeof EN> = {
     analytics:       "ትንተና",
     qrCodes:         "QR ኮዶች",
     aiAlerts:        "AI ማስጠንቀቂያ እና ትንቢት",
+    expenses:        "ወጪዎች",
   },
   tabs: {
     home: "ዋና", map: "ካርታ", diseases: "በሽታ", tasks: "ስራ", more: "ተጨማሪ",
@@ -495,5 +514,22 @@ export const AM: Stringify<typeof EN> = {
   ai: {
     title: "AI ማስጠንቀቂያ እና ትንቢት",
     subtitle: "ትንቢታዊ ግንዛቤ፣ የአየር ሁኔታ ውህደት እና የሰብል ቁጥጥር",
+  },
+  expenses: {
+    title: "ወጪ መቆጣጠሪያ",
+    subtitle: "የሁሉም የእርሻ ስራ ወጪዎች መዝግብ እና ክትትል",
+    addExpense:   "ወጪ ጨምር",
+    totalMonth:   "ይህ ወር",
+    totalAll:     "ጠቅላላ ወጪ",
+    transactions: "ግቤቶች",
+    topCategory:  "ዋና ምድብ",
+    description:  "መግለጫ",
+    amount:       "መጠን (ብር)",
+    vendor:       "አቅራቢ",
+    receiptRef:   "የደረሰኝ ቁጥር",
+    category:     "ምድብ",
+    paidBy:       "የከፈለ",
+    noExpenses:   "ምንም ወጪ አልተመዘገበም",
+    all:          "ሁሉም ምድቦች",
   },
 };
