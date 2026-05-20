@@ -76,6 +76,9 @@ export default function TasksPage() {
     dueDate: "2026-05-20",
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [managerNote, setManagerNote]   = useState("");
+  const [extendDate, setExtendDate]     = useState("");
+  const [showMgrActions, setShowMgrActions] = useState(false);
 
   // Worker assignment state (inside task detail)
   const [assignWorkerOpen, setAssignWorkerOpen] = useState(false);
@@ -95,6 +98,8 @@ export default function TasksPage() {
   const inProgress = visibleTasks.filter(t => t.status === "in_progress").length;
   const done       = visibleTasks.filter(t => t.status === "done").length;
   const total      = visibleTasks.length;
+  const TODAY = "2026-05-20";
+  const overdueTasks = visibleTasks.filter(t => t.status !== "done" && t.dueDate < TODAY);
 
   /* ── Proof photo ─────────────────────────────────────────────────── */
   function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -209,6 +214,44 @@ export default function TasksPage() {
     setProofImage(task.proofImageUrl ?? null);
     setProofImageName(task.proofImageUrl ? "existing-proof.jpg" : "");
     setAssignWorkerOpen(false);
+    setShowMgrActions(false);
+    setManagerNote("");
+    setExtendDate("");
+  }
+
+  function sendOverdueReminder(task: Task) {
+    const updated = tasks.map(t =>
+      t.id === task.id ? { ...t, overdueNotifiedAt: new Date().toISOString() } : t
+    );
+    setTasks(updated);
+    if (selectedTask?.id === task.id) setSelectedTask(updated.find(t => t.id === task.id) ?? null);
+    toast.success("Reminder sent", {
+      description: `${getFarmer(task.assignedTo)?.name} has been notified about "${task.title}"`,
+    });
+  }
+
+  function saveExtendDeadline() {
+    if (!selectedTask || !extendDate) return;
+    const updated = tasks.map(t =>
+      t.id === selectedTask.id ? { ...t, dueDate: extendDate } : t
+    );
+    const next = updated.find(t => t.id === selectedTask.id)!;
+    setTasks(updated);
+    setSelectedTask(next);
+    toast.success("Deadline extended to " + new Date(extendDate).toLocaleDateString("en", { month: "short", day: "numeric" }));
+    setExtendDate("");
+  }
+
+  function saveManagerNote() {
+    if (!selectedTask || !managerNote.trim()) return;
+    const updated = tasks.map(t =>
+      t.id === selectedTask.id ? { ...t, managerNote: managerNote.trim() } : t
+    );
+    const next = updated.find(t => t.id === selectedTask.id)!;
+    setTasks(updated);
+    setSelectedTask(next);
+    toast.success("Penalty note saved");
+    setManagerNote("");
   }
 
   const canCreateTask = isManager || isSupervisor;
@@ -301,6 +344,29 @@ export default function TasksPage() {
             </Card>
           )}
 
+          {/* Overdue alert banner — manager only */}
+          {isManager && overdueTasks.length > 0 && (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-200">
+              <div className="size-8 rounded-lg bg-red-100 grid place-items-center shrink-0">
+                <AlertCircle className="size-4 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-red-800">
+                  {overdueTasks.length} overdue task{overdueTasks.length > 1 ? "s" : ""}
+                </div>
+                <div className="text-[11px] text-red-600 truncate">
+                  {overdueTasks.map(t => t.title).join(" · ")}
+                </div>
+              </div>
+              <button
+                onClick={() => setFilter("pending")}
+                className="text-xs font-semibold text-red-700 hover:text-red-900 shrink-0"
+              >
+                View all →
+              </button>
+            </div>
+          )}
+
           {/* Filter tabs */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg w-fit">
             {(["all", "pending", "in_progress", "done"] as const).map(f => (
@@ -323,7 +389,7 @@ export default function TasksPage() {
               const farmer  = getFarmer(task.assignedTo);
               const creator = getFarmer(task.createdBy);
               const bed     = task.bedId ? getBed(task.bedId) : null;
-              const overdue = task.status !== "done" && task.dueDate < "2026-05-17";
+              const overdue = task.status !== "done" && task.dueDate < TODAY;
               const workerCount = task.workerAssignments?.length ?? 0;
               return (
                 <Card key={task.id}
@@ -536,6 +602,76 @@ export default function TasksPage() {
                       })}
                     </div>
                   </div>
+
+                  {/* ── Manager overdue actions ──────────────────────── */}
+                  {isManager && selectedTask.status !== "done" && selectedTask.dueDate < TODAY && (
+                    <div className="rounded-lg border border-red-200 overflow-hidden">
+                      <button
+                        onClick={() => setShowMgrActions(p => !p)}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-red-50 hover:bg-red-100 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
+                          <AlertCircle className="size-3.5" /> Manager Actions — Overdue
+                        </span>
+                        <span className="text-[10px] text-red-500">{showMgrActions ? "▲ hide" : "▼ show"}</span>
+                      </button>
+                      {showMgrActions && (
+                        <div className="p-3 space-y-3 bg-red-50/40">
+                          {/* Send reminder */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="text-xs font-semibold text-slate-700">📩 Send Reminder</div>
+                              <div className="text-[10px] text-slate-500">Notify {getFarmer(selectedTask.assignedTo)?.name.split(" ")[0]} about this overdue task</div>
+                              {selectedTask.overdueNotifiedAt && (
+                                <div className="text-[10px] text-emerald-600 mt-0.5">
+                                  ✓ Last notified {new Date(selectedTask.overdueNotifiedAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                                </div>
+                              )}
+                            </div>
+                            <Button size="sm" variant="outline" className="shrink-0 text-xs border-red-300 text-red-700 hover:bg-red-100"
+                              onClick={() => sendOverdueReminder(selectedTask)}>
+                              Send
+                            </Button>
+                          </div>
+
+                          {/* Extend deadline */}
+                          <div>
+                            <div className="text-xs font-semibold text-slate-700 mb-1.5">⏰ Extend Deadline</div>
+                            <div className="flex gap-2">
+                              <input type="date" value={extendDate}
+                                min={TODAY}
+                                onChange={e => setExtendDate(e.target.value)}
+                                className="flex-1 border border-slate-200 rounded-md px-2 py-1.5 text-xs" />
+                              <Button size="sm" className="text-xs bg-amber-500 hover:bg-amber-600 shrink-0"
+                                disabled={!extendDate} onClick={saveExtendDeadline}>
+                                Save
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Penalty note */}
+                          <div>
+                            <div className="text-xs font-semibold text-slate-700 mb-1.5">⚠️ Penalty / Escalation Note</div>
+                            {selectedTask.managerNote && (
+                              <div className="mb-1.5 text-[11px] bg-red-100 text-red-800 border border-red-200 rounded px-2 py-1.5 italic">
+                                "{selectedTask.managerNote}"
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input value={managerNote}
+                                onChange={e => setManagerNote(e.target.value)}
+                                placeholder="Note penalty, escalation reason…"
+                                className="flex-1 border border-slate-200 rounded-md px-2 py-1.5 text-xs" />
+                              <Button size="sm" variant="outline" className="text-xs border-red-300 text-red-700 hover:bg-red-100 shrink-0"
+                                disabled={!managerNote.trim()} onClick={saveManagerNote}>
+                                Save
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* ── Progress / completion ──────────────────────────── */}
                   {selectedTask.status !== "done" && (

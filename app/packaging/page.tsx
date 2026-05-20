@@ -52,10 +52,12 @@ export default function PackagingPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PackagingRecord | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [harvestSource, setHarvestSource] = useState<string>("");
 
   function openCreate() {
     const next = String(records.length + 54).padStart(3, "0");
     setForm({ ...EMPTY_FORM, batchNumber: `PKG-2026-0${next}`, valveId: VALVES[0]?.id ?? "", packedBy: FARMERS[0]?.id ?? "" });
+    setHarvestSource("");
     setCreateOpen(true);
   }
 
@@ -126,9 +128,80 @@ export default function PackagingPage() {
 
   const valveBeds = form.valveId ? [...new Set(BEDS().filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
 
+  // Group harvest records by date+valve+variety for "link from harvest" picker
+  const harvestGroups = (() => {
+    const groups: Record<string, {
+      key: string; date: string; valveId: string; variety: string;
+      totalKg: number; beds: string[];
+    }> = {};
+    HARVESTS().forEach(h => {
+      const bed = BEDS().find(b => b.id === h.bedId);
+      if (!bed) return;
+      const key = `${h.date}|${bed.valveId}|${bed.variety}`;
+      if (!groups[key]) groups[key] = { key, date: h.date, valveId: bed.valveId, variety: bed.variety, totalKg: 0, beds: [] };
+      groups[key].totalKg = Math.round((groups[key].totalKg + h.kg) * 10) / 10;
+      if (!groups[key].beds.includes(h.bedId)) groups[key].beds.push(h.bedId);
+    });
+    return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date));
+  })();
+
+  const packagedKeys = new Set(
+    records.map(r => `${r.harvestDate}|${r.valveId}|${r.variety}`)
+  );
+
+  function applyHarvestSource(key: string) {
+    const g = harvestGroups.find(x => x.key === key);
+    if (!g) return;
+    setHarvestSource(key);
+    setForm(p => ({
+      ...p,
+      harvestDate: g.date,
+      valveId: g.valveId,
+      variety: g.variety,
+      harvestedKg: g.totalKg,
+      gradedKg: Math.round(g.totalKg * 0.9 * 10) / 10,
+      packedKg:  Math.round(g.totalKg * 0.8 * 10) / 10,
+      rejectedKg: Math.round(g.totalKg * 0.1 * 10) / 10,
+    }));
+  }
+
   function BatchForm() {
     return (
       <div className="space-y-3">
+        {/* Link from harvest log */}
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 mb-1">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Wheat className="size-3.5 text-emerald-600" />
+            <span className="text-xs font-semibold text-emerald-800">Link from Harvest Log</span>
+            <span className="text-[10px] text-emerald-600 ml-auto">Auto-fills kg, variety &amp; date</span>
+          </div>
+          <select
+            value={harvestSource}
+            onChange={e => applyHarvestSource(e.target.value)}
+            className="w-full border border-emerald-200 rounded-md px-3 py-2 text-xs bg-white"
+          >
+            <option value="">— Pick a harvest event (optional) —</option>
+            {harvestGroups.map(g => {
+              const valve = VALVES.find(v => v.id === g.valveId);
+              const alreadyPacked = packagedKeys.has(g.key);
+              return (
+                <option key={g.key} value={g.key}>
+                  {g.date} · {valve?.name ?? g.valveId} · {g.variety} · {g.totalKg.toFixed(1)} kg
+                  {alreadyPacked ? " ✓ packed" : ""}
+                </option>
+              );
+            })}
+          </select>
+          {harvestSource && (
+            <button
+              type="button"
+              onClick={() => { setHarvestSource(""); }}
+              className="mt-1.5 text-[10px] text-slate-500 hover:text-slate-700 underline"
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Batch # <span className="text-red-500">*</span></label>

@@ -104,6 +104,8 @@ export interface Task {
   workerAssignments?: TaskWorkerAssignment[];
   requiresFollowUp?: boolean;
   followUpDueDate?: string;
+  managerNote?: string;
+  overdueNotifiedAt?: string;
 }
 
 export interface AttendanceRecord {
