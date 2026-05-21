@@ -2,29 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
-import { FARMERS } from "@/lib/data";
+import { signIn } from "next-auth/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Leaf, Shield, UserCircle2, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
-// Demo credentials — in a real app these would be hashed in a DB
-const DEMO_CREDENTIALS: Record<string, string> = {
-  "f-008": "manager2026",   // Meron Tadesse — Manager
-  "f-006": "supervisor01",  // Selam Girma — Supervisor A/B
-  "f-007": "supervisor02",  // Yonas Alemu — Supervisor C
-};
+const LOGINABLE_USERS = [
+  { id: "f-008", name: "Nuredin Hassen",   avatar: "NH", role: "manager"    as const, assignedValves: ["valve-a","valve-b","valve-c"] },
+  { id: "f-006", name: "Selam Girma",      avatar: "SG", role: "supervisor" as const, assignedValves: ["valve-a","valve-b"] },
+  { id: "f-007", name: "Yonas Alemu",      avatar: "YA", role: "supervisor" as const, assignedValves: ["valve-c"] },
+];
 
 const ROLE_ICONS = { manager: Shield, supervisor: UserCircle2, farmer: UserCircle2 };
-const ROLE_COLORS = {
-  manager: "border-amber-300 bg-amber-50",
-  supervisor: "border-blue-300 bg-blue-50",
-  farmer: "border-emerald-300 bg-emerald-50",
-};
 
 export default function LoginPage() {
-  const { login } = useAuth();
   const router = useRouter();
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [password, setPassword] = useState("");
@@ -32,31 +23,29 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const loginableUsers = FARMERS.filter(f => f.role !== "farmer");
-
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedUser) { setError("Please select an account."); return; }
     setError("");
     setLoading(true);
 
-    setTimeout(() => {
-      if (DEMO_CREDENTIALS[selectedUser] === password) {
-        login(selectedUser);
-        const user = FARMERS.find(f => f.id === selectedUser);
-        router.push(user?.role === "supervisor" ? "/supervisor" : "/");
-      } else {
-        setError("Incorrect password. Try: manager2026 / supervisor01 / supervisor02");
-        setLoading(false);
-      }
-    }, 600);
-  }
+    const result = await signIn("credentials", {
+      farmerId: selectedUser,
+      password,
+      redirect: false,
+    });
 
-  const selected = FARMERS.find(f => f.id === selectedUser);
+    if (result?.error) {
+      setError("Incorrect password.");
+      setLoading(false);
+    } else {
+      const user = LOGINABLE_USERS.find(f => f.id === selectedUser);
+      router.push(user?.role === "supervisor" ? "/supervisor" : "/");
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center px-4">
-      {/* Background pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0" style={{
           backgroundImage: "radial-gradient(circle at 25% 25%, #0d2818 0%, transparent 50%), radial-gradient(circle at 75% 75%, #0a1628 0%, transparent 50%)",
@@ -68,7 +57,6 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="size-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-800 grid place-items-center shadow-2xl shadow-emerald-900/50 mb-4">
             <Leaf className="size-7 text-white" />
@@ -77,7 +65,6 @@ export default function LoginPage() {
           <p className="text-slate-500 text-sm mt-1">Operations Management System</p>
         </div>
 
-        {/* Card */}
         <div className="bg-[#161b22] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
           <div className="px-6 pt-6 pb-2">
             <h2 className="text-lg font-semibold text-white mb-1">Sign in</h2>
@@ -85,11 +72,10 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin} className="p-6 pt-4 space-y-4">
-            {/* Account selection */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account</label>
               <div className="space-y-2">
-                {loginableUsers.map(f => {
+                {LOGINABLE_USERS.map(f => {
                   const Icon = ROLE_ICONS[f.role];
                   const isSelected = selectedUser === f.id;
                   return (
@@ -129,7 +115,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Password */}
             {selectedUser && (
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
@@ -173,7 +158,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo hint */}
           <div className="px-6 pb-5">
             <div className="bg-white/3 border border-white/8 rounded-lg p-3">
               <div className="text-[11px] text-slate-500 font-semibold mb-1.5">Demo credentials</div>

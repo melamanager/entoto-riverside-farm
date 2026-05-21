@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
 import { LangProvider } from "@/lib/lang";
 import { MobileNav } from "@/components/mobile-nav";
+import { SessionProvider } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full bg-[#f8fafc] text-slate-900">
+        <SessionProvider>
         <LangProvider>
         <AuthProvider>
           <div className="min-h-screen flex">
@@ -31,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </AuthProvider>
         </LangProvider>
+        </SessionProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>

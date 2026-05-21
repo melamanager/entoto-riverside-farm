@@ -1,0 +1,648 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+model User {
+  id           String    @id @default(cuid())
+  farmerId     String    @unique
+  farmer       Farmer    @relation(fields: [farmerId], references: [id])
+  email        String?   @unique
+  passwordHash String
+  lastLogin    DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+// ─── Core Farm ────────────────────────────────────────────────────────────────
+model Farmer {
+  id               String     @id
+  name             String
+  phone            String
+  avatar           String
+  role             FarmerRole
+  performanceScore Float      @default(0)
+  attendanceRate   Float      @default(0)
+  joinedDate       String
+  assignedValves   Json       @default("[]")
+  nationalId       String?
+  emergencyContact String?
+
+  user                  User?
+  supervisedValves      Valve[]             @relation("ValveSupervisor")
+  beds                  Bed[]
+  harvestRecords        HarvestRecord[]
+  diseaseReports        DiseaseReport[]     @relation("DiseaseReporter")
+  treatmentApplied      DiseaseReport[]     @relation("TreatmentApplier")
+  tasks                 Task[]              @relation("TaskAssignee")
+  createdTasks          Task[]              @relation("TaskCreator")
+  attendanceRecords     AttendanceRecord[]  @relation("AttendanceFarmer")
+  recordedAttendance    AttendanceRecord[]  @relation("AttendanceRecorder")
+  expenses              Expense[]
+  plantingRecords       PlantingRecord[]
+  workerAssignments     WorkerAssignment[]  @relation("WorkerFarmer")
+  supervisedAssignments WorkerAssignment[]  @relation("AssignmentSupervisor")
+  fertigationRecords    FertigationRecord[]
+  packagingRecords      PackagingRecord[]
+  payrollRecords        PayrollRecord[]
+  followUpsAssigned     FollowUp[]          @relation("FollowUpAssignee")
+  followUpsCreated      FollowUp[]          @relation("FollowUpCreator")
+  stockTransactions     StockTransaction[]
+}
+
+model Valve {
+  id                 String  @id
+  name               String
+  color              String
+  irrigationSchedule String
+  supervisorId       String
+  supervisor         Farmer  @relation("ValveSupervisor", fields: [supervisorId], references: [id])
+  x                  Float
+  y                  Float
+  width              Float
+  height             Float
+
+  beds               Bed[]
+  workerAssignments  WorkerAssignment[]
+  fertigationRecords FertigationRecord[]
+  packagingRecords   PackagingRecord[]
+  plantingRecords    PlantingRecord[]
+  followUps          FollowUp[]
+}
+
+model Bed {
+  id             String       @id
+  valveId        String
+  valve          Valve        @relation(fields: [valveId], references: [id])
+  lengthM        Float
+  plantsPerMeter Float
+  variety        String
+  origin         String
+  plantedDate    String
+  stage          GrowthStage
+  health         HealthStatus @default(healthy)
+  farmerId       String
+  farmer         Farmer       @relation(fields: [farmerId], references: [id])
+  row            Int
+  col            Int
+
+  harvestRecords     HarvestRecord[]
+  diseaseReports     DiseaseReport[]
+  tasks              Task[]
+  attendanceRecords  AttendanceRecord[]
+  fertigationRecords FertigationRecord[]
+  plantingRecords    PlantingRecord[]
+  workerAssignments  WorkerAssignment[]
+  followUps          FollowUp[]
+}
+
+model HarvestRecord {
+  id           String  @id @default(cuid())
+  bedId        String
+  bed          Bed     @relation(fields: [bedId], references: [id])
+  date         String
+  kg           Decimal @db.Decimal(10, 2)
+  farmerId     String
+  farmer       Farmer  @relation(fields: [farmerId], references: [id])
+  qualityGrade String
+
+  createdAt DateTime @default(now())
+}
+
+model DiseaseReport {
+  id                   String        @id @default(cuid())
+  bedId                String
+  bed                  Bed           @relation(fields: [bedId], references: [id])
+  type                 DiseaseType
+  severity             Int
+  reportedAt           DateTime
+  reportedBy           String
+  reporter             Farmer        @relation("DiseaseReporter", fields: [reportedBy], references: [id])
+  status               DiseaseStatus @default(open)
+  photo                String?
+  aiConfidence         Float?
+  infectedLengthM      Float?
+  suggestedTreatment   String
+  treatmentSteps       Json          @default("[]")
+  treatmentApplied     Boolean       @default(false)
+  treatmentAppliedAt   DateTime?
+  treatmentAppliedBy   String?
+  treatmentApplier     Farmer?       @relation("TreatmentApplier", fields: [treatmentAppliedBy], references: [id])
+  treatmentNote        String?
+  managerNotified      Boolean       @default(false)
+  notifiedAt           DateTime?
+  notificationChannels Json          @default("[]")
+  managerRecommendation String?
+  requiresImageProof   Boolean?
+  proofImageUrl        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id                 String       @id @default(cuid())
+  title              String
+  description        String
+  assignedTo         String
+  assignee           Farmer       @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  createdBy          String
+  creator            Farmer       @relation("TaskCreator", fields: [createdBy], references: [id])
+  bedId              String?
+  bed                Bed?         @relation(fields: [bedId], references: [id])
+  valveId            String?
+  status             TaskStatus   @default(pending)
+  priority           TaskPriority @default(medium)
+  category           TaskCategory @default(general)
+  createdAt          DateTime     @default(now())
+  dueDate            String
+  completedAt        DateTime?
+  progressNote       String?
+  requiresImageProof Boolean?
+  proofImageUrl      String?
+  workerAssignments  Json         @default("[]")
+  requiresFollowUp   Boolean?
+  followUpDueDate    String?
+  managerNote        String?
+  overdueNotifiedAt  DateTime?
+
+  updatedAt DateTime @updatedAt
+}
+
+model AttendanceRecord {
+  id           String           @id @default(cuid())
+  farmerId     String
+  farmer       Farmer           @relation("AttendanceFarmer", fields: [farmerId], references: [id])
+  date         String
+  status       AttendanceStatus
+  checkInTime  String?
+  checkOutTime String?
+  hoursWorked  Float?
+  recordedBy   String
+  recorder     Farmer           @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
+  note         String?
+  bedId        String?
+  bed          Bed?             @relation(fields: [bedId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([farmerId, date])
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  type      NotificationType
+  channel   NotificationChannel
+  message   String
+  timestamp DateTime            @default(now())
+  read      Boolean             @default(false)
+  link      String?
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  date        String
+  category    ExpenseCategory
+  description String
+  amountETB   Decimal         @db.Decimal(12, 2)
+  paidBy      String
+  paidByUser  Farmer          @relation(fields: [paidBy], references: [id])
+  vendor      String?
+  receiptRef  String?
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PlantingRecord {
+  id                  String         @id @default(cuid())
+  bedId               String
+  bed                 Bed            @relation(fields: [bedId], references: [id])
+  valveId             String
+  valve               Valve          @relation(fields: [valveId], references: [id])
+  variety             String
+  plannedDate         String
+  actualDate          String?
+  expectedHarvestDate String
+  ageInDays           Int
+  seedsPerMeter       Float
+  seedSource          String
+  status              PlantingStatus @default(planned)
+  notes               String?
+  createdBy           String
+  creator             Farmer         @relation(fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkerAssignment {
+  id            String           @id @default(cuid())
+  farmerId      String
+  farmer        Farmer           @relation("WorkerFarmer", fields: [farmerId], references: [id])
+  valveId       String?
+  valve         Valve?           @relation(fields: [valveId], references: [id])
+  bedId         String?
+  bed           Bed?             @relation(fields: [bedId], references: [id])
+  activity      ActivityType
+  supervisorId  String
+  supervisor    Farmer           @relation("AssignmentSupervisor", fields: [supervisorId], references: [id])
+  date          String
+  shift         ShiftType
+  hoursExpected Float
+  hoursActual   Float?
+  status        AssignmentStatus @default(assigned)
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FertigationRecord {
+  id                  String            @id @default(cuid())
+  valveId             String
+  valve               Valve             @relation(fields: [valveId], references: [id])
+  bedId               String?
+  bed                 Bed?              @relation(fields: [bedId], references: [id])
+  fertilizerType      String
+  activeIngredient    String
+  dosageGPerL         Float
+  waterVolumeLiters   Float
+  applicationDate     String
+  nextScheduleDate    String
+  responsibleWorkerId String
+  worker              Farmer            @relation(fields: [responsibleWorkerId], references: [id])
+  applicationMethod   ApplicationMethod
+  status              FertigationStatus @default(scheduled)
+  cost                Decimal           @db.Decimal(10, 2)
+  notes               String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PackagingRecord {
+  id           String           @id @default(cuid())
+  batchNumber  String           @unique
+  harvestDate  String
+  packedDate   String
+  valveId      String
+  valve        Valve            @relation(fields: [valveId], references: [id])
+  variety      String
+  harvestedKg  Decimal          @db.Decimal(10, 2)
+  gradedKg     Decimal          @db.Decimal(10, 2)
+  packedKg     Decimal          @db.Decimal(10, 2)
+  rejectedKg   Decimal          @db.Decimal(10, 2)
+  packageSize  PackageSize
+  packageCount Int
+  cartonCount  Int
+  plateCount   Int
+  lostKg       Decimal          @db.Decimal(10, 2)
+  purpose      PackagingPurpose
+  gradeAPct    Float
+  gradeBPct    Float
+  packedBy     String
+  packer       Farmer           @relation(fields: [packedBy], references: [id])
+  status       PackagingStatus  @default(in_progress)
+  orderId      String?
+  order        CustomerOrder?   @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomerOrder {
+  id             String         @id @default(cuid())
+  customerName   String
+  customerType   CustomerType
+  orderDate      String
+  deliveryDate   String
+  quantityKg     Decimal        @db.Decimal(10, 2)
+  pricePerKg     Decimal        @db.Decimal(10, 2)
+  totalAmount    Decimal        @db.Decimal(12, 2)
+  advancePaid    Decimal        @db.Decimal(12, 2)
+  paymentStatus  PaymentStatus  @default(pending)
+  deliveryStatus DeliveryStatus @default(pending)
+  variety        String?
+  phone          String?
+  notes          String?
+
+  packagingRecords PackagingRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PayrollRecord {
+  id            String        @id @default(cuid())
+  farmerId      String
+  farmer        Farmer        @relation(fields: [farmerId], references: [id])
+  month         String
+  daysWorked    Int
+  dailyWage     Decimal       @db.Decimal(10, 2)
+  basePay       Decimal       @db.Decimal(12, 2)
+  overtimeHours Float
+  overtimePay   Decimal       @db.Decimal(10, 2)
+  bonus         Decimal       @db.Decimal(10, 2)
+  deductions    Decimal       @db.Decimal(10, 2)
+  netPay        Decimal       @db.Decimal(12, 2)
+  paymentStatus PayrollStatus @default(pending)
+  paidDate      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([farmerId, month])
+}
+
+model StockItem {
+  id                String        @id @default(cuid())
+  name              String
+  category          StockCategory
+  unit              StockUnit
+  currentQty        Decimal       @db.Decimal(12, 3)
+  reorderLevel      Decimal       @db.Decimal(10, 3)
+  maxCapacity       Decimal       @db.Decimal(12, 3)
+  costPerUnit       Decimal       @db.Decimal(10, 2)
+  supplier          String?
+  lastRestockedDate String?
+  notes             String?
+
+  transactions StockTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StockTransaction {
+  id            String          @id @default(cuid())
+  itemId        String
+  item          StockItem       @relation(fields: [itemId], references: [id])
+  type          TransactionType
+  quantity      Decimal         @db.Decimal(12, 3)
+  date          String
+  referenceType String?
+  referenceId   String?
+  performedBy   String
+  performer     Farmer          @relation(fields: [performedBy], references: [id])
+  notes         String?
+
+  createdAt DateTime @default(now())
+}
+
+model FollowUp {
+  id             String             @id @default(cuid())
+  entityType     FollowUpEntityType
+  entityId       String
+  title          String
+  description    String?
+  dueDate        String
+  status         FollowUpStatus     @default(pending)
+  priority       FollowUpPriority   @default(normal)
+  assignedTo     String
+  assignee       Farmer             @relation("FollowUpAssignee", fields: [assignedTo], references: [id])
+  createdBy      String
+  creator        Farmer             @relation("FollowUpCreator", fields: [createdBy], references: [id])
+  completedAt    String?
+  completionNote String?
+  bedId          String?
+  bed            Bed?               @relation(fields: [bedId], references: [id])
+  valveId        String?
+  valve          Valve?             @relation(fields: [valveId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+enum FarmerRole {
+  farmer
+  supervisor
+  manager
+}
+
+enum HealthStatus {
+  healthy
+  warning
+  infected
+}
+
+enum GrowthStage {
+  planted
+  vegetative
+  flowering
+  fruiting
+  ripening
+  harvest
+}
+
+enum DiseaseType {
+  powdery_mildew
+  root_rot
+  gray_mold
+  leaf_spot
+  nitrogen_deficiency
+}
+
+enum DiseaseStatus {
+  open
+  notified
+  treating
+  resolved
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+enum TaskCategory {
+  disease
+  harvest
+  irrigation
+  inspection
+  general
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  leave
+}
+
+enum NotificationType {
+  disease
+  harvest
+  irrigation
+  task
+}
+
+enum NotificationChannel {
+  telegram
+  sms
+  in_app
+}
+
+enum ExpenseCategory {
+  fuel
+  chemicals
+  seeds
+  labour
+  equipment
+  packaging
+  repairs
+  other
+}
+
+enum PlantingStatus {
+  planned
+  planted
+  growing
+  harvested
+  failed
+}
+
+enum ActivityType {
+  irrigation_check
+  disease_inspection
+  harvesting
+  cleaning
+  pruning
+  fertilizing
+  packaging
+  general
+}
+
+enum ShiftType {
+  morning
+  afternoon
+  full_day
+}
+
+enum AssignmentStatus {
+  assigned
+  in_progress
+  completed
+}
+
+enum ApplicationMethod {
+  drip
+  foliar
+  soil_drench
+}
+
+enum FertigationStatus {
+  scheduled
+  applied
+  skipped
+}
+
+enum PackageSize {
+  p250g  @map("250g")
+  p500g  @map("500g")
+  p1kg   @map("1kg")
+  p2kg   @map("2kg")
+  bulk
+}
+
+enum PackagingStatus {
+  in_progress
+  packed
+  dispatched
+}
+
+enum PackagingPurpose {
+  export
+  juice
+  jam
+  local
+  hotel
+  supermarket
+}
+
+enum CustomerType {
+  hotel
+  supermarket
+  restaurant
+  direct
+  export
+}
+
+enum PaymentStatus {
+  pending
+  partial
+  paid
+  overdue
+}
+
+enum DeliveryStatus {
+  pending
+  in_transit
+  delivered
+  cancelled
+}
+
+enum PayrollStatus {
+  pending
+  processed
+  paid
+}
+
+enum StockCategory {
+  fertilizer
+  pesticide
+  packaging
+  tool
+  seed
+  other
+}
+
+enum StockUnit {
+  kg
+  L
+  g
+  ml
+  piece
+  box
+  bag
+  roll
+}
+
+enum TransactionType {
+  stock_in
+  stock_out
+  adjustment
+  waste
+}
+
+enum FollowUpEntityType {
+  disease
+  planting
+  fertigation
+  task
+  general
+}
+
+enum FollowUpStatus {
+  pending
+  done
+  overdue
+}
+
+enum FollowUpPriority {
+  low
+  normal
+  urgent
+}

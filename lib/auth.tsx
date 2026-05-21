@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { FARMERS } from "@/lib/data";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 import type { Farmer } from "@/lib/types";
 
 interface AuthState {
@@ -21,33 +21,46 @@ const AuthContext = createContext<AuthState>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<Farmer | null>(null);
+  const { data: session, status } = useSession();
+  const [farmerDetail, setFarmerDetail] = useState<Farmer | null>(null);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("entoto_user_id");
-      if (stored) {
-        const found = FARMERS.find(f => f.id === stored);
-        if (found) setUser(found);
-      } else {
-        // Default to manager for first load
-        const manager = FARMERS.find(f => f.role === "manager");
-        if (manager) setUser(manager);
-      }
-    } catch {}
+    if (session?.user?.id) {
+      fetch(`/api/farmers/${session.user.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) setFarmerDetail(data);
+        })
+        .catch(() => {});
+    } else {
+      setFarmerDetail(null);
+    }
+  }, [session?.user?.id]);
+
+  const user: Farmer | null = farmerDetail ?? (
+    session?.user ? {
+      id: session.user.id,
+      name: session.user.name ?? "",
+      phone: "",
+      avatar: (session.user as { avatar?: string }).avatar ?? "",
+      role: (session.user as { role?: string }).role as Farmer["role"] ?? "farmer",
+      performanceScore: 0,
+      attendanceRate: 0,
+      joinedDate: "",
+      assignedValves: [],
+    } : null
+  );
+
+  const login = useCallback((_farmerId: string) => {
+    // Login is handled by NextAuth signIn() — this is a no-op kept for interface compatibility
   }, []);
 
-  function login(farmerId: string) {
-    const found = FARMERS.find(f => f.id === farmerId);
-    if (found) {
-      setUser(found);
-      try { localStorage.setItem("entoto_user_id", farmerId); } catch {}
-    }
-  }
+  const logout = useCallback(() => {
+    nextAuthSignOut({ callbackUrl: "/login" });
+  }, []);
 
-  function logout() {
-    setUser(null);
-    try { localStorage.removeItem("entoto_user_id"); } catch {}
+  if (status === "loading") {
+    return <>{children}</>;
   }
 
   return (
