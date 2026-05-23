@@ -64,7 +64,7 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
-    const d = new Date("2026-05-17");
+    const d = new Date();
     d.setDate(d.getDate() - i);
     series[d.toISOString().split("T")[0]] = 0;
   }

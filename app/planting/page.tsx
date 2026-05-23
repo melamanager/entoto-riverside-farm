@@ -14,7 +14,7 @@ import type { Bed, Valve, Farmer } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
-const TODAY = "2026-05-20";
+const TODAY = new Date().toISOString().split("T")[0];
 // Timeline range — covers all planting/harvest windows
 const TLINE_START = "2026-01-01";
 const TLINE_END   = "2026-08-01";

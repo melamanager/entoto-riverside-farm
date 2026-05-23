@@ -205,6 +205,12 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
             {isAm ? "EN" : "አማ"}
           </button>
         </div>
+        {mode === "demo" && (
+          <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            <span className="font-semibold">DEMO</span>
+            <span>{isAm ? "ውጤቶቹ ሰው ሠራሽ ናቸው — ለእውነተኛ ትንተና «Live» ይምረጡ።" : "Results are simulated and not real — select Live for actual AI analysis."}</span>
+          </div>
+        )}
 
         {/* Image upload */}
         <div className="border-2 border-dashed rounded-lg overflow-hidden">

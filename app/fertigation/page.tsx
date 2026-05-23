@@ -31,14 +31,18 @@ const COMMON_FERTILIZERS = [
   "Humic Acid", "Iron Chelate (EDTA-Fe)", "Magnesium Sulfate", "Other",
 ];
 
-const EMPTY_FORM = {
-  valveId: "", bedId: "",
-  fertilizerType: "NPK 20-20-20", activeIngredient: "Nitrogen, Phosphorus, Potassium",
-  dosageGPerL: 2.5, waterVolumeLiters: 400,
-  applicationDate: "2026-05-17", nextScheduleDate: "2026-05-24",
-  responsibleWorkerId: "", applicationMethod: "drip" as ApplicationMethod,
-  status: "scheduled" as FertigationStatus, cost: 300, notes: "",
-};
+function emptyForm() {
+  const today    = new Date().toISOString().split("T")[0];
+  const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+  return {
+    valveId: "", bedId: "",
+    fertilizerType: "NPK 20-20-20", activeIngredient: "Nitrogen, Phosphorus, Potassium",
+    dosageGPerL: 2.5, waterVolumeLiters: 400,
+    applicationDate: today, nextScheduleDate: nextWeek,
+    responsibleWorkerId: "", applicationMethod: "drip" as ApplicationMethod,
+    status: "scheduled" as FertigationStatus, cost: 300, notes: "",
+  };
+}
 
 function parseStockItem(raw: Record<string, unknown>): StockItem {
   return {
@@ -68,7 +72,7 @@ export default function FertigationPage() {
   const [filter, setFilter]     = useState<FertigationStatus | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<FertigationRecord | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm());
 
   useEffect(() => {
     fetch("/api/fertigation").then(r => r.json()).then((data: Record<string, unknown>[]) => setRecords(data.map(parseFertigationRecord)));
@@ -79,7 +83,7 @@ export default function FertigationPage() {
   }, []);
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, valveId: valves[0]?.id ?? "", responsibleWorkerId: farmers.filter(f => f.role === "farmer")[0]?.id ?? "" });
+    setForm({ ...emptyForm(), valveId: valves[0]?.id ?? "", responsibleWorkerId: farmers.filter(f => f.role === "farmer")[0]?.id ?? "" });
     setCreateOpen(true);
   }
 

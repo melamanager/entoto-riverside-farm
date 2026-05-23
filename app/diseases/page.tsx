@@ -126,7 +126,7 @@ export default function DiseasesPage() {
     // Flow 1: auto-create a task for the valve's supervisor
     const bed = getBed(recommendTarget.bedId);
     const valve = bed ? getValve(bed.valveId) : null;
-    const supervisorId = valve?.supervisorId ?? "f-006";
+    const supervisorId = valve?.supervisorId ?? "";
     await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -134,7 +134,7 @@ export default function DiseasesPage() {
         title: `Treat ${DISEASE_LABELS[recommendTarget.type]} — ${recommendTarget.bedId}`,
         description: recommendation,
         assignedTo: supervisorId,
-        createdBy: "f-008",
+        createdBy: user?.id ?? "",
         bedId: recommendTarget.bedId,
         status: "pending",
         priority: recommendTarget.severity > 60 ? "high" : "medium",

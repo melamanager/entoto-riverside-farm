@@ -396,7 +396,7 @@ export default function OrdersPage() {
                 <tbody>
                   {records.map(ord => {
                     const balance = ord.totalAmount - ord.advancePaid;
-                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
+                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < new Date().toISOString().split("T")[0];
                     const batches = packagingRecords.filter(p => p.orderId === ord.id);
                     const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
                     const isExpanded = expandedOrder === ord.id;

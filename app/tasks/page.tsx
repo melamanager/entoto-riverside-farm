@@ -64,13 +64,13 @@ export default function TasksPage() {
   const [newTaskOpen, setNewTaskOpen]       = useState(false);
   const [requireImageNew, setRequireImageNew] = useState(false);
   const [requireFollowUpNew, setRequireFollowUpNew] = useState(false);
-  const [followUpDateNew, setFollowUpDateNew] = useState("2026-05-22");
+  const [followUpDateNew, setFollowUpDateNew] = useState(() => new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0]);
   const [newTask, setNewTask] = useState({
     title: "", description: "",
-    assignedTo: isSupervisor ? (user?.id ?? "f-001") : "f-001",
+    assignedTo: isSupervisor ? (user?.id ?? "") : "",
     priority: "medium" as Task["priority"],
     category: "general" as Task["category"],
-    dueDate: "2026-05-20",
+    dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [managerNote, setManagerNote]   = useState("");
@@ -115,7 +115,7 @@ export default function TasksPage() {
   const inProgress = visibleTasks.filter(t => t.status === "in_progress").length;
   const done       = visibleTasks.filter(t => t.status === "done").length;
   const total      = visibleTasks.length;
-  const TODAY = "2026-05-20";
+  const TODAY = new Date().toISOString().split("T")[0];
   const overdueTasks = visibleTasks.filter(t => t.status !== "done" && t.dueDate < TODAY);
 
   /* ── Proof photo ─────────────────────────────────────────────────── */
@@ -212,7 +212,7 @@ export default function TasksPage() {
     if (!newTask.title.trim()) { toast.error("Title is required"); return; }
     const taskBody = {
       ...newTask,
-      createdBy: user?.id ?? "f-008",
+      createdBy: user?.id ?? "",
       status: "pending" as const,
       createdAt: new Date().toISOString(),
       requiresImageProof: requireImageNew,
@@ -241,8 +241,8 @@ export default function TasksPage() {
           dueDate: followUpDateNew,
           status: "pending",
           priority: newTask.priority === "high" ? "urgent" : "normal",
-          assignedTo: user?.id ?? "f-008",
-          createdBy: user?.id ?? "f-008",
+          assignedTo: user?.id ?? "",
+          createdBy: user?.id ?? "",
         }),
       });
     }
@@ -253,11 +253,11 @@ export default function TasksPage() {
     setNewTaskOpen(false);
     setRequireImageNew(false);
     setRequireFollowUpNew(false);
-    setFollowUpDateNew("2026-05-22");
+    setFollowUpDateNew(new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0]);
     setNewTask({
       title: "", description: "",
-      assignedTo: isSupervisor ? (user?.id ?? "f-001") : "f-001",
-      priority: "medium", category: "general", dueDate: "2026-05-20",
+      assignedTo: isSupervisor ? (user?.id ?? "") : "",
+      priority: "medium", category: "general", dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     });
   }
 
@@ -354,7 +354,7 @@ export default function TasksPage() {
           {canCreateTask && section === "tasks" && (
             <Button
               onClick={() => {
-                setNewTask(p => ({ ...p, assignedTo: isSupervisor ? (user?.id ?? "f-001") : "f-001" }));
+                setNewTask(p => ({ ...p, assignedTo: isSupervisor ? (user?.id ?? "") : "" }));
                 setNewTaskOpen(true);
               }}
               className="bg-emerald-600 hover:bg-emerald-700 gap-2"

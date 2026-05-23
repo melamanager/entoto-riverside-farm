@@ -11,22 +11,26 @@ import {
 import { toast } from "sonner";
 import type { Expense, ExpenseCategory, Farmer } from "@/lib/types";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
 
 const CATEGORIES = Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[];
-const THIS_MONTH = "2026-05";
 
-const EMPTY: Omit<Expense, "id"> = {
-  date: "2026-05-17",
-  category: "chemicals",
-  description: "",
-  amountETB: 0,
-  paidBy: "f-008",
-  vendor: "",
-  receiptRef: "",
-  note: "",
-};
+function emptyExpense(userId = ""): Omit<Expense, "id"> {
+  return {
+    date: new Date().toISOString().split("T")[0],
+    category: "chemicals",
+    description: "",
+    amountETB: 0,
+    paidBy: userId,
+    vendor: "",
+    receiptRef: "",
+    note: "",
+  };
+}
 
 export default function ExpensesPage() {
+  const { user } = useAuth();
+  const thisMonth = new Date().toISOString().slice(0, 7);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +38,7 @@ export default function ExpensesPage() {
   const [addOpen, setAddOpen]     = useState(false);
   const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm] = useState(() => emptyExpense(user?.id ?? ""));
 
   async function fetchExpenses() {
     const r = await fetch("/api/expenses");
@@ -62,7 +66,7 @@ export default function ExpensesPage() {
     [expenses, catFilter]
   );
 
-  const monthlyTotal  = expenses.filter(e => e.date.startsWith(THIS_MONTH)).reduce((s, e) => s + e.amountETB, 0);
+  const monthlyTotal  = expenses.filter(e => e.date.startsWith(thisMonth)).reduce((s, e) => s + e.amountETB, 0);
   const allTimeTotal  = expenses.reduce((s, e) => s + e.amountETB, 0);
 
   const topCategory = useMemo(() => {
@@ -84,7 +88,7 @@ export default function ExpensesPage() {
 
   const maxBar = byCategory[0]?.total ?? 1;
 
-  function openAdd() { setForm({ ...EMPTY }); setAddOpen(true); }
+  function openAdd() { setForm(emptyExpense(user?.id ?? "")); setAddOpen(true); }
   function openEdit(e: Expense) { setForm({ date: e.date, category: e.category, description: e.description, amountETB: e.amountETB, paidBy: e.paidBy, vendor: e.vendor ?? "", receiptRef: e.receiptRef ?? "", note: e.note ?? "" }); setEditTarget(e); }
 
   async function handleSaveAdd() {

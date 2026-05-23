@@ -24,7 +24,7 @@ const STATUS_ICONS = {
 };
 
 export default function AttendancePage() {
-  const today = "2026-05-17";
+  const today = new Date().toISOString().split("T")[0];
 
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [valves, setValves] = useState<Valve[]>([]);

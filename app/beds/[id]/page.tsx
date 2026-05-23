@@ -71,7 +71,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
-    const d = new Date("2026-05-17");
+    const d = new Date();
     d.setDate(d.getDate() - i);
     series[d.toISOString().split("T")[0]] = 0;
   }
@@ -155,7 +155,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           {[
             { icon: "🌾", label: "Total Yield",   value: `${totalKg.toFixed(1)} kg`,           sub: `${harvests.length} picks` },
             { icon: "📏", label: "Efficiency",     value: `${yieldPerMeter.toFixed(2)} kg/m`,   sub: "yield per metre" },
-            { icon: "🌱", label: "Age",            value: `${Math.floor((new Date("2026-05-20").getTime() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
+            { icon: "🌱", label: "Age",            value: `${Math.floor((Date.now() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
             { icon: "📊", label: "Stage",          value: GROWTH_STAGE_LABELS[bed.stage as keyof typeof GROWTH_STAGE_LABELS], sub: `${stageIdx + 1} of ${STAGES.length}` },
             { icon: "⭐", label: "Grade A",         value: `${gradeAPct}%`,                      sub: `${gradeACount}/${harvests.length} picks` },
             { icon: "💚", label: "Health",          value: bed.health.charAt(0).toUpperCase() + bed.health.slice(1), sub: diseases.length > 0 ? `${diseases.length} issue${diseases.length > 1 ? "s" : ""}` : "No issues" },

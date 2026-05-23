@@ -35,15 +35,18 @@ const SIZES: PackageSize[] = ["250g", "500g", "1kg", "2kg", "bulk"];
 
 type HarvestRecord = { id: string; bedId: string; date: string; kg: number; farmerId: string; qualityGrade: string; bed?: { valveId: string; variety: string } };
 
-const EMPTY_FORM = {
-  batchNumber: "", harvestDate: "2026-05-17", packedDate: "2026-05-17",
+function emptyForm() {
+  const today = new Date().toISOString().split("T")[0];
+  return {
+  batchNumber: "", harvestDate: today, packedDate: today,
   valveId: "", variety: "",
   harvestedKg: 20, gradedKg: 18, packedKg: 16,
   rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
   cartonCount: 2, plateCount: 0, lostKg: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
   orderId: "",
-};
+  };
+}
 
 export default function PackagingPage() {
   const { isAm } = useLang();
@@ -56,7 +59,7 @@ export default function PackagingPage() {
   const [beds, setBeds]         = useState<Bed[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PackagingRecord | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm());
   const [harvestSource, setHarvestSource] = useState<string>("");
 
   useEffect(() => {
@@ -112,7 +115,7 @@ export default function PackagingPage() {
 
   function openCreate() {
     const next = String(records.length + 54).padStart(3, "0");
-    setForm({ ...EMPTY_FORM, batchNumber: `PKG-2026-0${next}`, valveId: valves[0]?.id ?? "", packedBy: farmers[0]?.id ?? "" });
+    setForm({ ...emptyForm(), batchNumber: `PKG-2026-0${next}`, valveId: valves[0]?.id ?? "", packedBy: farmers[0]?.id ?? "" });
     setHarvestSource("");
     setCreateOpen(true);
   }
