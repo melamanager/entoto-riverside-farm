@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, useMemo } from "react";
 import type { Bed, Valve } from "@/lib/types";
-import { plantsInBed } from "@/lib/data";
 
 type ViewMode = "health" | "yield" | "stage";
 
@@ -582,7 +581,7 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
               <div className="grid grid-cols-4 gap-2 mb-3">
                 {[
                   { label: "Length",  value: `${selectedBed.lengthM} m`,           icon: "📏" },
-                  { label: "Plants",  value: plantsInBed(selectedBed).toString(),   icon: "🌿" },
+                  { label: "Plants",  value: Math.round(selectedBed.lengthM * selectedBed.plantsPerMeter).toString(),   icon: "🌿" },
                   { label: "Stage",   value: STAGE_LABEL[selectedBed.stage] ?? selectedBed.stage, icon: "🌱" },
                   { label: "Harvest", value: yieldKg > 0 ? `${yieldKg.toFixed(1)} kg` : "—",     icon: "🌾" },
                 ].map(({ label, value, icon }) => (

@@ -1,8 +1,7 @@
-import type { Bed, GrowthStage } from "@/lib/types";
-import { VALVES } from "@/lib/data";
+import type { Bed, GrowthStage, Valve } from "@/lib/types";
 import { Wheat, CalendarDays } from "lucide-react";
 
-interface Props { beds: Bed[]; today: string; }
+interface Props { beds: Bed[]; today: string; valves: Valve[]; }
 
 const KG_PER_M_PER_DAY = 0.38;
 const HARVEST_WINDOW_DAYS = 3;
@@ -44,13 +43,13 @@ function bedDaysToHarvest(bed: Bed, todayDate: Date): number {
   return Math.max(0, adjustedRemaining);
 }
 
-export function HarvestForecast({ beds, today }: Props) {
+export function HarvestForecast({ beds, today, valves }: Props) {
   const todayDate = new Date(today);
 
   const bedForecast = beds.map(bed => {
     const daysAway = bedDaysToHarvest(bed, todayDate);
     const harvestDate = new Date(todayDate.getTime() + daysAway * 86_400_000);
-    const valve = VALVES.find(v => v.id === bed.valveId);
+    const valve = valves.find(v => v.id === bed.valveId);
     return { bed, daysAway, harvestDate, valve };
   });
 

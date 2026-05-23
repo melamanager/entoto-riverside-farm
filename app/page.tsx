@@ -24,6 +24,7 @@ import { DISEASE_LABELS } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import type { Valve, Bed, Farmer, HarvestRecord, DiseaseReport, Notification, Task, AttendanceRecord } from "@/lib/types";
+import type { PackagingRecord } from "@/lib/erp-types";
 
 const FARM = { name: "ENTOTO Riverside Farm", location: "Entoto Mountain, Addis Ababa, Ethiopia", altitudeM: 2800, totalAreaHa: 4.2 };
 
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -52,7 +54,8 @@ export default function DashboardPage() {
       fetch("/api/notifications").then(r => r.json()),
       fetch("/api/tasks").then(r => r.json()),
       fetch(`/api/attendance?date=${today}`).then(r => r.json()),
-    ]).then(([v, b, f, h, d, n, tk, a]) => {
+      fetch("/api/packaging").then(r => r.json()),
+    ]).then(([v, b, f, h, d, n, tk, a, pk]) => {
       setValves(v);
       setBeds(b);
       setFarmers(f);
@@ -61,6 +64,7 @@ export default function DashboardPage() {
       setNotifications(n);
       setTasks(tk);
       setAttendance(a);
+      setPackagingRecords(pk);
     });
   }, []);
 
@@ -288,13 +292,13 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Harvest Forecast ─────────────────────────────────────────────── */}
-      <HarvestForecast beds={beds} today={today} />
+      <HarvestForecast beds={beds} today={today} valves={valves} />
 
       {/* ── Ripeness Heatmap ─────────────────────────────────────────────── */}
       <RipenessHeatmap beds={beds} valves={valves} />
 
       {/* ── Performance by Origin ────────────────────────────────────────── */}
-      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} />
+      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} packagingRecords={packagingRecords} />
 
       {/* ── Live Farm Map ────────────────────────────────────────────────── */}
       <Card className="border border-slate-200 shadow-sm overflow-hidden">

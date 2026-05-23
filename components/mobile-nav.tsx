@@ -10,11 +10,11 @@ import {
   DollarSign, Beaker, BarChart3,
   CalendarDays, Zap, Languages, Warehouse,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import { FARMERS } from "@/lib/data";
+import type { Farmer } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ValveIcon } from "@/components/valve-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -100,6 +100,11 @@ export function MobileNav() {
   const { toggle, isAm } = useLang();
   const t = isAm ? AM : EN;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+
+  useEffect(() => {
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+  }, []);
 
   if (pathname === "/login") return null;
 
@@ -109,7 +114,7 @@ export function MobileNav() {
     login(id);
     setDrawerOpen(false);
     router.refresh();
-    const target = FARMERS.find(f => f.id === id);
+    const target = farmers.find(f => f.id === id);
     router.push(target?.role === "supervisor" ? "/supervisor" : "/");
   }
 
@@ -260,7 +265,7 @@ export function MobileNav() {
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t.tabs.switchAccount}</div>
                 </div>
-                {FARMERS.filter(f => f.role !== "farmer").map(f => {
+                {farmers.filter(f => f.role !== "farmer").map(f => {
                   const isActive = user?.id === f.id;
                   const Icon = f.role === "manager" ? Shield : UserCircle2;
                   return (

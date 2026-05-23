@@ -1,10 +1,11 @@
 import type { Bed, HarvestRecord, DiseaseReport, GrowthStage } from "@/lib/types";
-import { PACKAGING_RECORDS } from "@/lib/erp-data";
+import type { PackagingRecord } from "@/lib/erp-types";
 
 interface Props {
   beds: Bed[];
   harvests: HarvestRecord[];
   diseases: DiseaseReport[];
+  packagingRecords: PackagingRecord[];
 }
 
 const FLAG: Record<string, string> = {
@@ -75,7 +76,7 @@ function scoreTier(score: number): { label: string; color: string } {
   return               { label: "Weak",     color: "#dc2626" };
 }
 
-export function OriginPerformance({ beds, harvests, diseases }: Props) {
+export function OriginPerformance({ beds, harvests, diseases, packagingRecords }: Props) {
 
   // ── Aggregate ────────────────────────────────────────────────────────────
   const map: Record<string, {
@@ -131,7 +132,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
     else                         { o.activeDiseases++; o.totalSeverity += d.severity; }
   });
 
-  PACKAGING_RECORDS.forEach(pk => {
+  packagingRecords.forEach(pk => {
     const bed = beds.find(b => b.valveId === pk.valveId && b.variety === pk.variety);
     if (!bed || !map[bed.origin]) return;
     map[bed.origin].cartons += pk.cartonCount;
@@ -197,7 +198,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
           {[
             { label: "Season Yield",    value: `${totalKg.toFixed(0)} kg`,  sub: "all origins combined",              icon: "🌾" },
             { label: "Best Efficiency", value: rows[0] ? `${rows[0].kgPerM.toFixed(2)} kg/m` : "—", sub: rows[0]?.origin ?? "", icon: "🏆" },
-            { label: "Total Cartons",   value: `${totalCartons}`,           sub: `${PACKAGING_RECORDS.length} batches`, icon: "📦" },
+            { label: "Total Cartons",   value: `${totalCartons}`,           sub: `${packagingRecords.length} batches`, icon: "📦" },
             { label: "Farm Grade A",    value: `${farmGradeA}%`,            sub: `${harvests.length} harvest events`, icon: "⭐" },
             { label: "Active Alerts",   value: activeDiseaseCount > 0 ? `${activeDiseaseCount}` : "Clean", sub: activeDiseaseCount > 0 ? "disease reports" : "no active issues", icon: activeDiseaseCount > 0 ? "⚠️" : "✅" },
           ].map(kpi => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,6 @@ import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle, ImageUp, Langua
 import { toast } from "sonner";
 import type { AIDetectionResult } from "@/lib/ai";
 import { useAuth } from "@/lib/auth";
-import { getBed, getValve, addTask } from "@/lib/data";
 
 interface Props {
   bedId?: string;
@@ -62,6 +61,20 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
   const [result, setResult]           = useState<AIDetectionResult | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [infectedLengthM, setInfectedLengthM] = useState<number>(0);
+  const [bedData, setBedData] = useState<{ lengthM: number; valveId: string } | null>(null);
+  const [supervisorId, setSupervisorId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!bedId || !open) return;
+    fetch(`/api/beds/${bedId}`)
+      .then(r => r.json())
+      .then(bed => {
+        setBedData(bed);
+        return fetch(`/api/valves/${bed.valveId}`).then(r => r.json());
+      })
+      .then(valve => setSupervisorId(valve?.supervisorId ?? null))
+      .catch(() => {});
+  }, [bedId, open]);
 
   async function runDetection(imageBase64?: string) {
     setLoading(true);
@@ -103,7 +116,6 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
 
   async function reportAsDisease() {
     if (!result || !bedId || result.disease === "none") return;
-    const bed = getBed(bedId);
     const res = await fetch("/api/disease/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -114,25 +126,26 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
         suggestedTreatment: result.suggestedTreatment,
         aiConfidence: result.confidence,
         reportedBy: user?.id ?? "f-006",
-        infectedLengthM: infectedLengthM > 0 ? infectedLengthM : (bed ? Math.round(bed.lengthM * (result.severity / 100) * 10) / 10 : undefined),
+        infectedLengthM: infectedLengthM > 0 ? infectedLengthM : (bedData ? Math.round(bedData.lengthM * (result.severity / 100) * 10) / 10 : undefined),
       }),
     });
     if (res.ok) {
-      // Flow 9: auto-create a supervisor task alongside the disease report
-      const bed   = getBed(bedId);
-      const valve = bed ? getValve(bed.valveId) : null;
-      if (valve?.supervisorId) {
-        addTask({
-          title: `AI Alert: ${result.diseaseLabel} detected — ${bedId}`,
-          description: `AI confidence ${result.confidence}%. ${result.suggestedTreatment}`,
-          assignedTo: valve.supervisorId,
-          createdBy: user?.id ?? "f-008",
-          bedId,
-          status: "pending",
-          priority: result.severity > 60 ? "high" : "medium",
-          category: "disease",
-          createdAt: new Date().toISOString(),
-          dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      if (supervisorId) {
+        await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `AI Alert: ${result.diseaseLabel} detected — ${bedId}`,
+            description: `AI confidence ${result.confidence}%. ${result.suggestedTreatment}`,
+            assignedTo: supervisorId,
+            createdBy: user?.id ?? "f-008",
+            bedId,
+            status: "pending",
+            priority: result.severity > 60 ? "high" : "medium",
+            category: "disease",
+            createdAt: new Date().toISOString(),
+            dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+          }),
         });
       }
       toast.success("Disease report filed", {
@@ -324,8 +337,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
             )}
 
             {result.disease !== "none" && bedId && (() => {
-              const bed = getBed(bedId);
-              const bedLen = bed?.lengthM ?? 0;
+              const bedLen = bedData?.lengthM ?? 0;
               const autoEst = bedLen > 0 ? Math.round(bedLen * (result.severity / 100) * 10) / 10 : 0;
               const displayLen = infectedLengthM > 0 ? infectedLengthM : autoEst;
               const pct = bedLen > 0 ? Math.round((displayLen / bedLen) * 100) : 0;

@@ -6,10 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
-import { NOTIFICATIONS, FARMERS, BEDS, VALVES } from "@/lib/data";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import type { Notification } from "@/lib/types";
+import type { Notification, Bed, Farmer, Valve } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -35,21 +34,21 @@ type SearchResult = {
   type: "bed" | "farmer" | "valve";
 };
 
-function buildIndex(): SearchResult[] {
+function buildIndex(beds: Bed[], farmers: Farmer[], valves: Valve[]): SearchResult[] {
   const results: SearchResult[] = [];
-  BEDS().forEach(b => results.push({
+  beds.forEach(b => results.push({
     href: `/beds/${b.id}`,
     label: b.id,
     sub: `${b.variety} · ${b.lengthM}m`,
     type: "bed",
   }));
-  FARMERS.forEach(f => results.push({
+  farmers.forEach(f => results.push({
     href: `/employees`,
     label: f.name,
     sub: `${f.role} · ${f.phone}`,
     type: "farmer",
   }));
-  VALVES.forEach(v => results.push({
+  valves.forEach(v => results.push({
     href: `/valves/${v.id}`,
     label: v.name,
     sub: v.irrigationSchedule,
@@ -72,7 +71,10 @@ export function Topbar() {
   const router = useRouter();
 
   const [notifOpen, setNotifOpen]     = useState(false);
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [beds, setBeds]               = useState<Bed[]>([]);
+  const [farmers, setFarmers]         = useState<Farmer[]>([]);
+  const [valves, setValves]           = useState<Valve[]>([]);
   const [query, setQuery]             = useState("");
   const [searchOpen, setSearchOpen]   = useState(false);
   const [focused, setFocused]         = useState(0);
@@ -83,9 +85,16 @@ export function Topbar() {
   const unread = notifications.filter(n => !n.read).length;
   const role = user?.role ?? "manager";
 
-  // Build search index once
+  useEffect(() => {
+    fetch("/api/notifications").then(r => r.json()).then(setNotifications);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+  }, []);
+
+  // Rebuild search index when data changes
   const index = useRef<SearchResult[]>([]);
-  useEffect(() => { index.current = buildIndex(); }, []);
+  useEffect(() => { index.current = buildIndex(beds, farmers, valves); }, [beds, farmers, valves]);
 
   const results = query.trim().length >= 1
     ? index.current.filter(r =>
@@ -130,6 +139,7 @@ export function Topbar() {
 
   function markAllRead() {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    fetch("/api/notifications/mark-all-read", { method: "PATCH" }).catch(() => {});
   }
 
   if (pathname === "/login") return null;
@@ -259,7 +269,7 @@ export function Topbar() {
 
         {/* Date */}
         <div className="hidden lg:block text-xs text-slate-400 px-2 border-r border-slate-200">
-          {new Date("2026-05-17").toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}
+          {new Date().toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}
         </div>
 
         {/* ── Notifications bell ────────────────────────────────────────── */}

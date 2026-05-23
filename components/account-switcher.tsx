@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { FARMERS } from "@/lib/data";
+import type { Farmer } from "@/lib/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,9 +25,14 @@ const ROLE_COLORS = {
 export function AccountSwitcher() {
   const { user, login, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
   const router = useRouter();
 
-  const switchableUsers = FARMERS.filter(f => f.role !== "farmer");
+  useEffect(() => {
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+  }, []);
+
+  const switchableUsers = farmers.filter(f => f.role !== "farmer");
 
   function handleSwitch(id: string) {
     login(id);

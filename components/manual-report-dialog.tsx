@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bug, Upload, X, Eye, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { VALVES, bedsInValve, getBed } from "@/lib/data";
-import { DISEASE_LABELS, DISEASE_TREATMENTS, type DiseaseType } from "@/lib/types";
+import { DISEASE_LABELS, DISEASE_TREATMENTS, type DiseaseType, type Valve, type Bed } from "@/lib/types";
 
 const DISEASE_TYPES = Object.entries(DISEASE_LABELS) as [DiseaseType, string][];
 
@@ -29,15 +28,20 @@ export function ManualReportDialog({ onReported }: Props) {
   const [photoName, setPhotoName] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+
+  useEffect(() => {
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+  }, []);
 
   const assignedValves = user?.assignedValves ?? [];
-  const availableBeds = isManager
-    ? VALVES.flatMap(v => bedsInValve(v.id))
-    : assignedValves.flatMap(vid => bedsInValve(vid));
+  const availableBeds = isManager ? beds : beds.filter(b => assignedValves.includes(b.valveId));
 
-  const bedsByValve = (isManager ? VALVES : VALVES.filter(v => assignedValves.includes(v.id))).map(v => ({
+  const bedsByValve = (isManager ? valves : valves.filter(v => assignedValves.includes(v.id))).map(v => ({
     valve: v,
-    beds: bedsInValve(v.id),
+    beds: beds.filter(b => b.valveId === v.id),
   }));
 
   function reset() {
@@ -193,7 +197,7 @@ export function ManualReportDialog({ onReported }: Props) {
 
             {/* Infected length */}
             {(() => {
-              const bed = bedId ? getBed(bedId) : null;
+              const bed = bedId ? beds.find(b => b.id === bedId) : null;
               const bedLen = bed?.lengthM ?? 0;
               const autoEst = bedLen > 0 ? Math.round(bedLen * (severity / 100) * 10) / 10 : 0;
               const displayLen = infectedLengthM > 0 ? infectedLengthM : autoEst;
