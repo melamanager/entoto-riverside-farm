@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Beaker, CheckCircle2, Clock, Droplets, Calendar, Plus, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { FERTIGATION_RECORDS, STOCK_ITEMS } from "@/lib/erp-data";
-import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import type { FertigationRecord, FertigationStatus, ApplicationMethod } from "@/lib/erp-types";
+import type { StockItem } from "@/lib/erp-types";
+import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -40,19 +40,46 @@ const EMPTY_FORM = {
   status: "scheduled" as FertigationStatus, cost: 300, notes: "",
 };
 
+function parseStockItem(raw: Record<string, unknown>): StockItem {
+  return {
+    ...raw,
+    currentQty:   parseFloat((raw.currentQty as { toString(): string }).toString()),
+    reorderLevel: parseFloat((raw.reorderLevel as { toString(): string }).toString()),
+    maxCapacity:  parseFloat((raw.maxCapacity as { toString(): string }).toString()),
+    costPerUnit:  parseFloat((raw.costPerUnit as { toString(): string }).toString()),
+  } as StockItem;
+}
+
+function parseFertigationRecord(raw: Record<string, unknown>): FertigationRecord {
+  return {
+    ...raw,
+    cost: parseFloat((raw.cost as { toString(): string }).toString()),
+  } as FertigationRecord;
+}
+
 export default function FertigationPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [records, setRecords] = useState<FertigationRecord[]>(FERTIGATION_RECORDS);
-  const [filter, setFilter]   = useState<FertigationStatus | "all">("all");
+  const [records, setRecords]   = useState<FertigationRecord[]>([]);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [valves, setValves]     = useState<Valve[]>([]);
+  const [beds, setBeds]         = useState<Bed[]>([]);
+  const [farmers, setFarmers]   = useState<Farmer[]>([]);
+  const [filter, setFilter]     = useState<FertigationStatus | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<FertigationRecord | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const beds = BEDS();
+  useEffect(() => {
+    fetch("/api/fertigation").then(r => r.json()).then((data: Record<string, unknown>[]) => setRecords(data.map(parseFertigationRecord)));
+    fetch("/api/stock").then(r => r.json()).then((data: Record<string, unknown>[]) => setStockItems(data.map(parseStockItem)));
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+  }, []);
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, valveId: VALVES[0]?.id ?? "", responsibleWorkerId: FARMERS.filter(f => f.role === "farmer")[0]?.id ?? "" });
+    setForm({ ...EMPTY_FORM, valveId: valves[0]?.id ?? "", responsibleWorkerId: farmers.filter(f => f.role === "farmer")[0]?.id ?? "" });
     setCreateOpen(true);
   }
 
@@ -68,37 +95,47 @@ export default function FertigationPage() {
     setEditTarget(r);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.valveId)              { toast.error("Please select a valve"); return; }
     if (!form.responsibleWorkerId)  { toast.error("Please select a responsible worker"); return; }
-    const id = `ft-${Date.now()}`;
-    const newRec: FertigationRecord = {
-      id, valveId: form.valveId, bedId: form.bedId || undefined,
-      fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
-      dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
-      applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
-      responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
-      status: form.status, cost: form.cost, notes: form.notes || undefined,
-    };
-    FERTIGATION_RECORDS.push(newRec);
-    setRecords([...FERTIGATION_RECORDS]);
-    toast.success(`${form.fertilizerType} scheduled`);
-    setCreateOpen(false);
-  }
-
-  function handleEdit() {
-    if (!editTarget) return;
-    const idx = FERTIGATION_RECORDS.findIndex(r => r.id === editTarget.id);
-    if (idx < 0) return;
-    Object.assign(FERTIGATION_RECORDS[idx], {
+    const body = {
       valveId: form.valveId, bedId: form.bedId || undefined,
       fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
       dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
       applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
       responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
       status: form.status, cost: form.cost, notes: form.notes || undefined,
+    };
+    const res = await fetch("/api/fertigation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-    setRecords([...FERTIGATION_RECORDS]);
+    if (!res.ok) { toast.error("Failed to create record"); return; }
+    const newRec = await res.json() as Record<string, unknown>;
+    setRecords(prev => [...prev, parseFertigationRecord(newRec)]);
+    toast.success(`${form.fertilizerType} scheduled`);
+    setCreateOpen(false);
+  }
+
+  async function handleEdit() {
+    if (!editTarget) return;
+    const body = {
+      valveId: form.valveId, bedId: form.bedId || undefined,
+      fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
+      dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
+      applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
+      responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
+      status: form.status, cost: form.cost, notes: form.notes || undefined,
+    };
+    const res = await fetch(`/api/fertigation/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { toast.error("Failed to update record"); return; }
+    const updated = await res.json() as Record<string, unknown>;
+    setRecords(prev => prev.map(r => r.id === editTarget.id ? parseFertigationRecord(updated) : r));
     toast.success(`${form.fertilizerType} updated`);
     setEditTarget(null);
   }
@@ -114,7 +151,7 @@ export default function FertigationPage() {
   function findStockItem(fertType: string) {
     if (!fertType) return null;
     const lower = fertType.toLowerCase();
-    return STOCK_ITEMS.find(s =>
+    return stockItems.find(s =>
       s.category === "fertilizer" &&
       (s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase().split(" ")[0]))
     ) ?? null;
@@ -135,7 +172,7 @@ export default function FertigationPage() {
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
@@ -238,7 +275,7 @@ export default function FertigationPage() {
               onChange={e => setForm(p => ({ ...p, responsibleWorkerId: e.target.value }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {FARMERS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
         </div>
@@ -320,8 +357,8 @@ export default function FertigationPage() {
             </thead>
             <tbody>
               {filtered.map(rec => {
-                const valve = VALVES.find(v => v.id === rec.valveId);
-                const worker = FARMERS.find(f => f.id === rec.responsibleWorkerId);
+                const valve = valves.find(v => v.id === rec.valveId);
+                const worker = farmers.find(f => f.id === rec.responsibleWorkerId);
                 return (
                   <tr key={rec.id} className="group">
                     <td>

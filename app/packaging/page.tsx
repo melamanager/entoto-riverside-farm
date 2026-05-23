@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,9 @@ import {
   Search, ScanLine, Wheat, MapPin, User, Leaf, Calendar, X, AlertCircle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HARVESTS, getFarmer, getValve } from "@/lib/data";
 import { toast } from "sonner";
-import { PACKAGING_RECORDS, CUSTOMER_ORDERS } from "@/lib/erp-data";
-import { FARMERS, VALVES, BEDS } from "@/lib/data";
-import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose } from "@/lib/erp-types";
+import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose, CustomerOrder } from "@/lib/erp-types";
+import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -35,6 +33,8 @@ const PURPOSES: PackagingPurpose[] = ["export", "juice", "jam", "local", "hotel"
 const STATUSES: PackagingStatus[] = ["in_progress", "packed", "dispatched"];
 const SIZES: PackageSize[] = ["250g", "500g", "1kg", "2kg", "bulk"];
 
+type HarvestRecord = { id: string; bedId: string; date: string; kg: number; farmerId: string; qualityGrade: string; bed?: { valveId: string; variety: string } };
+
 const EMPTY_FORM = {
   batchNumber: "", harvestDate: "2026-05-17", packedDate: "2026-05-17",
   valveId: "", variety: "",
@@ -48,15 +48,71 @@ const EMPTY_FORM = {
 export default function PackagingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [records, setRecords] = useState<PackagingRecord[]>(PACKAGING_RECORDS);
+  const [records, setRecords]   = useState<PackagingRecord[]>([]);
+  const [orders, setOrders]     = useState<CustomerOrder[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [farmers, setFarmers]   = useState<Farmer[]>([]);
+  const [valves, setValves]     = useState<Valve[]>([]);
+  const [beds, setBeds]         = useState<Bed[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PackagingRecord | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [harvestSource, setHarvestSource] = useState<string>("");
 
+  useEffect(() => {
+    fetch("/api/packaging")
+      .then(r => r.json())
+      .then((data: (PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string })[]) =>
+        setRecords(data.map(p => ({
+          ...p,
+          harvestedKg: parseFloat(String(p.harvestedKg)),
+          gradedKg:    parseFloat(String(p.gradedKg)),
+          packedKg:    parseFloat(String(p.packedKg)),
+          rejectedKg:  parseFloat(String(p.rejectedKg)),
+          lostKg:      parseFloat(String(p.lostKg)),
+        })))
+      )
+      .catch(() => toast.error("Failed to load packaging records"));
+
+    fetch("/api/orders")
+      .then(r => r.json())
+      .then((data: (CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string })[]) =>
+        setOrders(data.map(o => ({
+          ...o,
+          quantityKg:  parseFloat(String(o.quantityKg)),
+          pricePerKg:  parseFloat(String(o.pricePerKg)),
+          totalAmount: parseFloat(String(o.totalAmount)),
+          advancePaid: parseFloat(String(o.advancePaid)),
+        })))
+      )
+      .catch(() => toast.error("Failed to load orders"));
+
+    fetch("/api/harvest")
+      .then(r => r.json())
+      .then((data: (HarvestRecord & { kg: number | string })[]) =>
+        setHarvests(data.map(h => ({ ...h, kg: parseFloat(String(h.kg)) })))
+      )
+      .catch(() => toast.error("Failed to load harvest records"));
+
+    fetch("/api/farmers")
+      .then(r => r.json())
+      .then((data: Farmer[]) => setFarmers(data))
+      .catch(() => toast.error("Failed to load farmers"));
+
+    fetch("/api/valves")
+      .then(r => r.json())
+      .then((data: Valve[]) => setValves(data))
+      .catch(() => toast.error("Failed to load valves"));
+
+    fetch("/api/beds")
+      .then(r => r.json())
+      .then((data: Bed[]) => setBeds(data))
+      .catch(() => toast.error("Failed to load beds"));
+  }, []);
+
   function openCreate() {
     const next = String(records.length + 54).padStart(3, "0");
-    setForm({ ...EMPTY_FORM, batchNumber: `PKG-2026-0${next}`, valveId: VALVES[0]?.id ?? "", packedBy: FARMERS[0]?.id ?? "" });
+    setForm({ ...EMPTY_FORM, batchNumber: `PKG-2026-0${next}`, valveId: valves[0]?.id ?? "", packedBy: farmers[0]?.id ?? "" });
     setHarvestSource("");
     setCreateOpen(true);
   }
@@ -74,23 +130,41 @@ export default function PackagingPage() {
     setEditTarget(r);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.batchNumber.trim()) { toast.error("Batch number required"); return; }
     if (!form.valveId)            { toast.error("Please select a valve"); return; }
-    const id = `pk-${Date.now()}`;
-    const newRec: PackagingRecord = { id, ...form, orderId: form.orderId || undefined };
-    PACKAGING_RECORDS.push(newRec);
-    setRecords([...PACKAGING_RECORDS]);
+    const body = { ...form, orderId: form.orderId || null };
+    const res = await fetch("/api/packaging", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to create batch"); return; }
+    const created = await res.json() as PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string };
+    const newRec: PackagingRecord = {
+      ...created,
+      harvestedKg: parseFloat(String(created.harvestedKg)),
+      gradedKg:    parseFloat(String(created.gradedKg)),
+      packedKg:    parseFloat(String(created.packedKg)),
+      rejectedKg:  parseFloat(String(created.rejectedKg)),
+      lostKg:      parseFloat(String(created.lostKg)),
+    };
+    setRecords(prev => [newRec, ...prev]);
     toast.success(`${form.batchNumber} created`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
-    const idx = PACKAGING_RECORDS.findIndex(r => r.id === editTarget.id);
-    if (idx < 0) return;
-    Object.assign(PACKAGING_RECORDS[idx], form);
-    setRecords([...PACKAGING_RECORDS]);
+    const body = { ...form, orderId: form.orderId || null };
+    const res = await fetch(`/api/packaging/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to update batch"); return; }
+    const updated = await res.json() as PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string };
+    const updatedRec: PackagingRecord = {
+      ...updated,
+      harvestedKg: parseFloat(String(updated.harvestedKg)),
+      gradedKg:    parseFloat(String(updated.gradedKg)),
+      packedKg:    parseFloat(String(updated.packedKg)),
+      rejectedKg:  parseFloat(String(updated.rejectedKg)),
+      lostKg:      parseFloat(String(updated.lostKg)),
+    };
+    setRecords(prev => prev.map(r => r.id === editTarget.id ? updatedRec : r));
     toast.success(`${form.batchNumber} updated`);
     setEditTarget(null);
   }
@@ -110,23 +184,23 @@ export default function PackagingPage() {
   // ── Tracker state ──────────────────────────────────────────────────────────
   const [trackQuery, setTrackQuery] = useState("");
   const trackResult = trackQuery.trim()
-    ? PACKAGING_RECORDS.find(r =>
+    ? records.find(r =>
         r.batchNumber.toLowerCase() === trackQuery.trim().toLowerCase() ||
         r.batchNumber.toLowerCase().includes(trackQuery.trim().toLowerCase())
       ) ?? null
     : null;
-  const trackValve    = trackResult ? getValve(trackResult.valveId) : null;
-  const trackPacker   = trackResult ? getFarmer(trackResult.packedBy) : null;
+  const trackValve    = trackResult ? valves.find(v => v.id === trackResult.valveId) ?? null : null;
+  const trackPacker   = trackResult ? farmers.find(f => f.id === trackResult.packedBy) ?? null : null;
   const trackHarvests = trackResult
-    ? HARVESTS().filter(h => {
-        const b = BEDS().find(x => x.id === h.bedId);
+    ? harvests.filter(h => {
+        const b = beds.find(x => x.id === h.bedId);
         return b?.valveId === trackResult.valveId && b?.variety === trackResult.variety && h.date === trackResult.harvestDate;
       })
     : [];
-  const trackBeds = [...new Set(trackHarvests.map(h => h.bedId))].map(bid => BEDS().find(b => b.id === bid)).filter(Boolean);
-  const trackFarmers = [...new Set(trackHarvests.map(h => h.farmerId))].map(fid => getFarmer(fid)).filter(Boolean);
+  const trackBeds = [...new Set(trackHarvests.map(h => h.bedId))].map(bid => beds.find(b => b.id === bid)).filter(Boolean);
+  const trackFarmers = [...new Set(trackHarvests.map(h => h.farmerId))].map(fid => farmers.find(f => f.id === fid)).filter(Boolean);
 
-  const valveBeds = form.valveId ? [...new Set(BEDS().filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
+  const valveBeds = form.valveId ? [...new Set(beds.filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
 
   // Group harvest records by date+valve+variety for "link from harvest" picker
   const harvestGroups = (() => {
@@ -134,8 +208,8 @@ export default function PackagingPage() {
       key: string; date: string; valveId: string; variety: string;
       totalKg: number; beds: string[];
     }> = {};
-    HARVESTS().forEach(h => {
-      const bed = BEDS().find(b => b.id === h.bedId);
+    harvests.forEach(h => {
+      const bed = beds.find(b => b.id === h.bedId);
       if (!bed) return;
       const key = `${h.date}|${bed.valveId}|${bed.variety}`;
       if (!groups[key]) groups[key] = { key, date: h.date, valveId: bed.valveId, variety: bed.variety, totalKg: 0, beds: [] };
@@ -182,7 +256,7 @@ export default function PackagingPage() {
           >
             <option value="">— Pick a harvest event (optional) —</option>
             {harvestGroups.map(g => {
-              const valve = VALVES.find(v => v.id === g.valveId);
+              const valve = valves.find(v => v.id === g.valveId);
               const alreadyPacked = packagedKeys.has(g.key);
               return (
                 <option key={g.key} value={g.key}>
@@ -215,7 +289,7 @@ export default function PackagingPage() {
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, variety: "" }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
         </div>
@@ -335,7 +409,7 @@ export default function PackagingPage() {
               onChange={e => setForm(p => ({ ...p, packedBy: e.target.value }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {FARMERS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
           <div>
@@ -354,7 +428,7 @@ export default function PackagingPage() {
             onChange={e => setForm(p => ({ ...p, orderId: e.target.value }))}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
             <option value="">— Unlinked —</option>
-            {CUSTOMER_ORDERS.map(o => (
+            {orders.map(o => (
               <option key={o.id} value={o.id}>{o.customerName} · {o.quantityKg}kg · {o.deliveryDate}</option>
             ))}
           </select>
@@ -582,7 +656,7 @@ export default function PackagingPage() {
                         Packed by {trackPacker?.name} · {new Date(trackResult.packedDate).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
                       </div>
                       {trackResult.orderId && (() => {
-                        const ord = CUSTOMER_ORDERS.find(o => o.id === trackResult.orderId);
+                        const ord = orders.find(o => o.id === trackResult.orderId);
                         return ord ? (
                           <div className="mt-2 flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-md px-2.5 py-2">
                             <div className="size-5 rounded-full bg-indigo-100 grid place-items-center shrink-0">
@@ -629,14 +703,14 @@ export default function PackagingPage() {
             </thead>
             <tbody>
               {[...records].sort((a, b) => b.harvestDate.localeCompare(a.harvestDate)).map(rec => {
-                const valve = VALVES.find(v => v.id === rec.valveId);
-                const worker = FARMERS.find(f => f.id === rec.packedBy);
+                const valve = valves.find(v => v.id === rec.valveId);
+                const worker = farmers.find(f => f.id === rec.packedBy);
                 return (
                   <tr key={rec.id} className="group">
                     <td className="font-mono text-xs font-semibold text-slate-700">{rec.batchNumber}</td>
                     <td>
                       {rec.orderId ? (() => {
-                        const ord = CUSTOMER_ORDERS.find(o => o.id === rec.orderId);
+                        const ord = orders.find(o => o.id === rec.orderId);
                         return ord ? (
                           <div className="text-xs">
                             <div className="font-semibold text-indigo-700 truncate max-w-[120px]">{ord.customerName}</div>

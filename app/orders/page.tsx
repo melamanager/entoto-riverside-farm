@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,8 @@ import {
   TrendingUp, DollarSign, BarChart3, TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CUSTOMER_ORDERS, PACKAGING_RECORDS, FERTIGATION_RECORDS, PAYROLL_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
-import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus } from "@/lib/erp-types";
+import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus, PackagingRecord, FertigationRecord } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -49,13 +48,53 @@ export default function OrdersPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const [activeTab, setActiveTab]       = useState<ActiveTab>("orders");
-  const [orders, setOrders]             = useState<CustomerOrder[]>(CUSTOMER_ORDERS);
+  const [orders, setOrders]             = useState<CustomerOrder[]>([]);
+  const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
+  const [fertigationRecords, setFertigationRecords] = useState<FertigationRecord[]>([]);
   const [filter, setFilter]             = useState<"all" | PaymentStatus>("all");
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<CustomerOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerOrder | null>(null);
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/orders")
+      .then(r => r.json())
+      .then((data: (CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string })[]) =>
+        setOrders(data.map(o => ({
+          ...o,
+          quantityKg:  parseFloat(String(o.quantityKg)),
+          pricePerKg:  parseFloat(String(o.pricePerKg)),
+          totalAmount: parseFloat(String(o.totalAmount)),
+          advancePaid: parseFloat(String(o.advancePaid)),
+        })))
+      )
+      .catch(() => toast.error("Failed to load orders"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/packaging")
+      .then(r => r.json())
+      .then((data: (PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string })[]) =>
+        setPackagingRecords(data.map(p => ({
+          ...p,
+          harvestedKg: parseFloat(String(p.harvestedKg)),
+          gradedKg:    parseFloat(String(p.gradedKg)),
+          packedKg:    parseFloat(String(p.packedKg)),
+          rejectedKg:  parseFloat(String(p.rejectedKg)),
+          lostKg:      parseFloat(String(p.lostKg)),
+        })))
+      )
+      .catch(() => toast.error("Failed to load packaging records"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/fertigation")
+      .then(r => r.json())
+      .then((data: FertigationRecord[]) => setFertigationRecords(data))
+      .catch(() => toast.error("Failed to load fertigation records"));
+  }, []);
 
   function openCreate() { setForm(EMPTY_FORM); setCreateOpen(true); }
   function openEdit(o: CustomerOrder) {
@@ -72,56 +111,72 @@ export default function OrdersPage() {
 
   function totalAmt() { return form.quantityKg * form.pricePerKg; }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.customerName.trim()) { toast.error("Customer name is required"); return; }
     if (form.quantityKg <= 0)      { toast.error("Quantity must be > 0"); return; }
     if (form.pricePerKg <= 0)      { toast.error("Price must be > 0"); return; }
-    const id = `ord-${Date.now()}`;
-    const newOrder: CustomerOrder = {
-      id, customerName: form.customerName.trim(),
-      customerType: form.customerType,
-      orderDate: form.orderDate, deliveryDate: form.deliveryDate,
-      quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
-      totalAmount: totalAmt(), advancePaid: form.advancePaid,
-      paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
-      variety: form.variety || undefined,
-      phone: form.phone || undefined, notes: form.notes || undefined,
-    };
-    CUSTOMER_ORDERS.push(newOrder);
-    setOrders([...CUSTOMER_ORDERS]);
-    toast.success(`Order for ${newOrder.customerName} created`);
-    setCreateOpen(false);
-  }
-
-  function handleEdit() {
-    if (!editTarget) return;
-    const idx = CUSTOMER_ORDERS.findIndex(o => o.id === editTarget.id);
-    if (idx < 0) return;
-    Object.assign(CUSTOMER_ORDERS[idx], {
+    const body = {
       customerName: form.customerName.trim(),
       customerType: form.customerType,
       orderDate: form.orderDate, deliveryDate: form.deliveryDate,
       quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
       totalAmount: totalAmt(), advancePaid: form.advancePaid,
       paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
-      variety: form.variety || undefined,
-      phone: form.phone || undefined, notes: form.notes || undefined,
-    });
-    setOrders([...CUSTOMER_ORDERS]);
+      variety: form.variety || null,
+      phone: form.phone || null, notes: form.notes || null,
+    };
+    const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to create order"); return; }
+    const created = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
+    const newOrder: CustomerOrder = {
+      ...created,
+      quantityKg:  parseFloat(String(created.quantityKg)),
+      pricePerKg:  parseFloat(String(created.pricePerKg)),
+      totalAmount: parseFloat(String(created.totalAmount)),
+      advancePaid: parseFloat(String(created.advancePaid)),
+    };
+    setOrders(prev => [newOrder, ...prev]);
+    toast.success(`Order for ${newOrder.customerName} created`);
+    setCreateOpen(false);
+  }
+
+  async function handleEdit() {
+    if (!editTarget) return;
+    const body = {
+      customerName: form.customerName.trim(),
+      customerType: form.customerType,
+      orderDate: form.orderDate, deliveryDate: form.deliveryDate,
+      quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
+      totalAmount: totalAmt(), advancePaid: form.advancePaid,
+      paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
+      variety: form.variety || null,
+      phone: form.phone || null, notes: form.notes || null,
+    };
+    const res = await fetch(`/api/orders/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to update order"); return; }
+    const updated = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
+    const updatedOrder: CustomerOrder = {
+      ...updated,
+      quantityKg:  parseFloat(String(updated.quantityKg)),
+      pricePerKg:  parseFloat(String(updated.pricePerKg)),
+      totalAmount: parseFloat(String(updated.totalAmount)),
+      advancePaid: parseFloat(String(updated.advancePaid)),
+    };
+    setOrders(prev => prev.map(o => o.id === editTarget.id ? updatedOrder : o));
     toast.success("Order updated");
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
     if (deleteTarget.deliveryStatus !== "pending") {
       toast.error("Can only delete pending orders");
       setDeleteTarget(null);
       return;
     }
-    const idx = CUSTOMER_ORDERS.findIndex(o => o.id === deleteTarget.id);
-    if (idx >= 0) CUSTOMER_ORDERS.splice(idx, 1);
-    setOrders([...CUSTOMER_ORDERS]);
+    const res = await fetch(`/api/orders/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) { toast.error("Failed to delete order"); return; }
+    setOrders(prev => prev.filter(o => o.id !== deleteTarget.id));
     toast.success("Order deleted");
     setDeleteTarget(null);
   }
@@ -134,8 +189,8 @@ export default function OrdersPage() {
   const pending      = orders.filter(o => o.deliveryStatus === "pending").length;
 
   // Revenue tab data
-  const fertCost   = FERTIGATION_RECORDS.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
-  const payrollMay = PAYROLL_RECORDS.filter(r => r.month === "2026-05").reduce((s, r) => s + r.netPay, 0);
+  const fertCost   = fertigationRecords.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
+  const payrollMay = 0; // payroll not fetched here; keep structure but default to 0
   const totalCosts = fertCost + payrollMay;
   const grossProfit = collected - totalCosts;
   const totalKg    = orders.reduce((s, o) => s + o.quantityKg, 0);
@@ -342,7 +397,7 @@ export default function OrdersPage() {
                   {records.map(ord => {
                     const balance = ord.totalAmount - ord.advancePaid;
                     const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
-                    const batches = PACKAGING_RECORDS.filter(p => p.orderId === ord.id);
+                    const batches = packagingRecords.filter(p => p.orderId === ord.id);
                     const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
                     const isExpanded = expandedOrder === ord.id;
                     return (

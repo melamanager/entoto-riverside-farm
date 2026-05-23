@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,13 @@ import {
   Bug, Sprout, Droplets, ListChecks, FileText, Filter, ClipboardPlus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { FOLLOW_UPS } from "@/lib/erp-data";
-import { FARMERS, VALVES, BEDS, addTask } from "@/lib/data";
 import type { FollowUp, FollowUpEntityType, FollowUpStatus, FollowUpPriority } from "@/lib/erp-types";
 import { FOLLOW_UP_ENTITY_LABELS, FOLLOW_UP_ENTITY_ICONS } from "@/lib/erp-types";
+import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
-const TODAY = "2026-05-19";
+const TODAY = new Date().toISOString().split("T")[0];
 
 const PRIORITY_STYLE: Record<FollowUpPriority, string> = {
   low:    "bg-slate-100 text-slate-600 border-slate-200",
@@ -64,7 +63,10 @@ type FilterTab = "all" | "pending" | "overdue" | "done" | "today";
 export function FollowUpsSection() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [followUps, setFollowUps]   = useState<FollowUp[]>(FOLLOW_UPS);
+  const [followUps, setFollowUps]   = useState<FollowUp[]>([]);
+  const [farmers, setFarmers]       = useState<Farmer[]>([]);
+  const [valves, setValves]         = useState<Valve[]>([]);
+  const [beds, setBeds]             = useState<Bed[]>([]);
   const [tab, setTab]               = useState<FilterTab>("all");
   const [entityFilter, setEntity]   = useState<FollowUpEntityType | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -73,8 +75,14 @@ export function FollowUpsSection() {
   const [doneNote, setDoneNote]     = useState("");
   const [form, setForm]             = useState({ ...EMPTY_FORM });
 
-  const beds    = BEDS();
-  const managers = FARMERS.filter(f => f.role === "manager" || f.role === "supervisor");
+  useEffect(() => {
+    fetch("/api/follow-ups").then(r => r.json()).then(setFollowUps);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+  }, []);
+
+  const managers = farmers.filter(f => f.role === "manager" || f.role === "supervisor");
 
   const computed = useMemo(() => {
     return followUps.map(fu => {
@@ -110,57 +118,74 @@ export function FollowUpsSection() {
     today:   computed.filter(f => f.status !== "done" && f.days === 0).length,
   }), [computed]);
 
-  function markDone() {
+  async function markDone() {
     if (!doneTarget) return;
-    const idx = FOLLOW_UPS.findIndex(f => f.id === doneTarget.id);
-    if (idx >= 0) {
-      FOLLOW_UPS[idx].status = "done";
-      FOLLOW_UPS[idx].completedAt = TODAY;
-      FOLLOW_UPS[idx].completionNote = doneNote || undefined;
+    const res = await fetch(`/api/follow-ups/${doneTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done", completedAt: TODAY, completionNote: doneNote || undefined }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setFollowUps(prev => prev.map(f => f.id === doneTarget.id ? updated : f));
+      toast.success("Follow-up marked as done");
+    } else {
+      toast.error("Failed to update follow-up");
     }
-    setFollowUps([...FOLLOW_UPS]);
-    toast.success("Follow-up marked as done");
     setDoneTarget(null);
     setDoneNote("");
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
     if (!form.assignedTo)   { toast.error("Please assign to someone"); return; }
-    const newFu: FollowUp = {
-      id: `fu-${Date.now()}`,
-      entityType: form.entityType,
-      entityId: form.entityId || "farm",
-      title: form.title,
-      description: form.description || undefined,
-      dueDate: form.dueDate,
-      status: "pending",
-      priority: form.priority,
-      assignedTo: form.assignedTo,
-      createdBy: form.createdBy || (FARMERS.find(f => f.role === "manager")?.id ?? "f-008"),
-      bedId: form.bedId || undefined,
-      valveId: form.valveId || undefined,
-    };
-    FOLLOW_UPS.push(newFu);
-    setFollowUps([...FOLLOW_UPS]);
-    toast.success("Follow-up created");
-    setCreateOpen(false);
+    const res = await fetch("/api/follow-ups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        entityType: form.entityType,
+        entityId: form.entityId || "farm",
+        title: form.title,
+        description: form.description || undefined,
+        dueDate: form.dueDate,
+        status: "pending",
+        priority: form.priority,
+        assignedTo: form.assignedTo,
+        createdBy: form.createdBy || (farmers.find(f => f.role === "manager")?.id ?? "f-008"),
+        bedId: form.bedId || undefined,
+        valveId: form.valveId || undefined,
+      }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setFollowUps(prev => [...prev, created]);
+      toast.success("Follow-up created");
+      setCreateOpen(false);
+    } else {
+      toast.error("Failed to create follow-up");
+    }
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
-    const idx = FOLLOW_UPS.findIndex(f => f.id === editTarget.id);
-    if (idx >= 0) {
-      Object.assign(FOLLOW_UPS[idx], {
+    const res = await fetch(`/api/follow-ups/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         title: form.title, description: form.description || undefined,
         dueDate: form.dueDate, priority: form.priority,
         assignedTo: form.assignedTo, entityType: form.entityType,
         bedId: form.bedId || undefined, valveId: form.valveId || undefined,
-      });
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setFollowUps(prev => prev.map(f => f.id === editTarget.id ? updated : f));
+      toast.success("Follow-up updated");
+      setEditTarget(null);
+    } else {
+      toast.error("Failed to update follow-up");
     }
-    setFollowUps([...FOLLOW_UPS]);
-    toast.success("Follow-up updated");
-    setEditTarget(null);
   }
 
   function openEdit(fu: FollowUp) {
@@ -174,7 +199,7 @@ export function FollowUpsSection() {
     setEditTarget(fu);
   }
 
-  function assignAsTask(fu: FollowUp) {
+  async function assignAsTask(fu: FollowUp) {
     const categoryMap: Record<FollowUpEntityType, string> = {
       disease:    "disease",
       planting:   "general",
@@ -182,17 +207,21 @@ export function FollowUpsSection() {
       task:       "general",
       general:    "general",
     };
-    addTask({
-      title:       fu.title,
-      description: fu.description ?? "",
-      assignedTo:  fu.assignedTo,
-      createdBy:   fu.createdBy,
-      bedId:       fu.bedId,
-      status:      "pending",
-      priority:    fu.priority === "urgent" ? "high" : fu.priority === "normal" ? "medium" : "low",
-      category:    categoryMap[fu.entityType] as "disease" | "harvest" | "irrigation" | "general",
-      createdAt:   new Date().toISOString(),
-      dueDate:     fu.dueDate,
+    await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title:       fu.title,
+        description: fu.description ?? "",
+        assignedTo:  fu.assignedTo,
+        createdBy:   fu.createdBy,
+        bedId:       fu.bedId,
+        status:      "pending",
+        priority:    fu.priority === "urgent" ? "high" : fu.priority === "normal" ? "medium" : "low",
+        category:    categoryMap[fu.entityType],
+        createdAt:   new Date().toISOString(),
+        dueDate:     fu.dueDate,
+      }),
     });
     toast.success("Assigned as Task", {
       description: `"${fu.title.slice(0, 40)}…" added to daily tasks`,
@@ -257,8 +286,8 @@ export function FollowUpsSection() {
       {/* Follow-up list */}
       <div className="space-y-2">
         {filtered.map(fu => {
-          const worker  = FARMERS.find(f => f.id === fu.assignedTo);
-          const valve   = VALVES.find(v => v.id === fu.valveId);
+          const worker  = farmers.find(f => f.id === fu.assignedTo);
+          const valve   = valves.find(v => v.id === fu.valveId);
           const days    = daysUntil(fu.dueDate);
           const isOverdue = fu.status === "overdue";
           return (
@@ -433,7 +462,7 @@ export function FollowUpsSection() {
                     onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))}
                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
                     <option value="">— Select —</option>
-                    {FARMERS.map(f => <option key={f.id} value={f.id}>{f.name} ({f.role})</option>)}
+                    {farmers.map(f => <option key={f.id} value={f.id}>{f.name} ({f.role})</option>)}
                   </select>
                 </div>
               </div>
@@ -443,7 +472,7 @@ export function FollowUpsSection() {
                   <select value={form.valveId} onChange={e => setForm(p => ({ ...p, valveId: e.target.value }))}
                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
                     <option value="">— None —</option>
-                    {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
                 </div>
                 <div>

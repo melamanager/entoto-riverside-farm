@@ -1,13 +1,32 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BedQR } from "@/components/bed-qr";
 import { QRScanner } from "@/components/qr-scanner";
-import { BEDS, getValve } from "@/lib/data";
 import { QrCode, Camera, Printer, Sprout } from "lucide-react";
+import type { Bed, Valve } from "@/lib/types";
 
 export default function ScanPage() {
-  const beds = BEDS();
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/beds").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+    ]).then(([b, v]) => {
+      setBeds(b);
+      setValves(v);
+    });
+  }, []);
+
+  function getValve(vid: string) {
+    return valves.find(v => v.id === vid) ?? null;
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -49,11 +68,10 @@ export default function ScanPage() {
           </Card>
 
           {/* Group by valve */}
-          {["valve-a","valve-b","valve-c"].map(vid => {
-            const valve = getValve(vid)!;
-            const vBeds = beds.filter(b => b.valveId === vid);
+          {valves.map(valve => {
+            const vBeds = beds.filter(b => b.valveId === valve.id);
             return (
-              <div key={vid} className="mb-6">
+              <div key={valve.id} className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="size-3 rounded-full" style={{background:valve.color}}/>
                   <h3 className="font-semibold text-slate-800">{valve.name}</h3>

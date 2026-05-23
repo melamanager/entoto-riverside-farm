@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Sprout, Users, Wheat, AlertTriangle, Plus, Pencil, Trash2, X } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { toast } from "sonner";
-import { VALVES, BEDS, FARMERS, plantsInBed, totalKgValve, getFarmer } from "@/lib/data";
-import type { Valve } from "@/lib/types";
+import type { Valve, Bed, Farmer, HarvestRecord } from "@/lib/types";
 
 const COLORS = [
   "#10b981", "#3b82f6", "#a855f7", "#f59e0b",
@@ -21,15 +20,37 @@ const EMPTY_FORM = {
   name: "", color: "#10b981", irrigationSchedule: "", supervisorId: "",
 };
 
-export default function ValvesIndex() {
-  const beds = BEDS();
-  const supervisors = FARMERS.filter(f => f.role === "supervisor" || f.role === "manager");
+function plantsInBed(bed: Bed): number { return bed.lengthM * bed.plantsPerMeter; }
 
-  const [valves, setValves] = useState<Valve[]>(VALVES);
-  const [createOpen, setCreateOpen]   = useState(false);
-  const [editTarget, setEditTarget]   = useState<Valve | null>(null);
+export default function ValvesIndex() {
+  const [valves, setValves]     = useState<Valve[]>([]);
+  const [beds, setBeds]         = useState<Bed[]>([]);
+  const [farmers, setFarmers]   = useState<Farmer[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [createOpen, setCreateOpen]     = useState(false);
+  const [editTarget, setEditTarget]     = useState<Valve | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Valve | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  useEffect(() => {
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/harvest").then(r => r.json()).then(setHarvests);
+  }, []);
+
+  const supervisors = farmers.filter(f => f.role === "supervisor" || f.role === "manager");
+
+  function totalKgValve(valveId: string): number {
+    const vBedIds = beds.filter(b => b.valveId === valveId).map(b => b.id);
+    return harvests
+      .filter(h => vBedIds.includes(h.bedId))
+      .reduce((s, h) => s + Number(h.kg), 0);
+  }
+
+  function getFarmer(id: string) {
+    return farmers.find(f => f.id === id);
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function openCreate() {
@@ -58,8 +79,6 @@ export default function ValvesIndex() {
       x: 40 + valves.length * 140, y: 60, width: 260, height: 180,
     };
     setValves(prev => [...prev, newValve]);
-    // Keep shared array in sync for other pages this session
-    VALVES.push(newValve);
     toast.success(`${newValve.name} created`);
     setCreateOpen(false);
   }
@@ -72,9 +91,6 @@ export default function ValvesIndex() {
         ? { ...v, name: form.name.trim(), color: form.color, irrigationSchedule: form.irrigationSchedule, supervisorId: form.supervisorId }
         : v
     ));
-    // Sync shared array
-    const idx = VALVES.findIndex(v => v.id === editTarget.id);
-    if (idx >= 0) Object.assign(VALVES[idx], { name: form.name.trim(), color: form.color, irrigationSchedule: form.irrigationSchedule, supervisorId: form.supervisorId });
     toast.success(`${form.name} updated`);
     setEditTarget(null);
   }
@@ -88,8 +104,6 @@ export default function ValvesIndex() {
       return;
     }
     setValves(prev => prev.filter(v => v.id !== deleteTarget.id));
-    const idx = VALVES.findIndex(v => v.id === deleteTarget.id);
-    if (idx >= 0) VALVES.splice(idx, 1);
     toast.success(`${deleteTarget.name} deleted`);
     setDeleteTarget(null);
   }
@@ -170,7 +184,7 @@ export default function ValvesIndex() {
           const kg = totalKgValve(v.id);
           const infected = vBeds.filter(b => b.health === "infected").length;
           const supervisor = getFarmer(v.supervisorId);
-          const farmers = FARMERS.filter(f => f.assignedValves.includes(v.id) && f.role === "farmer");
+          const valveFarmers = farmers.filter(f => f.assignedValves.includes(v.id) && f.role === "farmer");
 
           return (
             <Card key={v.id} className="p-5 relative overflow-hidden hover:shadow-lg transition-shadow">
@@ -233,7 +247,7 @@ export default function ValvesIndex() {
                   <span><strong>Supervisor:</strong> {supervisor?.name ?? "—"}</span>
                 </div>
                 <div className="text-xs text-stone-500 mt-1 truncate">
-                  Farmers: {farmers.map(f => f.name.split(" ")[0]).join(", ") || "None assigned"}
+                  Farmers: {valveFarmers.map(f => f.name.split(" ")[0]).join(", ") || "None assigned"}
                 </div>
               </Link>
             </Card>

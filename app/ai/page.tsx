@@ -9,13 +9,10 @@ import {
   CheckCircle2, Wheat, DollarSign, Bug, Droplets, Users,
   Send, RefreshCw, ChevronRight, Activity,
 } from "lucide-react";
-import {
-  BEDS, HARVESTS, DISEASES, VALVES, FARMERS,
-  plantsInBed, totalKgBed,
-} from "@/lib/data";
-import { CUSTOMER_ORDERS, FERTIGATION_RECORDS, WORKER_ASSIGNMENTS } from "@/lib/erp-data";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import type { Bed, HarvestRecord, DiseaseReport, Valve, Farmer } from "@/lib/types";
+import type { CustomerOrder, FertigationRecord, WorkerAssignment } from "@/lib/erp-types";
 
 // ── Alert engine ──────────────────────────────────────────────────────────────
 
@@ -31,12 +28,19 @@ interface AIAlert {
   href?: string;
 }
 
-function buildAlerts(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof DISEASES>): AIAlert[] {
+function buildAlerts(
+  beds: Bed[],
+  diseases: DiseaseReport[],
+  valves: Valve[],
+  customerOrders: CustomerOrder[],
+  fertigationRecords: FertigationRecord[],
+  workerAssignments: WorkerAssignment[],
+  today: string,
+): AIAlert[] {
   const alerts: AIAlert[] = [];
 
   // Infected beds with untreated disease
   diseases.filter(d => !d.treatmentApplied && d.status !== "resolved").forEach(d => {
-    const bed = beds.find(b => b.id === d.bedId);
     alerts.push({
       id: `alert-disease-${d.id}`,
       severity: d.severity > 50 ? "critical" : "warning",
@@ -51,12 +55,13 @@ function buildAlerts(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof 
 
   // Ripening beds ready for harvest
   beds.filter(b => b.stage === "ripening").forEach(b => {
+    const plants = b.lengthM * b.plantsPerMeter;
     alerts.push({
       id: `alert-harvest-${b.id}`,
       severity: "info",
       category: "Harvest",
       title: `${b.id} is entering peak ripeness`,
-      detail: `${b.variety} in ${b.id} (${b.lengthM}m, ${plantsInBed(b)} plants) projected to be at peak in 2–4 days. Schedule harvest team.`,
+      detail: `${b.variety} in ${b.id} (${b.lengthM}m, ${plants} plants) projected to be at peak in 2–4 days. Schedule harvest team.`,
       confidence: 84 + (b.lengthM % 10),
       action: "Schedule harvest",
       href: "/assignments",
@@ -64,7 +69,7 @@ function buildAlerts(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof 
   });
 
   // Overdue customer deliveries
-  CUSTOMER_ORDERS.filter(o => o.deliveryStatus === "pending" && o.deliveryDate < "2026-05-17").forEach(o => {
+  customerOrders.filter(o => o.deliveryStatus === "pending" && o.deliveryDate < today).forEach(o => {
     const balance = o.totalAmount - o.advancePaid;
     alerts.push({
       id: `alert-order-${o.id}`,
@@ -79,8 +84,8 @@ function buildAlerts(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof 
   });
 
   // Upcoming scheduled fertigation today
-  FERTIGATION_RECORDS.filter(r => r.status === "scheduled" && r.applicationDate === "2026-05-17").forEach(r => {
-    const valve = VALVES.find(v => v.id === r.valveId);
+  fertigationRecords.filter(r => r.status === "scheduled" && r.applicationDate === today).forEach(r => {
+    const valve = valves.find(v => v.id === r.valveId);
     alerts.push({
       id: `alert-fert-${r.id}`,
       severity: "warning",
@@ -111,7 +116,7 @@ function buildAlerts(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof 
   });
 
   // Pending high-priority tasks overdue
-  const pendingHighTasks = WORKER_ASSIGNMENTS.filter(a => a.status === "assigned" && a.date < "2026-05-17");
+  const pendingHighTasks = workerAssignments.filter(a => a.status === "assigned" && a.date < today);
   if (pendingHighTasks.length > 0) {
     alerts.push({
       id: "alert-tasks-overdue",
@@ -133,10 +138,10 @@ function buildAlerts(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof 
 
 // ── Harvest forecast ──────────────────────────────────────────────────────────
 
-function buildForecast(beds: ReturnType<typeof BEDS>) {
-  const today = new Date("2026-05-17");
+function buildForecast(beds: Bed[], today: string) {
+  const todayDate = new Date(today);
   return Array.from({ length: 14 }, (_, i) => {
-    const date = new Date(today);
+    const date = new Date(todayDate);
     date.setDate(date.getDate() + i);
     const label = date.toLocaleDateString("en", { month: "short", day: "numeric" });
 
@@ -160,7 +165,7 @@ function buildForecast(beds: ReturnType<typeof BEDS>) {
 
 // ── Disease risk scoring ──────────────────────────────────────────────────────
 
-function buildRiskScores(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typeof DISEASES>) {
+function buildRiskScores(beds: Bed[], diseases: DiseaseReport[]) {
   return beds.map(b => {
     let score = 0;
     if (b.health === "infected") score += 70;
@@ -182,12 +187,25 @@ function buildRiskScores(beds: ReturnType<typeof BEDS>, diseases: ReturnType<typ
 
 interface QAMessage { role: "user" | "ai"; text: string; ts: string }
 
-function aiAnswer(question: string, beds: ReturnType<typeof BEDS>, harvests: ReturnType<typeof HARVESTS>, diseases: ReturnType<typeof DISEASES>): string {
+function aiAnswer(
+  question: string,
+  beds: Bed[],
+  harvests: HarvestRecord[],
+  diseases: DiseaseReport[],
+  valves: Valve[],
+  farmers: Farmer[],
+  customerOrders: CustomerOrder[],
+  fertigationRecords: FertigationRecord[],
+  workerAssignments: WorkerAssignment[],
+  today: string,
+): string {
   const q = question.toLowerCase();
-  const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
-  const topBed = beds.map(b => ({ b, kg: totalKgBed(b.id) })).sort((a, b) => b.kg - a.kg)[0];
-  const revenue = CUSTOMER_ORDERS.reduce((s, o) => s + o.totalAmount, 0);
-  const collected = CUSTOMER_ORDERS.reduce((s, o) => s + o.advancePaid, 0);
+  const totalKg = harvests.reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
+  const bedKgMap: Record<string, number> = {};
+  harvests.forEach(h => { bedKgMap[h.bedId] = (bedKgMap[h.bedId] ?? 0) + parseFloat(h.kg.toString()); });
+  const topBed = beds.map(b => ({ b, kg: bedKgMap[b.id] ?? 0 })).sort((a, b) => b.kg - a.kg)[0];
+  const revenue = customerOrders.reduce((s, o) => s + o.totalAmount, 0);
+  const collected = customerOrders.reduce((s, o) => s + o.advancePaid, 0);
   const outstanding = revenue - collected;
   const infectedBeds = beds.filter(b => b.health === "infected");
   const ripeningBeds = beds.filter(b => b.stage === "ripening");
@@ -206,41 +224,42 @@ function aiAnswer(question: string, beds: ReturnType<typeof BEDS>, harvests: Ret
   }
 
   if (q.includes("revenue") || q.includes("money") || q.includes("profit") || q.includes("income")) {
-    return `Current season revenue stands at **${revenue.toLocaleString()} ETB** across ${CUSTOMER_ORDERS.length} orders. Collected so far: ${collected.toLocaleString()} ETB. Outstanding balance: ${outstanding.toLocaleString()} ETB. Projected next-30-day revenue based on pending orders and ripening beds: approximately ${Math.round((revenue * 0.4 + totalKg * 150) / 1000)}k ETB. Hotels and exports are your highest-margin channels.`;
+    return `Current season revenue stands at **${revenue.toLocaleString()} ETB** across ${customerOrders.length} orders. Collected so far: ${collected.toLocaleString()} ETB. Outstanding balance: ${outstanding.toLocaleString()} ETB. Projected next-30-day revenue based on pending orders and ripening beds: approximately ${Math.round((revenue * 0.4 + totalKg * 150) / 1000)}k ETB. Hotels and exports are your highest-margin channels.`;
   }
 
   if (q.includes("yield") || q.includes("produce") || q.includes("kg") || q.includes("production")) {
-    return `Season total harvest: **${totalKg.toFixed(1)} kg** across ${harvests.length} harvest events. Best performing bed: **${topBed?.b.id}** (${topBed?.kg.toFixed(1)} kg, ${topBed?.b.variety}). Average yield per metre: ${(totalKg / beds.reduce((s, b) => s + b.lengthM, 0)).toFixed(2)} kg/m. Forecast for the next 14 days: ~${buildForecast(beds).reduce((s, d) => s + d.kg, 0).toFixed(0)} kg projected.`;
+    return `Season total harvest: **${totalKg.toFixed(1)} kg** across ${harvests.length} harvest events. Best performing bed: **${topBed?.b.id}** (${topBed?.kg.toFixed(1)} kg, ${topBed?.b.variety}). Average yield per metre: ${(totalKg / beds.reduce((s, b) => s + b.lengthM, 0)).toFixed(2)} kg/m. Forecast for the next 14 days: ~${buildForecast(beds, today).reduce((s, d) => s + d.kg, 0).toFixed(0)} kg projected.`;
   }
 
   if (q.includes("water") || q.includes("irrigat") || q.includes("fertigation")) {
-    const appliedFert = FERTIGATION_RECORDS.filter(r => r.status === "applied");
+    const appliedFert = fertigationRecords.filter(r => r.status === "applied");
     const totalLitres = appliedFert.reduce((s, r) => s + r.waterVolumeLiters, 0);
     const totalCost = appliedFert.reduce((s, r) => s + r.cost, 0);
-    return `Applied fertigation: **${appliedFert.length} applications** using ${totalLitres.toLocaleString()} L of nutrient solution at a total input cost of ${totalCost.toLocaleString()} ETB. ${FERTIGATION_RECORDS.filter(r => r.status === "scheduled").length} application(s) are scheduled and pending. Next due: ${FERTIGATION_RECORDS.filter(r => r.status === "scheduled")[0]?.fertilizerType ?? "none"}.`;
+    return `Applied fertigation: **${appliedFert.length} applications** using ${totalLitres.toLocaleString()} L of nutrient solution at a total input cost of ${totalCost.toLocaleString()} ETB. ${fertigationRecords.filter(r => r.status === "scheduled").length} application(s) are scheduled and pending. Next due: ${fertigationRecords.filter(r => r.status === "scheduled")[0]?.fertilizerType ?? "none"}.`;
   }
 
   if (q.includes("worker") || q.includes("farmer") || q.includes("staff") || q.includes("team") || q.includes("employee")) {
-    const topFarmer = FARMERS.filter(f => f.role === "farmer").sort((a, b) => b.performanceScore - a.performanceScore)[0];
-    const avgAttendance = Math.round(FARMERS.filter(f => f.role === "farmer").reduce((s, f) => s + f.attendanceRate, 0) / FARMERS.filter(f => f.role === "farmer").length);
-    return `Farm workforce: **${FARMERS.length} staff** (${FARMERS.filter(f => f.role === "farmer").length} farmers, ${FARMERS.filter(f => f.role === "supervisor").length} supervisors, 1 manager). Top performer: **${topFarmer?.name}** (score ${topFarmer?.performanceScore}). Average attendance: ${avgAttendance}%. ${WORKER_ASSIGNMENTS.filter(a => a.status === "in_progress" && a.date === "2026-05-17").length} workers active right now.`;
+    const farmersOnly = farmers.filter(f => f.role === "farmer");
+    const topFarmer = farmersOnly.sort((a, b) => b.performanceScore - a.performanceScore)[0];
+    const avgAttendance = Math.round(farmersOnly.reduce((s, f) => s + f.attendanceRate, 0) / (farmersOnly.length || 1));
+    return `Farm workforce: **${farmers.length} staff** (${farmersOnly.length} farmers, ${farmers.filter(f => f.role === "supervisor").length} supervisors, 1 manager). Top performer: **${topFarmer?.name}** (score ${topFarmer?.performanceScore}). Average attendance: ${avgAttendance}%. ${workerAssignments.filter(a => a.status === "in_progress" && a.date === today).length} workers active right now.`;
   }
 
   if (q.includes("risk") || q.includes("danger") || q.includes("problem") || q.includes("issue") || q.includes("alert")) {
-    const alerts = buildAlerts(beds, diseases);
+    const alerts = buildAlerts(beds, diseases, valves, customerOrders, fertigationRecords, workerAssignments, today);
     if (alerts.length === 0) return "No critical issues detected. Farm is operating normally. Continue routine monitoring.";
     return `I've identified **${alerts.length} active alert(s)**. Critical: ${alerts.filter(a => a.severity === "critical").length}. Warnings: ${alerts.filter(a => a.severity === "warning").length}. Top priority: ${alerts[0]?.title}. ${alerts[0]?.detail}`;
   }
 
   if (q.includes("forecast") || q.includes("predict") || q.includes("next week") || q.includes("future")) {
-    const forecast = buildForecast(beds);
+    const forecast = buildForecast(beds, today);
     const week1 = forecast.slice(0, 7).reduce((s, d) => s + d.kg, 0);
     const week2 = forecast.slice(7).reduce((s, d) => s + d.kg, 0);
     return `7-day harvest forecast: **~${week1.toFixed(0)} kg** expected. Days 8–14: ~${week2.toFixed(0)} kg. Peak yield day predicted: Day ${forecast.indexOf(forecast.reduce((max, d) => d.kg > max.kg ? d : max)) + 1} (${forecast.reduce((max, d) => d.kg > max.kg ? d : max).label}) with ~${forecast.reduce((max, d) => d.kg > max.kg ? d : max).kg.toFixed(1)} kg. Confidence decreases for days >7 due to weather variability.`;
   }
 
   if (q.includes("recommend") || q.includes("suggest") || q.includes("should i") || q.includes("what do") || q.includes("advice")) {
-    const topActions = buildAlerts(beds, diseases).slice(0, 3).map(a => `• **${a.title}** — ${a.action}`).join("\n");
+    const topActions = buildAlerts(beds, diseases, valves, customerOrders, fertigationRecords, workerAssignments, today).slice(0, 3).map(a => `• **${a.title}** — ${a.action}`).join("\n");
     return `Top 3 recommended actions for today:\n\n${topActions || "• Continue routine monitoring\n• Harvest ripe beds early morning\n• Check soil moisture in Valve C"}`;
   }
 
@@ -248,14 +267,14 @@ function aiAnswer(question: string, beds: ReturnType<typeof BEDS>, harvests: Ret
     const byVariety: Record<string, number> = {};
     harvests.forEach(h => {
       const b = beds.find(x => x.id === h.bedId);
-      if (b) byVariety[b.variety] = (byVariety[b.variety] ?? 0) + h.kg;
+      if (b) byVariety[b.variety] = (byVariety[b.variety] ?? 0) + parseFloat(h.kg.toString());
     });
     const sorted = Object.entries(byVariety).sort((a, b) => b[1] - a[1]);
     return `Highest-yielding variety this season: **${sorted[0]?.[0]}** (${sorted[0]?.[1].toFixed(1)} kg total). Runner-up: ${sorted[1]?.[0]} (${sorted[1]?.[1].toFixed(1)} kg). ${sorted[0]?.[0]} shows 15–20% better per-metre productivity at Entoto altitude conditions. Recommend expanding planting area next cycle.`;
   }
 
   // Default
-  return `I analysed current farm data to answer your question. Here's a summary: **${beds.length} active beds** across ${VALVES.length} valves, **${totalKg.toFixed(0)} kg** harvested this season, **${infectedBeds.length}** infected bed(s) requiring attention, **${CUSTOMER_ORDERS.filter(o => o.deliveryStatus === "pending").length}** pending deliveries. Ask me about harvest timing, disease risk, revenue, workers, forecasts, or recommendations.`;
+  return `I analysed current farm data to answer your question. Here's a summary: **${beds.length} active beds** across ${valves.length} valves, **${totalKg.toFixed(0)} kg** harvested this season, **${infectedBeds.length}** infected bed(s) requiring attention, **${customerOrders.filter(o => o.deliveryStatus === "pending").length}** pending deliveries. Ask me about harvest timing, disease risk, revenue, workers, forecasts, or recommendations.`;
 }
 
 // ── Severity style helpers ────────────────────────────────────────────────────
@@ -271,23 +290,59 @@ const SEVERITY_STYLES = {
 export default function AIPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const beds     = BEDS();
-  const harvests = HARVESTS();
-  const diseases = DISEASES();
+  const today = new Date().toISOString().split("T")[0];
 
-  const alerts   = buildAlerts(beds, diseases);
-  const forecast = buildForecast(beds);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
+  const [fertigationRecords, setFertigationRecords] = useState<FertigationRecord[]>([]);
+  const [workerAssignments, setWorkerAssignments] = useState<WorkerAssignment[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/beds").then(r => r.json()),
+      fetch("/api/harvest").then(r => r.json()),
+      fetch("/api/diseases").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/orders").then(r => r.json()),
+      fetch("/api/fertigation").then(r => r.json()),
+      fetch("/api/assignments").then(r => r.json()),
+    ]).then(([b, h, d, v, f, o, ft, a]) => {
+      setBeds(b);
+      setHarvests(h.map((rec: HarvestRecord & { kg: string | number }) => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
+      setDiseases(d);
+      setValves(v);
+      setFarmers(f);
+      setCustomerOrders(o);
+      setFertigationRecords(ft);
+      setWorkerAssignments(a);
+      setLoaded(true);
+    });
+  }, []);
+
+  const alerts   = loaded ? buildAlerts(beds, diseases, valves, customerOrders, fertigationRecords, workerAssignments, today) : [];
+  const forecast = buildForecast(beds, today);
   const riskScores = buildRiskScores(beds, diseases);
 
   const maxForecastKg = Math.max(...forecast.map(d => d.kg));
 
-  const [messages, setMessages] = useState<QAMessage[]>([
-    {
-      role: "ai",
-      text: `Hello! I'm your farm AI assistant. I've analysed all current data across **${beds.length} beds**, **${FARMERS.length} staff**, and **${CUSTOMER_ORDERS.length} orders**. Ask me anything — harvest timing, disease risk, revenue forecasts, or worker recommendations.`,
-      ts: "Just now",
-    },
-  ]);
+  const [messages, setMessages] = useState<QAMessage[]>([]);
+
+  useEffect(() => {
+    if (loaded) {
+      setMessages([{
+        role: "ai",
+        text: `Hello! I'm your farm AI assistant. I've analysed all current data across **${beds.length} beds**, **${farmers.length} staff**, and **${customerOrders.length} orders**. Ask me anything — harvest timing, disease risk, revenue forecasts, or worker recommendations.`,
+        ts: "Just now",
+      }]);
+    }
+  }, [loaded]);
+
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -313,7 +368,7 @@ export default function AIPage() {
     setInput("");
     setTyping(true);
     setTimeout(() => {
-      const answer = aiAnswer(q, beds, harvests, diseases);
+      const answer = aiAnswer(q, beds, harvests, diseases, valves, farmers, customerOrders, fertigationRecords, workerAssignments, today);
       setMessages(prev => [...prev, { role: "ai", text: answer, ts: "Just now" }]);
       setTyping(false);
     }, 800 + Math.random() * 600);
@@ -321,7 +376,7 @@ export default function AIPage() {
 
   const criticalCount = alerts.filter(a => a.severity === "critical").length;
   const warningCount  = alerts.filter(a => a.severity === "warning").length;
-  const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
+  const totalKg = harvests.reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
   const week1Forecast = forecast.slice(0, 7).reduce((s, d) => s + d.kg, 0);
 
   return (

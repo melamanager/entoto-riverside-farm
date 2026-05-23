@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,11 +12,8 @@ import {
   UserCog, ShieldCheck, Shield,
 } from "lucide-react";
 import { toast } from "sonner";
-import { FARMERS, VALVES, TASKS } from "@/lib/data";
-import { WORKER_ASSIGNMENTS } from "@/lib/erp-data";
-import type { Farmer } from "@/lib/types";
-import { useLang } from "@/lib/lang";
-import { EN, AM } from "@/lib/translations";
+import type { Farmer, Valve, Task } from "@/lib/types";
+import type { WorkerAssignment } from "@/lib/erp-types";
 
 const ROLE_STYLE = {
   manager:    { badge: "bg-amber-100 text-amber-800 border-amber-200",    dot: "bg-amber-400"   },
@@ -36,13 +33,36 @@ function initials(name: string) {
 }
 
 export default function EmployeesPage() {
-  const { isAm } = useLang();
-  const t = isAm ? AM : EN;
-  const [farmers, setFarmers] = useState<Farmer[]>(FARMERS);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [assignments, setAssignments] = useState<WorkerAssignment[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<Farmer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Farmer | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  async function fetchFarmers() {
+    const data: Farmer[] = await fetch("/api/farmers").then(r => r.json());
+    setFarmers(data);
+  }
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/tasks").then(r => r.json()),
+      fetch("/api/assignments").then(r => r.json()),
+    ]).then(([farmData, valveData, taskData, assignData]) => {
+      setFarmers(farmData as Farmer[]);
+      setValves(valveData as Valve[]);
+      setTasks(taskData as Task[]);
+      setAssignments(assignData as WorkerAssignment[]);
+      setLoading(false);
+    });
+  }, []);
 
   const managers    = farmers.filter(f => f.role === "manager");
   const supervisors = farmers.filter(f => f.role === "supervisor");
@@ -64,12 +84,12 @@ export default function EmployeesPage() {
     setEditTarget(f);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.name.trim()) { toast.error("Name is required"); return; }
     if (!form.phone.trim()) { toast.error("Phone number is required"); return; }
-    const id = `f-${String(Date.now()).slice(-4)}`;
-    const newFarmer: Farmer = {
-      id, name: form.name.trim(), phone: form.phone.trim(),
+    const payload = {
+      name: form.name.trim(),
+      phone: form.phone.trim(),
       avatar: initials(form.name),
       role: form.role,
       performanceScore: 80,
@@ -79,17 +99,20 @@ export default function EmployeesPage() {
       nationalId: form.nationalId || undefined,
       emergencyContact: form.emergencyContact || undefined,
     };
-    setFarmers(prev => [...prev, newFarmer]);
-    FARMERS.push(newFarmer);
-    toast.success(`${newFarmer.name} added to staff`);
+    await fetch("/api/farmers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    await fetchFarmers();
+    toast.success(`${form.name.trim()} added to staff`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
     if (!form.name.trim()) { toast.error("Name is required"); return; }
-    const updated: Farmer = {
-      ...editTarget,
+    const payload = {
       name: form.name.trim(),
       phone: form.phone.trim(),
       role: form.role,
@@ -99,20 +122,21 @@ export default function EmployeesPage() {
       assignedValves: form.assignedValves,
       joinedDate: form.joinedDate,
     };
-    setFarmers(prev => prev.map(f => f.id === editTarget.id ? updated : f));
-    const idx = FARMERS.findIndex(f => f.id === editTarget.id);
-    if (idx >= 0) Object.assign(FARMERS[idx], updated);
-    toast.success(`${updated.name} updated`);
+    await fetch(`/api/farmers/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    await fetchFarmers();
+    toast.success(`${form.name.trim()} updated`);
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
-    setFarmers(prev => prev.filter(f => f.id !== deleteTarget.id));
-    const idx = FARMERS.findIndex(f => f.id === deleteTarget.id);
-    if (idx >= 0) FARMERS.splice(idx, 1);
     toast.success(`${deleteTarget.name} removed from staff`);
     setDeleteTarget(null);
+    await fetchFarmers();
   }
 
   function toggleValve(valveId: string) {
@@ -189,7 +213,7 @@ export default function EmployeesPage() {
         <div>
           <label className="text-xs font-semibold text-slate-700 block mb-1.5">Assigned Valves</label>
           <div className="flex gap-2 flex-wrap">
-            {VALVES.map(v => (
+            {valves.map(v => (
               <button
                 key={v.id}
                 type="button"
@@ -221,10 +245,10 @@ export default function EmployeesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {people.map(f => {
             const style = ROLE_STYLE[f.role];
-            const valves = VALVES.filter(v => f.assignedValves.includes(v.id));
-            const tasks = TASKS.filter(task => task.assignedTo === f.id);
-            const assignments = WORKER_ASSIGNMENTS.filter(a => a.farmerId === f.id);
-            const completedJobs = assignments.filter(a => a.status === "completed").length;
+            const farmerValves = valves.filter(v => f.assignedValves.includes(v.id));
+            const farmerTasks = tasks.filter(t => t.assignedTo === f.id);
+            const farmerAssignments = assignments.filter(a => a.farmerId === f.id);
+            const completedJobs = farmerAssignments.filter(a => a.status === "completed").length;
 
             return (
               <Card key={f.id} className="p-5 hover:shadow-md transition-shadow relative">
@@ -286,11 +310,11 @@ export default function EmployeesPage() {
                     <div className="text-[10px] text-slate-400">Jobs done</div>
                   </div>
                   <div className="bg-slate-50 rounded-lg py-2">
-                    <div className="text-sm font-bold text-slate-800">{tasks.filter(task => task.status === "done").length}</div>
+                    <div className="text-sm font-bold text-slate-800">{farmerTasks.filter(t => t.status === "done").length}</div>
                     <div className="text-[10px] text-slate-400">Tasks done</div>
                   </div>
                   <div className="bg-slate-50 rounded-lg py-2">
-                    <div className="text-sm font-bold text-slate-800">{valves.length}</div>
+                    <div className="text-sm font-bold text-slate-800">{farmerValves.length}</div>
                     <div className="text-[10px] text-slate-400">Valves</div>
                   </div>
                 </div>
@@ -305,9 +329,9 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                {valves.length > 0 && (
+                {farmerValves.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-slate-100">
-                    {valves.map(v => (
+                    {farmerValves.map(v => (
                       <span
                         key={v.id}
                         className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
@@ -335,6 +359,10 @@ export default function EmployeesPage() {
     );
   }
 
+  if (loading) {
+    return <div className="p-8 text-slate-400 text-sm">Loading…</div>;
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-8">
       {/* Header */}
@@ -342,12 +370,12 @@ export default function EmployeesPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Users className="size-5 text-blue-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.employees.title}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Employees</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.employees.subtitle}</p>
+          <p className="text-slate-500 text-sm">Manage all farm staff — add, edit, or remove workers and supervisors</p>
         </div>
         <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-          <Plus className="size-4" /> {t.common.new}
+          <Plus className="size-4" /> Add Staff Member
         </Button>
       </div>
 
@@ -381,8 +409,8 @@ export default function EmployeesPage() {
           </DialogHeader>
           <StaffForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>{t.common.create}</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Add to Staff</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -397,8 +425,8 @@ export default function EmployeesPage() {
           </DialogHeader>
           <StaffForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>{t.common.save}</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -415,8 +443,8 @@ export default function EmployeesPage() {
             This will remove <strong>{deleteTarget?.name}</strong> from the farm staff roster. Their historical records will be preserved.
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>{t.common.delete}</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>Remove Staff</Button>
           </div>
         </DialogContent>
       </Dialog>

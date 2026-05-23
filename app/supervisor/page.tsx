@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,25 +12,51 @@ import {
   Wheat, AlertTriangle, CheckCircle2, Clock, ArrowRight,
   Phone, Activity, Bell,
 } from "lucide-react";
-import {
-  FARMERS, BEDS, TASKS, DISEASES, HARVESTS, ATTENDANCE,
-  plantsInBed, totalKgBed, bedsInValve, VALVES,
-} from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
-import { FOLLOW_UPS } from "@/lib/erp-data";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import type { Farmer, Valve, Bed, HarvestRecord, DiseaseReport, Task, AttendanceRecord } from "@/lib/types";
+import type { FollowUp } from "@/lib/erp-types";
 
-const TODAY = "2026-05-17";
+const TODAY = new Date().toISOString().split("T")[0];
 
 export default function SupervisorPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const supervisors = FARMERS.filter(f => f.role === "supervisor");
-  const todayAttendance = ATTENDANCE().filter(a => a.date === TODAY);
-  const allBeds = BEDS();
-  const allDiseases = DISEASES();
-  const allTasks = TASKS;
+
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/beds").then(r => r.json()),
+      fetch("/api/harvest").then(r => r.json()),
+      fetch("/api/tasks").then(r => r.json()),
+      fetch("/api/attendance").then(r => r.json()),
+      fetch("/api/follow-ups").then(r => r.json()),
+    ]).then(([f, v, b, h, tk, a, fu]) => {
+      setFarmers(f);
+      setValves(v);
+      setBeds(b);
+      setHarvests(h.map((rec: HarvestRecord & { kg: string | number }) => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
+      setTasks(tk);
+      setAttendance(a);
+      setFollowUps(fu);
+    });
+  }, []);
+
+  const supervisors = farmers.filter(f => f.role === "supervisor");
+  const todayAttendance = attendance.filter(a => a.date === TODAY);
+  const allBeds = beds;
+  const allDiseases: DiseaseReport[] = [];
+  const allTasks = tasks;
 
   return (
     <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -54,18 +81,24 @@ export default function SupervisorPage() {
 
       {/* Per-Supervisor cards */}
       {supervisors.map(sup => {
-        const myValves = VALVES.filter(v => sup.assignedValves.includes(v.id));
+        const myValves = valves.filter(v => sup.assignedValves.includes(v.id));
         const myBeds = allBeds.filter(b => sup.assignedValves.includes(b.valveId));
-        const myDiseases = allDiseases.filter(d => myBeds.some(b => b.id === d.bedId) && d.status !== "resolved");
+        const myBedIds = new Set(myBeds.map(b => b.id));
+        const myDiseases = allDiseases.filter(d => myBedIds.has(d.bedId) && d.status !== "resolved");
         const myTasks = allTasks.filter(task => task.assignedTo === sup.id);
         const pendingTasks = myTasks.filter(task => task.status !== "done");
         const doneTasks = myTasks.filter(task => task.status === "done");
         const todayAttSup = todayAttendance.filter(a => {
-          const farmer = FARMERS.find(f => f.id === a.farmerId);
+          const farmer = farmers.find(f => f.id === a.farmerId);
           return farmer && sup.assignedValves.some(v => farmer.assignedValves.includes(v));
         });
         const presentCount = todayAttSup.filter(a => a.status === "present" || a.status === "late").length;
-        const todayHarvestKg = HARVESTS().filter(h => h.date === TODAY && myBeds.some(b => b.id === h.bedId)).reduce((s,h)=>s+h.kg,0);
+        const todayHarvestKg = harvests
+          .filter(h => h.date === TODAY && myBedIds.has(h.bedId))
+          .reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
+
+        const totalKgByBed = (bedId: string) =>
+          harvests.filter(h => h.bedId === bedId).reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
 
         return (
           <Card key={sup.id} className="border border-slate-200 shadow-sm overflow-hidden">
@@ -114,7 +147,7 @@ export default function SupervisorPage() {
                 </div>
                 <div className="space-y-2">
                   {myBeds.slice(0, 6).map(bed => {
-                    const kg = totalKgBed(bed.id);
+                    const kg = totalKgByBed(bed.id);
                     return (
                       <Link href={`/beds/${bed.id}`} key={bed.id} className="flex items-center gap-3 group">
                         <span className={`size-2 rounded-full shrink-0 ${bed.health==="healthy"?"bg-emerald-500":bed.health==="warning"?"bg-amber-500":"bg-red-500"}`} />
@@ -188,8 +221,8 @@ export default function SupervisorPage() {
 
               {/* Flow 6: My Follow-ups */}
               {(() => {
-                const TODAY_STR = "2026-05-19";
-                const myFollowUps = FOLLOW_UPS.filter(f => f.assignedTo === sup.id && f.status !== "done");
+                const TODAY_STR = TODAY;
+                const myFollowUps = followUps.filter(f => f.assignedTo === sup.id && f.status !== "done");
                 const overdueFUs  = myFollowUps.filter(f => new Date(f.dueDate) < new Date(TODAY_STR));
                 const todayFUs    = myFollowUps.filter(f => f.dueDate === TODAY_STR);
                 const urgentFUs   = myFollowUps.filter(f => f.priority === "urgent" && !overdueFUs.includes(f) && !todayFUs.includes(f));
@@ -252,9 +285,9 @@ export default function SupervisorPage() {
               </tr>
             </thead>
             <tbody>
-              {FARMERS.filter(f=>f.role!=="manager").map(f => {
+              {farmers.filter(f=>f.role!=="manager").map(f => {
                 const rec = todayAttendance.find(a => a.farmerId === f.id);
-                const valve = VALVES.filter(v => f.assignedValves.includes(v.id)).map(v=>v.name).join(", ");
+                const valve = valves.filter(v => f.assignedValves.includes(v.id)).map(v=>v.name).join(", ");
                 return (
                   <tr key={f.id}>
                     <td>

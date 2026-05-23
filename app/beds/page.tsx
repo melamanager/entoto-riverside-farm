@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { BEDS, VALVES, FARMERS, plantsInBed, getValve, totalKgBed } from "@/lib/data";
-import type { Bed, GrowthStage, HealthStatus } from "@/lib/types";
+import type { Bed, GrowthStage, HealthStatus, Farmer, Valve } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -39,19 +38,54 @@ function healthClass(h: HealthStatus) {
   return "bg-rose-100 text-rose-700 hover:bg-rose-100";
 }
 
+type HarvestRecord = { id: string; bedId: string; kg: number };
+
 export default function BedsIndex() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [beds, setBeds] = useState<Bed[]>(() => BEDS());
+  const [beds, setBeds]     = useState<Bed[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<Bed | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Bed | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const allBeds = BEDS(); // shared reference
+  useEffect(() => {
+    fetch("/api/beds")
+      .then(r => r.json())
+      .then((data: Bed[]) => setBeds(data))
+      .catch(() => toast.error("Failed to load beds"));
+
+    fetch("/api/valves")
+      .then(r => r.json())
+      .then((data: Valve[]) => setValves(data))
+      .catch(() => toast.error("Failed to load valves"));
+
+    fetch("/api/farmers")
+      .then(r => r.json())
+      .then((data: Farmer[]) => setFarmers(data))
+      .catch(() => toast.error("Failed to load farmers"));
+
+    fetch("/api/harvest")
+      .then(r => r.json())
+      .then((data: (HarvestRecord & { kg: number | string })[]) =>
+        setHarvests(data.map(h => ({ ...h, kg: parseFloat(String(h.kg)) })))
+      )
+      .catch(() => toast.error("Failed to load harvest records"));
+  }, []);
+
+  function plantsInBed(b: Bed) { return Math.round(b.lengthM * b.plantsPerMeter); }
+
+  function totalKgBed(bedId: string) {
+    return harvests.filter(h => h.bedId === bedId).reduce((s, h) => s + h.kg, 0);
+  }
+
+  function getValve(valveId: string) { return valves.find(v => v.id === valveId) ?? null; }
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, valveId: VALVES[0]?.id ?? "", farmerId: FARMERS[0]?.id ?? "" });
+    setForm({ ...EMPTY_FORM, valveId: valves[0]?.id ?? "", farmerId: farmers.find(f => f.role === "farmer")?.id ?? "" });
     setCreateOpen(true);
   }
 
@@ -68,9 +102,9 @@ export default function BedsIndex() {
     if (!form.valveId) { toast.error("Please select a valve"); return; }
     if (!form.farmerId) { toast.error("Please assign a farmer"); return; }
     if (form.lengthM <= 0) { toast.error("Length must be > 0"); return; }
-    const valve = VALVES.find(v => v.id === form.valveId);
+    const valve = valves.find(v => v.id === form.valveId);
     const letter = valve?.name.split(" ").pop()?.toUpperCase() ?? "X";
-    const existing = allBeds.filter(b => b.valveId === form.valveId).length;
+    const existing = beds.filter(b => b.valveId === form.valveId).length;
     const id = `${letter}-BED-${String(existing + 1).padStart(2, "0")}`;
     const variety = VARIETIES.find(v => v.variety === form.variety) ?? VARIETIES[0];
     const newBed: Bed = {
@@ -80,44 +114,41 @@ export default function BedsIndex() {
       stage: form.stage, health: form.health, farmerId: form.farmerId,
       row: Math.floor(existing / 4), col: existing % 4,
     };
-    allBeds.push(newBed);
-    setBeds([...allBeds]);
+    setBeds(prev => [...prev, newBed]);
     toast.success(`${id} created`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
-    const idx = allBeds.findIndex(b => b.id === editTarget.id);
-    if (idx < 0) return;
     const variety = VARIETIES.find(v => v.variety === form.variety);
-    Object.assign(allBeds[idx], {
+    const body = {
       valveId: form.valveId, lengthM: form.lengthM,
       plantsPerMeter: form.plantsPerMeter, variety: form.variety,
-      origin: variety?.origin ?? allBeds[idx].origin,
+      origin: variety?.origin ?? editTarget.origin,
       plantedDate: form.plantedDate, stage: form.stage,
       health: form.health, farmerId: form.farmerId,
-    });
-    setBeds([...allBeds]);
+    };
+    const res = await fetch(`/api/beds/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to update bed"); return; }
+    setBeds(prev => prev.map(b => b.id === editTarget.id ? { ...b, ...body } : b));
     toast.success(`${editTarget.id} updated`);
     setEditTarget(null);
   }
 
   function handleDelete() {
     if (!deleteTarget) return;
-    const idx = allBeds.findIndex(b => b.id === deleteTarget.id);
-    if (idx >= 0) allBeds.splice(idx, 1);
-    setBeds([...allBeds]);
+    setBeds(prev => prev.filter(b => b.id !== deleteTarget.id));
     toast.success(`${deleteTarget.id} deleted`);
     setDeleteTarget(null);
   }
 
   // Farmers eligible to assign (farmers only)
-  const farmersOnly = FARMERS.filter(f => f.role === "farmer");
+  const farmersOnly = farmers.filter(f => f.role === "farmer");
 
   function BedForm() {
     const valveFarmers = farmersOnly.filter(
-      f => !form.valveId || f.assignedValves.includes(form.valveId)
+      f => !form.valveId || (f.assignedValves as string[]).includes(form.valveId)
     );
     const eligible = valveFarmers.length > 0 ? valveFarmers : farmersOnly;
 
@@ -132,7 +163,7 @@ export default function BedsIndex() {
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
             >
               <option value="">— Select valve —</option>
-              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>

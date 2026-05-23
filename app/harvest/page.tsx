@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,21 +10,52 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Wheat, Plus, Package, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { BEDS, FARMERS, HARVESTS, getBed, getValve, getFarmer } from "@/lib/data";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import type { Bed, Farmer, HarvestRecord, Valve } from "@/lib/types";
 
 type PackPrompt = { bedId: string; kg: number; grade: "A" | "B" | "C" };
 
 export default function HarvestPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [bedId, setBedId] = useState("A-BED-01");
+  const [bedId, setBedId] = useState("");
   const [kg, setKg] = useState("");
-  const [farmerId, setFarmerId] = useState("f-001");
+  const [farmerId, setFarmerId] = useState("");
   const [grade, setGrade] = useState<"A"|"B"|"C">("A");
-  const [refresh, setRefresh] = useState(0);
   const [packPrompt, setPackPrompt] = useState<PackPrompt | null>(null);
+
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+
+  function loadHarvests() {
+    fetch("/api/harvest").then(r => r.json()).then((h: Array<HarvestRecord & { kg: string | number }>) => {
+      const sorted = [...h]
+        .map(rec => ({ ...rec, kg: parseFloat(rec.kg.toString()) }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 30);
+      setHarvests(sorted);
+    });
+  }
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/beds").then(r => r.json()),
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+    ]).then(([b, f, v]) => {
+      setBeds(b);
+      setFarmers(f);
+      setValves(v);
+      if (b.length > 0) setBedId(b[0].id);
+      const farmers = f as Farmer[];
+      const firstFarmer = farmers.find(fm => fm.role === "farmer");
+      if (firstFarmer) setFarmerId(firstFarmer.id);
+    });
+    loadHarvests();
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,15 +76,17 @@ export default function HarvestPage() {
       // Flow 4: prompt to create packaging batch
       setPackPrompt({ bedId, kg: +kg, grade });
       setKg("");
-      setRefresh(r => r + 1);
+      loadHarvests();
     } else {
       toast.error("Failed to log harvest");
     }
   }
 
-  const beds = BEDS();
-  const recent = [...HARVESTS()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 30);
-  void refresh;
+  const recent = harvests;
+
+  function getBed(id: string) { return beds.find(b => b.id === id) ?? null; }
+  function getValve(id: string) { return valves.find(v => v.id === id) ?? null; }
+  function getFarmer(id: string) { return farmers.find(f => f.id === id) ?? null; }
 
   return (
     <>
@@ -80,7 +113,7 @@ export default function HarvestPage() {
             <div>
               <Label className="text-xs">Farmer</Label>
               <select value={farmerId} onChange={e=>setFarmerId(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm bg-white">
-                {FARMERS.filter(f=>f.role==="farmer").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {farmers.filter(f=>f.role==="farmer").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div>
@@ -121,7 +154,7 @@ export default function HarvestPage() {
                       <td className="py-2.5"><Link href={`/beds/${h.bedId}`} className="font-mono font-semibold hover:text-emerald-700">{h.bedId}</Link></td>
                       <td className="py-2.5 text-stone-600 text-xs">{f?.name}</td>
                       <td className="py-2.5"><Badge variant="outline" className="text-[10px]">Grade {h.qualityGrade}</Badge></td>
-                      <td className="py-2.5 px-5 text-right font-semibold tabular-nums">{h.kg.toFixed(1)}</td>
+                      <td className="py-2.5 px-5 text-right font-semibold tabular-nums">{parseFloat(h.kg.toString()).toFixed(1)}</td>
                     </tr>
                   );
                 })}

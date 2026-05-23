@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ClipboardList, CheckCircle2, Clock, AlertCircle, Calendar, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { WORKER_ASSIGNMENTS } from "@/lib/erp-data";
-import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import { ACTIVITY_LABELS, ACTIVITY_ICONS } from "@/lib/erp-types";
 import type { WorkerAssignment, AssignmentStatus, ActivityType, Shift } from "@/lib/erp-types";
+import type { Farmer, Valve, Bed } from "@/lib/types";
 
 const STATUS_STYLE: Record<AssignmentStatus, string> = {
   assigned:    "bg-amber-100 text-amber-700 border-amber-200",
@@ -21,29 +20,38 @@ const STATUS_STYLE: Record<AssignmentStatus, string> = {
 const SHIFT_LABELS: Record<Shift, string> = { morning: "Morning", afternoon: "Afternoon", full_day: "Full Day" };
 const ACTIVITIES = Object.keys(ACTIVITY_LABELS) as ActivityType[];
 const SHIFTS: Shift[] = ["morning", "afternoon", "full_day"];
-const SUPERVISORS = FARMERS.filter(f => f.role === "supervisor" || f.role === "manager");
 
 const EMPTY_FORM = {
   farmerId: "", activity: "harvesting" as ActivityType,
   supervisorId: "", valveId: "", bedId: "",
-  date: "2026-05-17", shift: "morning" as Shift,
+  date: new Date().toISOString().split("T")[0], shift: "morning" as Shift,
   hoursExpected: 4, hoursActual: "" as number | "",
   status: "assigned" as AssignmentStatus, notes: "",
 };
 
 export function AssignmentsSection() {
-  const [assignments, setAssignments] = useState<WorkerAssignment[]>(WORKER_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState<WorkerAssignment[]>([]);
+  const [farmers, setFarmers]         = useState<Farmer[]>([]);
+  const [valves, setValves]           = useState<Valve[]>([]);
+  const [beds, setBeds]               = useState<Bed[]>([]);
   const [filter, setFilter]           = useState<AssignmentStatus | "all">("all");
-  const [dateFilter, setDateFilter]   = useState("2026-05-17");
+  const [dateFilter, setDateFilter]   = useState(new Date().toISOString().split("T")[0]);
   const [createOpen, setCreateOpen]   = useState(false);
   const [editTarget, setEditTarget]   = useState<WorkerAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkerAssignment | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const beds = BEDS();
+  useEffect(() => {
+    fetch("/api/assignments").then(r => r.json()).then(setAssignments);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+  }, []);
+
+  const supervisors = farmers.filter(f => f.role === "supervisor" || f.role === "manager");
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, farmerId: FARMERS[0]?.id ?? "", supervisorId: SUPERVISORS[0]?.id ?? "", valveId: VALVES[0]?.id ?? "" });
+    setForm({ ...EMPTY_FORM, farmerId: farmers[0]?.id ?? "", supervisorId: supervisors[0]?.id ?? "", valveId: valves[0]?.id ?? "" });
     setCreateOpen(true);
   }
 
@@ -58,53 +66,70 @@ export function AssignmentsSection() {
     setEditTarget(a);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.farmerId)     { toast.error("Please select a worker"); return; }
     if (!form.supervisorId) { toast.error("Please select a supervisor"); return; }
-    const id = `wa-${Date.now()}`;
-    const newA: WorkerAssignment = {
-      id, farmerId: form.farmerId, activity: form.activity,
-      supervisorId: form.supervisorId,
-      valveId: form.valveId || undefined, bedId: form.bedId || undefined,
-      date: form.date, shift: form.shift, hoursExpected: form.hoursExpected,
-      hoursActual: form.hoursActual !== "" ? Number(form.hoursActual) : undefined,
-      status: form.status, notes: form.notes || undefined,
-    };
-    WORKER_ASSIGNMENTS.push(newA);
-    setAssignments([...WORKER_ASSIGNMENTS]);
-    toast.success("Assignment created");
-    setCreateOpen(false);
-  }
-
-  function handleEdit() {
-    if (!editTarget) return;
-    const idx = WORKER_ASSIGNMENTS.findIndex(a => a.id === editTarget.id);
-    if (idx < 0) return;
-    Object.assign(WORKER_ASSIGNMENTS[idx], {
-      farmerId: form.farmerId, activity: form.activity,
-      supervisorId: form.supervisorId,
-      valveId: form.valveId || undefined, bedId: form.bedId || undefined,
-      date: form.date, shift: form.shift, hoursExpected: form.hoursExpected,
-      hoursActual: form.hoursActual !== "" ? Number(form.hoursActual) : undefined,
-      status: form.status, notes: form.notes || undefined,
+    const res = await fetch("/api/assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        farmerId: form.farmerId, activity: form.activity,
+        supervisorId: form.supervisorId,
+        valveId: form.valveId || undefined, bedId: form.bedId || undefined,
+        date: form.date, shift: form.shift, hoursExpected: form.hoursExpected,
+        hoursActual: form.hoursActual !== "" ? Number(form.hoursActual) : undefined,
+        status: form.status, notes: form.notes || undefined,
+      }),
     });
-    setAssignments([...WORKER_ASSIGNMENTS]);
-    toast.success("Assignment updated");
-    setEditTarget(null);
+    if (res.ok) {
+      const created = await res.json();
+      setAssignments(prev => [...prev, created]);
+      toast.success("Assignment created");
+      setCreateOpen(false);
+    } else {
+      toast.error("Failed to create assignment");
+    }
   }
 
-  function handleDelete() {
+  async function handleEdit() {
+    if (!editTarget) return;
+    const res = await fetch(`/api/assignments/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        farmerId: form.farmerId, activity: form.activity,
+        supervisorId: form.supervisorId,
+        valveId: form.valveId || undefined, bedId: form.bedId || undefined,
+        date: form.date, shift: form.shift, hoursExpected: form.hoursExpected,
+        hoursActual: form.hoursActual !== "" ? Number(form.hoursActual) : undefined,
+        status: form.status, notes: form.notes || undefined,
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setAssignments(prev => prev.map(a => a.id === editTarget.id ? updated : a));
+      toast.success("Assignment updated");
+      setEditTarget(null);
+    } else {
+      toast.error("Failed to update assignment");
+    }
+  }
+
+  async function handleDelete() {
     if (!deleteTarget) return;
     if (deleteTarget.status === "completed") {
       toast.error("Cannot delete completed assignments");
       setDeleteTarget(null);
       return;
     }
-    const idx = WORKER_ASSIGNMENTS.findIndex(a => a.id === deleteTarget.id);
-    if (idx >= 0) WORKER_ASSIGNMENTS.splice(idx, 1);
-    setAssignments([...WORKER_ASSIGNMENTS]);
-    toast.success("Assignment deleted");
-    setDeleteTarget(null);
+    const res = await fetch(`/api/assignments/${deleteTarget.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setAssignments(prev => prev.filter(a => a.id !== deleteTarget.id));
+      toast.success("Assignment deleted");
+      setDeleteTarget(null);
+    } else {
+      toast.error("Failed to delete assignment");
+    }
   }
 
   const dateRecords = dateFilter ? assignments.filter(a => a.date === dateFilter) : assignments;
@@ -125,7 +150,7 @@ export function AssignmentsSection() {
             <select value={form.farmerId} onChange={e => setForm(p => ({ ...p, farmerId: e.target.value }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {FARMERS.filter(f => f.role === "farmer").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {farmers.filter(f => f.role === "farmer").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
           <div>
@@ -133,7 +158,7 @@ export function AssignmentsSection() {
             <select value={form.supervisorId} onChange={e => setForm(p => ({ ...p, supervisorId: e.target.value }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {SUPERVISORS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {supervisors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
         </div>
@@ -150,7 +175,7 @@ export function AssignmentsSection() {
             <select value={form.valveId} onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— None —</option>
-              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
@@ -273,9 +298,9 @@ export function AssignmentsSection() {
               </thead>
               <tbody>
                 {records.map(a => {
-                  const farmer     = FARMERS.find(f => f.id === a.farmerId);
-                  const supervisor = FARMERS.find(f => f.id === a.supervisorId);
-                  const valve      = VALVES.find(v => v.id === a.valveId);
+                  const farmer     = farmers.find(f => f.id === a.farmerId);
+                  const supervisor = farmers.find(f => f.id === a.supervisorId);
+                  const valve      = valves.find(v => v.id === a.valveId);
                   return (
                     <tr key={a.id} className="group">
                       <td>

@@ -1,17 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save } from "lucide-react";
 import { toast } from "sonner";
-import { FARMERS, ATTENDANCE, VALVES, attendanceForDate } from "@/lib/data";
-import type { AttendanceStatus } from "@/lib/types";
-import { useLang } from "@/lib/lang";
-import { EN, AM } from "@/lib/translations";
+import type { Farmer, AttendanceRecord, AttendanceStatus, Valve } from "@/lib/types";
 
 const STATUSES: { value: AttendanceStatus; label: string; color: string }[] = [
   { value: "present", label: "Present", color: "bg-emerald-500" },
@@ -28,30 +24,64 @@ const STATUS_ICONS = {
 };
 
 export default function AttendancePage() {
-  const { isAm } = useLang();
-  const t = isAm ? AM : EN;
   const today = "2026-05-17";
-  const farmers = FARMERS.filter(f => f.role !== "manager");
-  const existingToday = attendanceForDate(today);
 
-  const [selected, setSelected] = useState<Record<string, AttendanceStatus>>(
-    () => Object.fromEntries(existingToday.map(a => [a.farmerId, a.status]))
-  );
-  const [checkIns, setCheckIns] = useState<Record<string, string>>(
-    () => Object.fromEntries(existingToday.filter(a=>a.checkInTime).map(a => [a.farmerId, a.checkInTime!]))
-  );
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
+  const [checkIns, setCheckIns] = useState<Record<string, string>>({});
   const [viewDate, setViewDate] = useState(today);
   const [saved, setSaved] = useState(false);
 
-  const historicRecords = attendanceForDate(viewDate);
+  const [historicRecords, setHistoricRecords] = useState<AttendanceRecord[]>([]);
+
+  // Load farmers, valves, and today's attendance on mount
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+      fetch(`/api/attendance?date=${today}`).then(r => r.json()),
+    ]).then(([farmData, valveData, attData]) => {
+      setFarmers((farmData as Farmer[]).filter(f => f.role !== "manager"));
+      setValves(valveData as Valve[]);
+      const records = attData as AttendanceRecord[];
+      setSelected(Object.fromEntries(records.map((a: AttendanceRecord) => [a.farmerId, a.status])));
+      setCheckIns(Object.fromEntries(records.filter((a: AttendanceRecord) => a.checkInTime).map((a: AttendanceRecord) => [a.farmerId, a.checkInTime!])));
+      setLoading(false);
+    });
+  }, []);
+
+  // Refetch historic records when viewDate changes (and it's not today)
+  useEffect(() => {
+    if (viewDate === today) {
+      setHistoricRecords([]);
+      return;
+    }
+    fetch(`/api/attendance?date=${viewDate}`)
+      .then(r => r.json())
+      .then(data => setHistoricRecords(data as AttendanceRecord[]));
+  }, [viewDate]);
 
   function setStatus(farmerId: string, status: AttendanceStatus) {
     setSelected(prev => ({ ...prev, [farmerId]: status }));
     setSaved(false);
   }
 
-  function saveAttendance() {
-    // In real app: POST to /api/attendance
+  async function saveAttendance() {
+    const body = farmers.map(f => ({
+      farmerId: f.id,
+      date: today,
+      status: selected[f.id] ?? "absent",
+      checkInTime: checkIns[f.id] ?? null,
+      recordedBy: "supervisor",
+    }));
+    await fetch("/api/attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     toast.success("Attendance saved", {
       description: `Recorded for ${Object.keys(selected).length} staff members.`,
     });
@@ -62,6 +92,10 @@ export default function AttendancePage() {
   const lateCount = Object.values(selected).filter(s => s === "late").length;
   const absentCount = Object.values(selected).filter(s => s === "absent").length;
 
+  if (loading) {
+    return <div className="p-8 text-slate-400 text-sm">Loading…</div>;
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-[1200px] mx-auto space-y-6">
       {/* Header */}
@@ -69,9 +103,9 @@ export default function AttendancePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <CalendarCheck className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.attendance.title}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.attendance.subtitle}</p>
+          <p className="text-slate-500 text-sm">Daily attendance tracking for all farm staff</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2">
@@ -82,7 +116,7 @@ export default function AttendancePage() {
             className="gap-2 bg-emerald-600 hover:bg-emerald-700"
             onClick={saveAttendance}
           >
-            <Save className="size-3.5" /> {t.attendance.recordAttendance}
+            <Save className="size-3.5" /> Save Attendance
           </Button>
         </div>
       </div>
@@ -130,7 +164,7 @@ export default function AttendancePage() {
             </thead>
             <tbody>
               {farmers.map(f => {
-                const valve = VALVES.filter(v => f.assignedValves.includes(v.id));
+                const valve = valves.filter(v => f.assignedValves.includes(v.id));
                 const status = selected[f.id];
                 const StatusIcon = status ? STATUS_ICONS[status] : null;
                 return (
@@ -226,7 +260,7 @@ export default function AttendancePage() {
             <table className="w-full pro-table">
               <thead>
                 <tr>
-                  <th>{t.common.farmer}</th><th>{t.common.status}</th><th>{t.attendance.checkIn}</th><th>{t.attendance.checkOut}</th><th>{t.attendance.hours}</th>
+                  <th>Farmer</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th>
                 </tr>
               </thead>
               <tbody>

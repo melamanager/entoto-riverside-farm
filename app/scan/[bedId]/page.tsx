@@ -1,17 +1,41 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getBed, getValve, DISEASES } from "@/lib/data";
 import { Wheat, Bug, ClipboardList, Sprout, ArrowRight, Scan } from "lucide-react";
+import type { Bed, Valve, DiseaseReport } from "@/lib/types";
 
 export default function ScanPage({ params }: { params: Promise<{ bedId: string }> }) {
   const { bedId } = use(params);
-  const bed = getBed(bedId);
-  const valve = bed ? getValve(bed.valveId) : null;
-  const activeDiseases = DISEASES().filter(d => d.bedId === bedId && d.status !== "resolved");
+  const [bed, setBed] = useState<Bed | null | undefined>(undefined);
+  const [valve, setValve] = useState<Valve | null>(null);
+  const [activeDiseases, setActiveDiseases] = useState<DiseaseReport[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/beds/${bedId}`).then(r => r.ok ? r.json() : null),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/diseases").then(r => r.json()),
+    ]).then(([b, valves, diseases]: [Bed | null, Valve[], DiseaseReport[]]) => {
+      setBed(b);
+      if (b) {
+        const v = valves.find((vl: Valve) => vl.id === b.valveId) ?? null;
+        setValve(v);
+        setActiveDiseases(diseases.filter((d: DiseaseReport) => d.bedId === bedId && d.status !== "resolved"));
+      }
+    });
+  }, [bedId]);
+
+  if (bed === undefined) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
+        <Scan className="size-12 text-slate-300 mb-4" />
+        <p className="text-slate-400 text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   if (!bed) {
     return (

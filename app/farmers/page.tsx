@@ -1,11 +1,36 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { FARMERS, TASKS, VALVES } from "@/lib/data";
 import { Phone, ListTodo, CheckCircle2 } from "lucide-react";
+import type { Farmer, Valve, Task } from "@/lib/types";
 
 export default function FarmersPage() {
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/tasks").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+    ]).then(([farmData, taskData, valveData]) => {
+      setFarmers(farmData as Farmer[]);
+      setTasks(taskData as Task[]);
+      setValves(valveData as Valve[]);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) {
+    return <div className="p-8 text-slate-400 text-sm">Loading…</div>;
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
       <div>
@@ -14,11 +39,11 @@ export default function FarmersPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {FARMERS.map((f) => {
-          const farmerTasks = TASKS.filter(t => t.assignedTo === f.id);
+        {farmers.map((f) => {
+          const farmerTasks = tasks.filter(t => t.assignedTo === f.id);
           const pending = farmerTasks.filter(t => t.status !== "done").length;
           const done = farmerTasks.filter(t => t.status === "done").length;
-          const valves = VALVES.filter(v => f.assignedValves.includes(v.id));
+          const farmerValves = valves.filter(v => f.assignedValves.includes(v.id));
           return (
             <Card key={f.id} className="p-5">
               <div className="flex items-start gap-3 mb-3">
@@ -49,7 +74,7 @@ export default function FarmersPage() {
                 <Phone className="size-3" /> {f.phone}
               </div>
               <div className="flex flex-wrap gap-1 mb-3">
-                {valves.map(v => (
+                {farmerValves.map(v => (
                   <Badge key={v.id} variant="secondary" className="text-[10px]" style={{background: `${v.color}20`, color: v.color}}>
                     {v.name}
                   </Badge>

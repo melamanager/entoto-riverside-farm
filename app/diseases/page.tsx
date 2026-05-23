@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +16,8 @@ import {
 } from "lucide-react";
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
 import { ManualReportDialog } from "@/components/manual-report-dialog";
-import { DISEASES, getBed, getFarmer, FARMERS, VALVES, addTask, getValve } from "@/lib/data";
 import { DISEASE_LABELS, DISEASE_TREATMENT_STEPS, DISEASE_TREATMENTS } from "@/lib/types";
-import type { DiseaseReport } from "@/lib/types";
+import type { DiseaseReport, Farmer, Bed, Valve } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useLang } from "@/lib/lang";
@@ -28,10 +27,32 @@ export default function DiseasesPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
-  const [diseases, setDiseases] = useState<DiseaseReport[]>(() => DISEASES());
+  const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+
+  useEffect(() => {
+    fetch("/api/diseases").then(r => r.json()).then(setDiseases);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+  }, []);
 
   function refreshDiseases() {
-    setDiseases([...DISEASES()]);
+    fetch("/api/diseases").then(r => r.json()).then(setDiseases);
+  }
+
+  function getBed(bedId: string): Bed | undefined {
+    return beds.find(b => b.id === bedId);
+  }
+
+  function getFarmer(farmerId: string): Farmer | undefined {
+    return farmers.find(f => f.id === farmerId);
+  }
+
+  function getValve(valveId: string): Valve | undefined {
+    return valves.find(v => v.id === valveId);
   }
 
   // Manager: write recommendation dialog
@@ -80,35 +101,47 @@ export default function DiseasesPage() {
     setRecommendOpen(true);
   }
 
-  function sendRecommendation() {
+  async function sendRecommendation() {
     if (!recommendTarget) return;
+
+    const patchBody = {
+      status: "notified" as const,
+      managerNotified: true,
+      notifiedAt: new Date().toISOString(),
+      notificationChannels: ["telegram", "sms"] as Array<"telegram" | "sms">,
+      managerRecommendation: recommendation,
+      requiresImageProof: requireImage,
+    };
+
+    await fetch(`/api/diseases/${recommendTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patchBody),
+    });
+
     setDiseases(prev => prev.map(d =>
-      d.id === recommendTarget.id ? {
-        ...d,
-        status: "notified",
-        managerNotified: true,
-        notifiedAt: new Date().toISOString(),
-        notificationChannels: ["telegram", "sms"],
-        managerRecommendation: recommendation,
-        requiresImageProof: requireImage,
-      } : d
+      d.id === recommendTarget.id ? { ...d, ...patchBody } : d
     ));
 
     // Flow 1: auto-create a task for the valve's supervisor
     const bed = getBed(recommendTarget.bedId);
     const valve = bed ? getValve(bed.valveId) : null;
     const supervisorId = valve?.supervisorId ?? "f-006";
-    addTask({
-      title: `Treat ${DISEASE_LABELS[recommendTarget.type]} — ${recommendTarget.bedId}`,
-      description: recommendation,
-      assignedTo: supervisorId,
-      createdBy: "f-008",
-      bedId: recommendTarget.bedId,
-      status: "pending",
-      priority: recommendTarget.severity > 60 ? "high" : "medium",
-      category: "disease",
-      createdAt: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+    await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: `Treat ${DISEASE_LABELS[recommendTarget.type]} — ${recommendTarget.bedId}`,
+        description: recommendation,
+        assignedTo: supervisorId,
+        createdBy: "f-008",
+        bedId: recommendTarget.bedId,
+        status: "pending",
+        priority: recommendTarget.severity > 60 ? "high" : "medium",
+        category: "disease",
+        createdAt: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      }),
     });
 
     toast.success("Recommendation sent", {
@@ -132,7 +165,12 @@ export default function DiseasesPage() {
     confirmResolve(d.id);
   }
 
-  function confirmResolve(id: string) {
+  async function confirmResolve(id: string) {
+    await fetch(`/api/diseases/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "resolved" }),
+    });
     setDiseases(prev => prev.map(d => d.id === id ? { ...d, status: "resolved" } : d));
     setProofReviewTarget(null);
     toast.success("Disease marked as resolved");
@@ -156,19 +194,28 @@ export default function DiseasesPage() {
     reader.readAsDataURL(file);
   }
 
-  function submitTreatment() {
+  async function submitTreatment() {
     if (!confirmTarget || !user) return;
+
+    const patchBody = {
+      status: "treating" as const,
+      treatmentApplied: true,
+      treatmentAppliedAt: new Date().toISOString(),
+      treatmentAppliedBy: user.id,
+      treatmentNote: treatmentNote || "Treatment applied per manager's recommendation.",
+      proofImageUrl: proofImage ?? undefined,
+    };
+
+    await fetch(`/api/diseases/${confirmTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patchBody),
+    });
+
     setDiseases(prev => prev.map(d =>
-      d.id === confirmTarget.id ? {
-        ...d,
-        status: "treating",
-        treatmentApplied: true,
-        treatmentAppliedAt: new Date().toISOString(),
-        treatmentAppliedBy: user.id,
-        treatmentNote: treatmentNote || "Treatment applied per manager's recommendation.",
-        proofImageUrl: proofImage ?? undefined,
-      } : d
+      d.id === confirmTarget.id ? { ...d, ...patchBody } : d
     ));
+
     toast.success("Treatment confirmed", {
       description: "Record saved. Manager will be notified to verify and close.",
     });

@@ -1,29 +1,55 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { BarChart3, TrendingUp, Award, Wheat, Clock } from "lucide-react";
-import { FARMERS, HARVESTS, VALVES } from "@/lib/data";
-import { WORKER_ASSIGNMENTS, PAYROLL_RECORDS } from "@/lib/erp-data";
 import { ACTIVITY_LABELS } from "@/lib/erp-types";
+import type { Farmer, HarvestRecord, Valve } from "@/lib/types";
+import type { WorkerAssignment, PayrollRecord } from "@/lib/erp-types";
 
 export default function ProductivityPage() {
-  const farmers = FARMERS.filter(f => f.role !== "manager");
-  const harvests = HARVESTS();
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [workerAssignments, setWorkerAssignments] = useState<WorkerAssignment[]>([]);
+  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/harvest").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/assignments").then(r => r.json()),
+      fetch("/api/payroll").then(r => r.json()),
+    ]).then(([f, h, v, a, p]) => {
+      setFarmers(f);
+      setHarvests(h.map((rec: HarvestRecord & { kg: string | number }) => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
+      setValves(v);
+      setWorkerAssignments(a);
+      setPayrollRecords(p);
+    });
+  }, []);
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  const allFarmers = farmers.filter(f => f.role !== "manager");
 
   // Build per-farmer stats
-  const farmerStats = farmers.map(f => {
+  const farmerStats = allFarmers.map(f => {
     const farmerHarvests = harvests.filter(h => h.farmerId === f.id);
-    const totalKg = farmerHarvests.reduce((s, h) => s + h.kg, 0);
+    const totalKg = farmerHarvests.reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
     const gradeA = farmerHarvests.filter(h => h.qualityGrade === "A").length;
     const gradeARate = farmerHarvests.length > 0 ? Math.round((gradeA / farmerHarvests.length) * 100) : 0;
 
-    const assignments = WORKER_ASSIGNMENTS.filter(a => a.farmerId === f.id);
+    const assignments = workerAssignments.filter(a => a.farmerId === f.id);
     const completed = assignments.filter(a => a.status === "completed").length;
     const totalHours = assignments.filter(a => a.hoursActual).reduce((s, a) => s + (a.hoursActual ?? 0), 0);
     const kgPerHour = totalHours > 0 ? totalKg / totalHours : 0;
 
-    const payroll = PAYROLL_RECORDS.filter(r => r.farmerId === f.id && r.month === "2026-05")[0];
+    const payroll = payrollRecords.filter(r => r.farmerId === f.id && r.month === currentMonth)[0];
 
     // Activity breakdown
     const activityCounts = assignments.reduce<Record<string, number>>((acc, a) => {
@@ -46,12 +72,12 @@ export default function ProductivityPage() {
 
   const totalKgFarm = farmerStats.reduce((s, f) => s + f.totalKg, 0);
   const topPerformer = farmerStats[0];
-  const avgAttendance = Math.round(
-    farmers.reduce((s, f) => s + f.attendanceRate, 0) / farmers.length
-  );
-  const avgPerformance = Math.round(
-    farmers.reduce((s, f) => s + f.performanceScore, 0) / farmers.length
-  );
+  const avgAttendance = allFarmers.length > 0
+    ? Math.round(allFarmers.reduce((s, f) => s + f.attendanceRate, 0) / allFarmers.length)
+    : 0;
+  const avgPerformance = allFarmers.length > 0
+    ? Math.round(allFarmers.reduce((s, f) => s + f.performanceScore, 0) / allFarmers.length)
+    : 0;
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -101,7 +127,7 @@ export default function ProductivityPage() {
       {/* Per-farmer breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {farmerStats.map(({ farmer, totalKg, gradeARate, completed, totalHours, kgPerHour, payroll, topActivity }, i) => {
-          const valves = VALVES.filter(v => farmer.assignedValves.includes(v.id));
+          const farmerValves = valves.filter(v => farmer.assignedValves.includes(v.id));
           return (
             <Card key={farmer.id} className="p-5 border-slate-200">
               {/* Header */}
@@ -122,7 +148,7 @@ export default function ProductivityPage() {
                     <Badge variant="outline" className="text-[10px] capitalize">{farmer.role}</Badge>
                   </div>
                   <div className="flex gap-1 mt-1">
-                    {valves.map(v => (
+                    {farmerValves.map(v => (
                       <span key={v.id} className="text-[10px] font-semibold" style={{ color: v.color }}>{v.name}</span>
                     ))}
                   </div>

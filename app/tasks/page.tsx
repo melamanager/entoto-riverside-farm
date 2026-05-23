@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +15,10 @@ import {
   ClipboardList, Bell, UserPlus, Users, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { TASKS, FARMERS, getFarmer, getBed } from "@/lib/data";
-import { FOLLOW_UPS } from "@/lib/erp-data";
 import { useAuth } from "@/lib/auth";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import type { Task, TaskWorkerAssignment } from "@/lib/types";
+import type { Task, TaskWorkerAssignment, Farmer, Bed } from "@/lib/types";
 import { AssignmentsSection } from "./_assignments";
 import { FollowUpsSection } from "./_follow-ups";
 
@@ -49,16 +47,15 @@ const SECTION_TABS: { key: Section; label: string; icon: typeof ListChecks }[] =
   { key: "follow-ups",  label: "Follow-ups",   icon: Bell          },
 ];
 
-const FARMERS_ONLY = FARMERS.filter(f => f.role === "farmer");
-const SUPERVISORS  = FARMERS.filter(f => f.role === "supervisor");
-
 export default function TasksPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
 
   const [section, setSection]               = useState<Section>("tasks");
-  const [tasks, setTasks]                   = useState<Task[]>(TASKS);
+  const [tasks, setTasks]                   = useState<Task[]>([]);
+  const [farmers, setFarmers]               = useState<Farmer[]>([]);
+  const [beds, setBeds]                     = useState<Bed[]>([]);
   const [filter, setFilter]                 = useState<"all" | "pending" | "in_progress" | "done">("all");
   const [selectedTask, setSelectedTask]     = useState<Task | null>(null);
   const [progressNote, setProgressNote]     = useState("");
@@ -83,11 +80,31 @@ export default function TasksPage() {
   // Worker assignment state (inside task detail)
   const [assignWorkerOpen, setAssignWorkerOpen] = useState(false);
   const [newWorker, setNewWorker] = useState<{ farmerId: string; shift: TaskWorkerAssignment["shift"] }>({
-    farmerId: FARMERS_ONLY[0]?.id ?? "",
+    farmerId: "",
     shift: "morning",
   });
 
   const proofInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/tasks").then(r => r.json()).then(setTasks);
+    fetch("/api/farmers").then(r => r.json()).then((data: Farmer[]) => {
+      setFarmers(data);
+      setNewWorker(prev => ({ ...prev, farmerId: data.find(f => f.role === "farmer")?.id ?? "" }));
+    });
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+  }, []);
+
+  const FARMERS_ONLY = farmers.filter(f => f.role === "farmer");
+  const SUPERVISORS  = farmers.filter(f => f.role === "supervisor");
+
+  function getFarmer(farmerId: string): Farmer | undefined {
+    return farmers.find(f => f.id === farmerId);
+  }
+
+  function getBed(bedId: string): Bed | undefined {
+    return beds.find(b => b.id === bedId);
+  }
 
   const supervisorId  = user?.id;
   const visibleTasks  = isSupervisor
@@ -112,7 +129,20 @@ export default function TasksPage() {
   }
 
   /* ── Task status update ──────────────────────────────────────────── */
-  function updateStatus(taskId: string, status: Task["status"]) {
+  async function updateStatus(taskId: string, status: Task["status"]) {
+    const patchBody: Partial<Task> = {
+      status,
+      ...(status === "done" ? { completedAt: new Date().toISOString() } : {}),
+      ...(progressNote ? { progressNote } : {}),
+      ...(proofImage ? { proofImageUrl: proofImage } : {}),
+    };
+
+    await fetch(`/api/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patchBody),
+    });
+
     const updated = tasks.map(t =>
       t.id === taskId ? {
         ...t, status,
@@ -136,14 +166,22 @@ export default function TasksPage() {
   }
 
   /* ── Worker assignments ──────────────────────────────────────────── */
-  function addWorkerToTask() {
+  async function addWorkerToTask() {
     if (!selectedTask || !newWorker.farmerId) return;
     if ((selectedTask.workerAssignments ?? []).some(w => w.farmerId === newWorker.farmerId)) {
       toast.error("This farmer is already assigned");
       return;
     }
     const wa: TaskWorkerAssignment = { farmerId: newWorker.farmerId, shift: newWorker.shift };
-    const updated = { ...selectedTask, workerAssignments: [...(selectedTask.workerAssignments ?? []), wa] };
+    const updatedAssignments = [...(selectedTask.workerAssignments ?? []), wa];
+
+    await fetch(`/api/tasks/${selectedTask.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workerAssignments: updatedAssignments }),
+    });
+
+    const updated = { ...selectedTask, workerAssignments: updatedAssignments };
     setSelectedTask(updated);
     setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
     setAssignWorkerOpen(false);
@@ -151,45 +189,61 @@ export default function TasksPage() {
     toast.success(`${getFarmer(wa.farmerId)?.name.split(" ")[0]} assigned — ${SHIFT_LABELS[wa.shift]}`);
   }
 
-  function removeWorkerFromTask(farmerId: string) {
+  async function removeWorkerFromTask(farmerId: string) {
     if (!selectedTask) return;
+    const updatedAssignments = (selectedTask.workerAssignments ?? []).filter(w => w.farmerId !== farmerId);
+
+    await fetch(`/api/tasks/${selectedTask.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workerAssignments: updatedAssignments }),
+    });
+
     const updated = {
       ...selectedTask,
-      workerAssignments: (selectedTask.workerAssignments ?? []).filter(w => w.farmerId !== farmerId),
+      workerAssignments: updatedAssignments,
     };
     setSelectedTask(updated);
     setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
   }
 
   /* ── Create task ─────────────────────────────────────────────────── */
-  function createTask() {
+  async function createTask() {
     if (!newTask.title.trim()) { toast.error("Title is required"); return; }
-    const id = `t-${String(tasks.length + 1).padStart(3, "0")}`;
-    const task: Task = {
+    const taskBody = {
       ...newTask,
-      id,
       createdBy: user?.id ?? "f-008",
-      status: "pending",
+      status: "pending" as const,
       createdAt: new Date().toISOString(),
       requiresImageProof: requireImageNew,
       requiresFollowUp: requireFollowUpNew,
       followUpDueDate: requireFollowUpNew ? followUpDateNew : undefined,
     };
+
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(taskBody),
+    });
+    const task: Task = await res.json();
     setTasks(prev => [task, ...prev]);
 
     // Auto-create follow-up if requested
     if (requireFollowUpNew) {
-      FOLLOW_UPS.push({
-        id: `fu-task-${Date.now()}`,
-        entityType: "task",
-        entityId: id,
-        title: `Follow up: ${newTask.title}`,
-        description: `Verify task completion by ${getFarmer(newTask.assignedTo)?.name ?? "supervisor"}`,
-        dueDate: followUpDateNew,
-        status: "pending",
-        priority: newTask.priority === "high" ? "urgent" : "normal",
-        assignedTo: user?.id ?? "f-008",
-        createdBy: user?.id ?? "f-008",
+      await fetch("/api/follow-ups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: "task",
+          entityId: task.id,
+          title: `Follow up: ${newTask.title}`,
+          description: `Verify task completion by ${getFarmer(newTask.assignedTo)?.name ?? "supervisor"}`,
+          dueDate: followUpDateNew,
+          status: "pending",
+          priority: newTask.priority === "high" ? "urgent" : "normal",
+          assignedTo: user?.id ?? "f-008",
+          createdBy: user?.id ?? "f-008",
+        }),
       });
     }
 
@@ -219,9 +273,17 @@ export default function TasksPage() {
     setExtendDate("");
   }
 
-  function sendOverdueReminder(task: Task) {
+  async function sendOverdueReminder(task: Task) {
+    const overdueNotifiedAt = new Date().toISOString();
+
+    await fetch(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ overdueNotifiedAt }),
+    });
+
     const updated = tasks.map(t =>
-      t.id === task.id ? { ...t, overdueNotifiedAt: new Date().toISOString() } : t
+      t.id === task.id ? { ...t, overdueNotifiedAt } : t
     );
     setTasks(updated);
     if (selectedTask?.id === task.id) setSelectedTask(updated.find(t => t.id === task.id) ?? null);
@@ -230,8 +292,15 @@ export default function TasksPage() {
     });
   }
 
-  function saveExtendDeadline() {
+  async function saveExtendDeadline() {
     if (!selectedTask || !extendDate) return;
+
+    await fetch(`/api/tasks/${selectedTask.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate: extendDate }),
+    });
+
     const updated = tasks.map(t =>
       t.id === selectedTask.id ? { ...t, dueDate: extendDate } : t
     );
@@ -242,8 +311,15 @@ export default function TasksPage() {
     setExtendDate("");
   }
 
-  function saveManagerNote() {
+  async function saveManagerNote() {
     if (!selectedTask || !managerNote.trim()) return;
+
+    await fetch(`/api/tasks/${selectedTask.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ managerNote: managerNote.trim() }),
+    });
+
     const updated = tasks.map(t =>
       t.id === selectedTask.id ? { ...t, managerNote: managerNote.trim() } : t
     );

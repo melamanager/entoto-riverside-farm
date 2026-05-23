@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,10 +9,8 @@ import {
   Plus, Pencil, LayoutList, CalendarRange, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PLANTING_RECORDS } from "@/lib/erp-data";
-import { BEDS, VALVES, FARMERS, getBed } from "@/lib/data";
 import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
-import type { GrowthStage } from "@/lib/types";
+import type { Bed, Valve, Farmer } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -67,14 +65,22 @@ const TLINE_MONTHS = (() => {
 export default function PlantingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [plantings, setPlantings]       = useState<PlantingRecord[]>(PLANTING_RECORDS);
+  const [plantings, setPlantings]       = useState<PlantingRecord[]>([]);
+  const [beds, setBeds]                 = useState<Bed[]>([]);
+  const [valves, setValves]             = useState<Valve[]>([]);
+  const [farmers, setFarmers]           = useState<Farmer[]>([]);
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<PlantingRecord | null>(null);
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [viewMode, setViewMode]         = useState<"table" | "timeline">("table");
   const [overdueOpen, setOverdueOpen]   = useState(false);
 
-  const beds = BEDS();
+  useEffect(() => {
+    fetch("/api/planting").then(r => r.json()).then(setPlantings);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+  }, []);
 
   // ── Overdue detection ────────────────────────────────────────────────────
   const overdueUnplanted = plantings.filter(p => p.status === "planned" && p.plannedDate < TODAY);
@@ -101,8 +107,8 @@ export default function PlantingPage() {
     setForm({
       ...EMPTY_FORM,
       bedId:     beds[0]?.id ?? "",
-      valveId:   VALVES[0]?.id ?? "",
-      createdBy: FARMERS.find(f => f.role === "manager")?.id ?? "",
+      valveId:   valves[0]?.id ?? "",
+      createdBy: farmers.find(f => f.role === "manager")?.id ?? "",
     });
     setCreateOpen(true);
   }
@@ -118,52 +124,46 @@ export default function PlantingPage() {
     setEditTarget(r);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.bedId)               { toast.error("Please select a bed"); return; }
     if (!form.expectedHarvestDate) { toast.error("Expected harvest date is required"); return; }
-    const id     = `pl-${Date.now()}`;
-    const newRec: PlantingRecord = {
-      id, bedId: form.bedId, valveId: form.valveId, variety: form.variety,
+    const body = {
+      bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
       expectedHarvestDate: form.expectedHarvestDate, ageInDays: form.ageInDays,
       seedsPerMeter: form.seedsPerMeter, seedSource: form.seedSource,
       status: form.status, notes: form.notes || undefined, createdBy: form.createdBy,
     };
-    PLANTING_RECORDS.push(newRec);
-    setPlantings([...PLANTING_RECORDS]);
+    const res = await fetch("/api/planting", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { toast.error("Failed to create planting record"); return; }
+    const newRec = await res.json() as PlantingRecord;
+    setPlantings(prev => [...prev, newRec]);
     toast.success(`Planting record for ${form.bedId} created`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
-    const idx = PLANTING_RECORDS.findIndex(r => r.id === editTarget.id);
-    if (idx < 0) return;
-    const prevStatus = editTarget.status;
-    Object.assign(PLANTING_RECORDS[idx], {
+    const body = {
       bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
       expectedHarvestDate: form.expectedHarvestDate, ageInDays: form.ageInDays,
       seedsPerMeter: form.seedsPerMeter, seedSource: form.seedSource,
       status: form.status, notes: form.notes || undefined,
+    };
+    const res = await fetch(`/api/planting/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-
-    if (prevStatus !== form.status && form.bedId) {
-      const stageMap: Partial<Record<PlantingStatus, GrowthStage>> = {
-        planted: "vegetative", growing: "flowering", harvested: "harvest",
-      };
-      const newStage = stageMap[form.status as PlantingStatus];
-      const bed = getBed(form.bedId);
-      if (bed && newStage) {
-        bed.stage = newStage;
-        toast.success("Planting record updated", { description: `Bed ${form.bedId} stage synced → ${newStage}` });
-      } else {
-        toast.success("Planting record updated");
-      }
-    } else {
-      toast.success("Planting record updated");
-    }
-    setPlantings([...PLANTING_RECORDS]);
+    if (!res.ok) { toast.error("Failed to update planting record"); return; }
+    const updated = await res.json() as PlantingRecord;
+    setPlantings(prev => prev.map(r => r.id === editTarget.id ? updated : r));
+    toast.success("Planting record updated");
     setEditTarget(null);
   }
 
@@ -178,7 +178,7 @@ export default function PlantingPage() {
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
               <option value="">— Select —</option>
-              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
@@ -445,7 +445,7 @@ export default function PlantingPage() {
                   </thead>
                   <tbody>
                     {plantings.map(rec => {
-                      const valve = VALVES.find(v => v.id === rec.valveId);
+                      const valve = valves.find(v => v.id === rec.valveId);
                       const s     = STATUS_STYLE[rec.status];
                       const isOverdueHarv = (rec.status === "growing" || rec.status === "planted") && rec.expectedHarvestDate < TODAY;
                       const isOverduePlnt = rec.status === "planned" && rec.plannedDate < TODAY;

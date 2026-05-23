@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -6,23 +10,57 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ArrowLeft, Sprout, Users, Wheat, AlertTriangle, Calendar, Package, Bug, Droplets, CheckCircle2, FlaskConical } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { HarvestChart } from "@/components/harvest-chart";
-import {
-  getValve, BEDS, FARMERS, HARVESTS, DISEASES,
-  plantsInBed, totalKgValve, totalKgBed, getFarmer,
-} from "@/lib/data";
-import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
+import type { Valve, Bed, Farmer, HarvestRecord, DiseaseReport } from "@/lib/types";
+import type { FertigationRecord, PackagingRecord } from "@/lib/erp-types";
 import { DISEASE_LABELS } from "@/lib/types";
 
-export default async function ValvePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const valve = getValve(id);
-  if (!valve) notFound();
+interface BedWithRelations extends Bed {
+  harvestRecords: HarvestRecord[];
+  diseaseReports: DiseaseReport[];
+}
 
-  const vBeds = BEDS().filter(b => b.valveId === valve.id);
-  const harvests = HARVESTS().filter(h => vBeds.some(b => b.id === h.bedId));
-  const diseases = DISEASES().filter(d => vBeds.some(b => b.id === d.bedId));
-  const supervisor = getFarmer(valve.supervisorId);
-  const farmers = FARMERS.filter(f => f.assignedValves.includes(valve.id) && f.role === "farmer");
+interface ValveWithBeds extends Valve {
+  beds: BedWithRelations[];
+}
+
+function plantsInBed(bed: Bed): number { return bed.lengthM * bed.plantsPerMeter; }
+
+function totalKgBed(bed: BedWithRelations): number {
+  return bed.harvestRecords.reduce((s, h) => s + Number(h.kg), 0);
+}
+
+export default function ValvePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [valve, setValve]               = useState<ValveWithBeds | null>(null);
+  const [farmers, setFarmers]           = useState<Farmer[]>([]);
+  const [fertigations, setFertigations] = useState<FertigationRecord[]>([]);
+  const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
+  const [notFound404, setNotFound404]   = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/valves/${id}`)
+      .then(r => {
+        if (r.status === 404) { setNotFound404(true); return null; }
+        return r.json();
+      })
+      .then(data => { if (data) setValve(data as ValveWithBeds); });
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/fertigation").then(r => r.json()).then(setFertigations);
+    fetch("/api/packaging").then(r => r.json()).then(setPackagingRecords);
+  }, [id]);
+
+  if (notFound404) return notFound();
+  if (!valve) return null;
+
+  const vBeds = valve.beds;
+  const harvests = vBeds.flatMap(b => b.harvestRecords);
+  const diseases = vBeds.flatMap(b => b.diseaseReports);
+  const supervisor = farmers.find(f => f.id === valve.supervisorId);
+  const valveFarmers = farmers.filter(f => f.assignedValves.includes(valve.id) && f.role === "farmer");
+
+  function getFarmer(farmerId: string) {
+    return farmers.find(f => f.id === farmerId);
+  }
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
@@ -30,21 +68,23 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
     d.setDate(d.getDate() - i);
     series[d.toISOString().split("T")[0]] = 0;
   }
-  harvests.forEach(h => { if (series[h.date] !== undefined) series[h.date] += h.kg; });
+  harvests.forEach(h => { if (series[h.date] !== undefined) series[h.date] += Number(h.kg); });
   const chartData = Object.entries(series).map(([date, kg]) => ({
     date: new Date(date).toLocaleDateString("en", { month: "short", day: "numeric" }),
     kg: Math.round(kg * 10) / 10,
   }));
 
-  const bedsRanked = [...vBeds].map(b => ({ b, kg: totalKgBed(b.id) })).sort((a,b) => b.kg - a.kg);
+  const bedsRanked = [...vBeds].map(b => ({ b, kg: totalKgBed(b) })).sort((a, b) => b.kg - a.kg);
+
+  const totalKgValveValue = vBeds.reduce((s, b) => s + totalKgBed(b), 0);
 
   // ── Activity log ──────────────────────────────────────────────────────────
   type LogEntry = { date: string; kind: "harvest"|"disease"|"fertigation"|"packaging"; data: unknown };
   const log: LogEntry[] = [
     ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
     ...diseases.map(d => ({ date: d.reportedAt.slice(0,10), kind: "disease" as const, data: d })),
-    ...FERTIGATION_RECORDS.filter(f => f.valveId === valve.id).map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
-    ...PACKAGING_RECORDS.filter(p => p.valveId === valve.id).map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
+    ...fertigations.filter(f => f.valveId === valve.id).map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
+    ...packagingRecords.filter(p => p.valveId === valve.id).map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
   ].sort((a,b) => b.date.localeCompare(a.date));
 
   return (
@@ -86,7 +126,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-stone-500"><Wheat className="size-3.5" /> Total harvest</div>
-          <div className="text-3xl font-bold mt-1">{totalKgValve(valve.id).toFixed(1)}<span className="text-sm font-normal text-stone-500"> kg</span></div>
+          <div className="text-3xl font-bold mt-1">{totalKgValveValue.toFixed(1)}<span className="text-sm font-normal text-stone-500"> kg</span></div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-stone-500"><AlertTriangle className="size-3.5" /> Active alerts</div>
@@ -131,7 +171,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
         <Card className="p-5">
           <h3 className="font-bold mb-3">👥 Assigned farmers</h3>
           <div className="space-y-2">
-            {[supervisor, ...farmers].filter(Boolean).map(f => (
+            {[supervisor, ...valveFarmers].filter(Boolean).map(f => (
               <div key={f!.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-stone-50">
                 <Avatar className="size-10">
                   <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">{f!.avatar}</AvatarFallback>
@@ -156,7 +196,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
           {log.slice(0, 25).map((entry, i) => {
             const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
             if (entry.kind === "harvest") {
-              const h = entry.data as typeof harvests[0];
+              const h = entry.data as HarvestRecord;
               const bed = vBeds.find(b => b.id === h.bedId);
               const farmer = getFarmer(h.farmerId);
               return (
@@ -164,7 +204,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
                   <div className={`${iconClass} bg-emerald-100 border-emerald-400`}><Wheat className="size-2.5 text-emerald-700" /></div>
                   <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-emerald-800">Harvest — {h.kg.toFixed(1)} kg · {bed?.id}</span>
+                      <span className="font-semibold text-emerald-800">Harvest — {Number(h.kg).toFixed(1)} kg · {bed?.id}</span>
                       <span className="text-emerald-600 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                     </div>
                     <div className="text-emerald-600 mt-0.5">Grade {h.qualityGrade} · {bed?.variety} · {farmer?.name}</div>
@@ -173,7 +213,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
               );
             }
             if (entry.kind === "disease") {
-              const d = entry.data as typeof diseases[0];
+              const d = entry.data as DiseaseReport;
               const bed = vBeds.find(b => b.id === d.bedId);
               return (
                 <div key={i} className="relative">
@@ -192,8 +232,8 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
               );
             }
             if (entry.kind === "fertigation") {
-              const f = entry.data as typeof FERTIGATION_RECORDS[0];
-              const worker = FARMERS.find(x => x.id === f.responsibleWorkerId);
+              const f = entry.data as FertigationRecord;
+              const worker = farmers.find(x => x.id === f.responsibleWorkerId);
               return (
                 <div key={i} className="relative">
                   <div className={`${iconClass} bg-blue-100 border-blue-400`}><Droplets className="size-2.5 text-blue-700" /></div>
@@ -208,7 +248,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
               );
             }
             if (entry.kind === "packaging") {
-              const p = entry.data as typeof PACKAGING_RECORDS[0];
+              const p = entry.data as PackagingRecord;
               const packer = getFarmer(p.packedBy);
               return (
                 <div key={i} className="relative">

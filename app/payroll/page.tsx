@@ -1,15 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DollarSign, CheckCircle2, Clock, Download, Users, Calculator } from "lucide-react";
 import { toast } from "sonner";
-import { PAYROLL_RECORDS } from "@/lib/erp-data";
-import { FARMERS, ATTENDANCE } from "@/lib/data";
 import type { PayrollRecord, PayrollStatus } from "@/lib/erp-types";
+import type { AttendanceRecord, Farmer } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -19,15 +18,40 @@ const STATUS_STYLE: Record<PayrollStatus, string> = {
   pending:   "bg-amber-100 text-amber-700 border-amber-200",
 };
 
-const MONTHS = [...new Set(PAYROLL_RECORDS.map(r => r.month))].sort().reverse();
+function parsePayrollRecord(raw: Record<string, unknown>): PayrollRecord {
+  return {
+    ...raw,
+    dailyWage:    parseFloat((raw.dailyWage as { toString(): string }).toString()),
+    basePay:      parseFloat((raw.basePay as { toString(): string }).toString()),
+    overtimePay:  parseFloat((raw.overtimePay as { toString(): string }).toString()),
+    bonus:        parseFloat((raw.bonus as { toString(): string }).toString()),
+    deductions:   parseFloat((raw.deductions as { toString(): string }).toString()),
+    netPay:       parseFloat((raw.netPay as { toString(): string }).toString()),
+  } as PayrollRecord;
+}
 
 export default function PayrollPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [selectedMonth, setSelectedMonth] = useState(MONTHS[0]);
+  const [allRecords, setAllRecords] = useState<PayrollRecord[]>([]);
+  const [farmers, setFarmers]       = useState<Farmer[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [overrides, setOverrides] = useState<Record<string, Partial<PayrollRecord>>>({});
 
-  const baseRecords = PAYROLL_RECORDS.filter(r => r.month === selectedMonth);
+  useEffect(() => {
+    fetch("/api/payroll").then(r => r.json()).then((data: Record<string, unknown>[]) => {
+      const parsed = data.map(parsePayrollRecord);
+      setAllRecords(parsed);
+      const months = [...new Set(parsed.map(r => r.month))].sort().reverse();
+      if (months.length > 0) setSelectedMonth(months[0]);
+    });
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/attendance").then(r => r.json()).then(setAttendance);
+  }, []);
+
+  const months = [...new Set(allRecords.map(r => r.month))].sort().reverse();
+  const baseRecords = allRecords.filter(r => r.month === selectedMonth);
   const records = baseRecords.map(r => ({ ...r, ...overrides[r.id] }));
 
   const totalNetPay   = records.reduce((s, r) => s + r.netPay, 0);
@@ -45,7 +69,7 @@ export default function PayrollPage() {
 
   // Flow 7: auto-calculate days & hours from attendance
   function autoCalculate() {
-    const allAttendance = ATTENDANCE();
+    const allAttendance = attendance;
     const monthPrefix   = selectedMonth; // "2026-05"
     const newOverrides: Record<string, Partial<PayrollRecord>> = { ...overrides };
 
@@ -83,7 +107,7 @@ export default function PayrollPage() {
             onChange={e => setSelectedMonth(e.target.value)}
             className="text-sm border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700"
           >
-            {MONTHS.map(m => (
+            {months.map(m => (
               <option key={m} value={m}>
                 {new Date(m + "-01").toLocaleDateString("en", { month: "long", year: "numeric" })}
               </option>
@@ -131,7 +155,9 @@ export default function PayrollPage() {
       <Card className="border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
           <div className="font-semibold text-slate-900">
-            {new Date(selectedMonth + "-01").toLocaleDateString("en", { month: "long", year: "numeric" })} Payroll
+            {selectedMonth
+              ? new Date(selectedMonth + "-01").toLocaleDateString("en", { month: "long", year: "numeric" }) + " Payroll"
+              : "Payroll"}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <Users className="size-3.5" />
@@ -156,7 +182,7 @@ export default function PayrollPage() {
             </thead>
             <tbody>
               {records.map(rec => {
-                const farmer = FARMERS.find(f => f.id === rec.farmerId);
+                const farmer = farmers.find(f => f.id === rec.farmerId);
                 return (
                   <tr key={rec.id}>
                     <td>

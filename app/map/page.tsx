@@ -1,27 +1,44 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { FarmMap } from "@/components/farm-map";
-import { VALVES, BEDS, HARVESTS, FARM, plantsInBed } from "@/lib/data";
 import { Mountain } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import type { Valve, Bed } from "@/lib/types";
+
+const FARM = { name: "ENTOTO Riverside Farm", location: "Entoto Mountain, Addis Ababa, Ethiopia", altitudeM: 2800, totalAreaHa: 4.2 };
 
 export default function MapPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const beds = BEDS();
-  const today = "2026-05-20";
-  const harvestKgByBed: Record<string, number> = {};
-  HARVESTS().filter(h => h.date === today).forEach(h => {
-    harvestKgByBed[h.bedId] = (harvestKgByBed[h.bedId] ?? 0) + h.kg;
-  });
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [harvestKgByBed, setHarvestKgByBed] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    Promise.all([
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/beds").then(r => r.json()),
+      fetch(`/api/harvest?date=${today}`).then(r => r.json()),
+    ]).then(([v, b, h]) => {
+      setValves(v);
+      setBeds(b);
+      const byBed: Record<string, number> = {};
+      (h as Array<{ bedId: string; kg: string | number }>).forEach(rec => {
+        byBed[rec.bedId] = (byBed[rec.bedId] ?? 0) + parseFloat(rec.kg.toString());
+      });
+      setHarvestKgByBed(byBed);
+    });
+  }, []);
 
   const healthyCount  = beds.filter(b => b.health === "healthy").length;
   const warningCount  = beds.filter(b => b.health === "warning").length;
   const infectedCount = beds.filter(b => b.health === "infected").length;
   const readyCount    = beds.filter(b => b.stage === "ripening" || b.stage === "harvest").length;
-  const totalPlants   = beds.reduce((s, b) => s + plantsInBed(b), 0);
+  const totalPlants   = beds.reduce((s, b) => s + b.lengthM * b.plantsPerMeter, 0);
   const totalYieldToday = Object.values(harvestKgByBed).reduce((s, v) => s + v, 0);
 
   return (
@@ -53,7 +70,7 @@ export default function MapPage() {
         </div>
       </div>
 
-      <FarmMap valves={VALVES} beds={beds} harvestKgByBed={harvestKgByBed} />
+      <FarmMap valves={valves} beds={beds} harvestKgByBed={harvestKgByBed} />
 
       {/* Status cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
