@@ -44,8 +44,19 @@ const FALLBACK: WeatherData = {
   source: "fallback", fetchedAt: new Date().toISOString(),
 };
 
+async function getWeatherApiKey(): Promise<string | null> {
+  if (process.env.TOMORROW_IO_API_KEY) return process.env.TOMORROW_IO_API_KEY;
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const s = await prisma.appSetting.findUnique({ where: { key: "weather_api_key" } });
+    return s?.value || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getWeather(): Promise<WeatherData> {
-  const key = process.env.TOMORROW_IO_API_KEY;
+  const key = await getWeatherApiKey();
   if (!key) return FALLBACK;
 
   try {

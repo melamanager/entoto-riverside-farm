@@ -646,3 +646,10 @@ enum FollowUpPriority {
   normal
   urgent
 }
+
+// ─── System Configuration ──────────────────────────────────────────────────────
+model AppSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}

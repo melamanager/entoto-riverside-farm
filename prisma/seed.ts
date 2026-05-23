@@ -479,6 +479,25 @@ async function main() {
   }
   console.log("  ✓ Follow-ups");
 
+  // ── 20. App Settings (notification tokens) ───────────────────────────────────
+  const defaultSettings = [
+    { key: "sms_token",        value: process.env.SMS_ETHIOPIA_TOKEN    ?? "" },
+    { key: "sms_base_url",     value: process.env.SMS_ETHIOPIA_BASE_URL ?? "https://api.smsethiopia.com/api/sms/send" },
+    { key: "sms_enabled",      value: "true" },
+    { key: "telegram_token",   value: process.env.TELEGRAM_BOT_TOKEN    ?? "" },
+    { key: "telegram_chat_id", value: process.env.TELEGRAM_CHAT_ID      ?? "" },
+    { key: "telegram_enabled", value: "true" },
+    { key: "weather_api_key",  value: process.env.TOMORROW_IO_API_KEY   ?? "" },
+  ];
+  for (const s of defaultSettings) {
+    await prisma.appSetting.upsert({
+      where:  { key: s.key },
+      update: {},          // don't overwrite values already configured via UI
+      create: s,
+    });
+  }
+  console.log("  ✓ App settings");
+
   console.log("\n✅ Seed complete!");
   await prisma.$disconnect();
 }
