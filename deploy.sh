@@ -1,30 +1,61 @@
 #!/bin/bash
+# Bootstrap script — run once on a fresh Lightsail Ubuntu instance.
+# All secrets come from environment variables; export them before running,
+# or the script will prompt for the required ones.
 set -e
 
+prompt_if_empty() {
+  local var="$1" prompt="$2"
+  if [ -z "${!var}" ]; then
+    read -rsp "$prompt: " val; echo
+    export "$var"="$val"
+  fi
+}
+
+echo "=== Checking required secrets ==="
+prompt_if_empty POSTGRES_PASSWORD    "POSTGRES_PASSWORD"
+prompt_if_empty NEXTAUTH_SECRET      "NEXTAUTH_SECRET (run: openssl rand -base64 32)"
+prompt_if_empty NEXTAUTH_URL         "NEXTAUTH_URL (e.g. http://52.209.207.200:3000)"
+
 echo "=== Installing Docker ==="
-curl -fsSL https://get.docker.com | sh
-systemctl enable docker
+if ! command -v docker &>/dev/null; then
+  curl -fsSL https://get.docker.com | sh
+  systemctl enable docker
+  apt-get install -y docker-compose-plugin git
+fi
 
-echo "=== Installing dependencies ==="
-apt-get install -y docker-compose-plugin git
+REPO_DIR=/opt/farm
+BRANCH=claude/disease-reporter-identification-g1MTI
 
-echo "=== Cloning repo ==="
-git clone https://github.com/melamanager/entoto-riverside-farm /opt/farm
+if [ -d "$REPO_DIR/.git" ]; then
+  echo "=== Updating repo ==="
+  git -C "$REPO_DIR" fetch origin
+  git -C "$REPO_DIR" checkout "$BRANCH"
+  git -C "$REPO_DIR" pull origin "$BRANCH"
+else
+  echo "=== Cloning repo ==="
+  git clone https://github.com/melamanager/entoto-riverside-farm "$REPO_DIR"
+  git -C "$REPO_DIR" checkout "$BRANCH"
+fi
 
 echo "=== Writing .env ==="
-cat > /opt/farm/.env << 'ENVEOF'
-POSTGRES_PASSWORD=F4rm$ecure2026!
-DATABASE_URL=postgresql://entoto:F4rm$ecure2026!@postgres:5432/entoto_farm
-NEXTAUTH_SECRET=jtaUqPUsQKaWQLv5Jmq0InoM0DQN6KAckePsYJ7hEHA=
-NEXTAUTH_URL=http://52.209.207.200:3000
-SMS_ETHIOPIA_TOKEN=ZE6V155XK40ZZHHBM3NWD73MM5C8RVQT:759
-TELEGRAM_BOT_TOKEN=8122676514:AAEDouJqDlCfKf0xA3ULAex3KdWtrZTkSu4
-TOMORROW_IO_API_KEY=aa1bCmz9jxDoAT4lazNKw5PRNZwsmvLH
-ENVEOF
+cat > "$REPO_DIR/.env" <<EOF
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+NEXTAUTH_URL=${NEXTAUTH_URL}
+SMS_ETHIOPIA_TOKEN=${SMS_ETHIOPIA_TOKEN:-}
+SMS_ETHIOPIA_BASE_URL=${SMS_ETHIOPIA_BASE_URL:-}
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+TOMORROW_IO_API_KEY=${TOMORROW_IO_API_KEY:-}
+GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY:-}
+OPENAI_API_KEY=${OPENAI_API_KEY:-}
+EOF
 
 echo "=== Starting app ==="
-cd /opt/farm
-git checkout claude/disease-reporter-identification-g1MTI
+cd "$REPO_DIR"
 docker compose up -d --build
 
-echo "=== Done! App starting at http://52.209.207.200:3000 ==="
+echo ""
+echo "=== Done! App starting at ${NEXTAUTH_URL} ==="
+echo "    (first build takes 3-5 minutes — watch with: docker compose logs -f app)"

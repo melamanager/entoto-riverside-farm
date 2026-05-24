@@ -1,0 +1,51 @@
+name: Deploy to Lightsail
+
+on:
+  push:
+    branches: [claude/disease-reporter-identification-g1MTI, master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Lightsail
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          envs: POSTGRES_PASSWORD,NEXTAUTH_SECRET,NEXTAUTH_URL,SMS_ETHIOPIA_TOKEN,SMS_ETHIOPIA_BASE_URL,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID,TOMORROW_IO_API_KEY,GOOGLE_GENERATIVE_AI_API_KEY,OPENAI_API_KEY,GIT_BRANCH
+          script: |
+            set -e
+            cd /opt/farm
+
+            git fetch origin
+            git checkout "$GIT_BRANCH"
+            git pull origin "$GIT_BRANCH"
+
+            cat > .env <<EOF
+            POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+            NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+            NEXTAUTH_URL=$NEXTAUTH_URL
+            SMS_ETHIOPIA_TOKEN=$SMS_ETHIOPIA_TOKEN
+            SMS_ETHIOPIA_BASE_URL=$SMS_ETHIOPIA_BASE_URL
+            TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+            TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID
+            TOMORROW_IO_API_KEY=$TOMORROW_IO_API_KEY
+            GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY
+            OPENAI_API_KEY=$OPENAI_API_KEY
+            EOF
+
+            docker compose up -d --build
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          SMS_ETHIOPIA_TOKEN: ${{ secrets.SMS_ETHIOPIA_TOKEN }}
+          SMS_ETHIOPIA_BASE_URL: ${{ secrets.SMS_ETHIOPIA_BASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOMORROW_IO_API_KEY: ${{ secrets.TOMORROW_IO_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GIT_BRANCH: ${{ github.ref_name }}
