@@ -39,9 +39,11 @@ else
 fi
 
 echo "=== Writing .env ==="
-printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD" > "$REPO_DIR/.env"
-printf 'NEXTAUTH_SECRET=%s\n'   "$NEXTAUTH_SECRET"   >> "$REPO_DIR/.env"
-printf 'NEXTAUTH_URL=%s\n'      "$NEXTAUTH_URL"       >> "$REPO_DIR/.env"
+# Docker Compose interpolates $ in .env values; escape $ as $$ for literal dollar signs
+dc_escape() { printf '%s' "$1" | sed 's/\$/\$\$/g'; }
+printf 'POSTGRES_PASSWORD=%s\n' "$(dc_escape "$POSTGRES_PASSWORD")" > "$REPO_DIR/.env"
+printf 'NEXTAUTH_SECRET=%s\n'   "$(dc_escape "$NEXTAUTH_SECRET")"   >> "$REPO_DIR/.env"
+printf 'NEXTAUTH_URL=%s\n'      "$(dc_escape "$NEXTAUTH_URL")"       >> "$REPO_DIR/.env"
 
 echo "=== Starting app ==="
 cd "$REPO_DIR"

@@ -23,9 +23,10 @@ jobs:
             git checkout "$GIT_BRANCH"
             git pull origin "$GIT_BRANCH"
 
-            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD" > .env
-            printf 'NEXTAUTH_SECRET=%s\n'   "$NEXTAUTH_SECRET"   >> .env
-            printf 'NEXTAUTH_URL=%s\n'      "$NEXTAUTH_URL"       >> .env
+            dc_escape() { printf '%s' "$1" | sed 's/\$/\$\$/g'; }
+            printf 'POSTGRES_PASSWORD=%s\n' "$(dc_escape "$POSTGRES_PASSWORD")" > .env
+            printf 'NEXTAUTH_SECRET=%s\n'   "$(dc_escape "$NEXTAUTH_SECRET")"   >> .env
+            printf 'NEXTAUTH_URL=%s\n'      "$(dc_escape "$NEXTAUTH_URL")"       >> .env
 
             docker compose up -d --build
         env:
