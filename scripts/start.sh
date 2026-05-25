@@ -1,4 +1,4 @@
 #!/bin/sh
 set -e
-npx prisma migrate deploy
+node /app/node_modules/prisma/dist/bin.js migrate deploy
 exec node server.js
