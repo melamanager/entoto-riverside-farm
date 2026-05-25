@@ -17,6 +17,15 @@ prompt_if_empty POSTGRES_PASSWORD    "POSTGRES_PASSWORD"
 prompt_if_empty NEXTAUTH_SECRET      "NEXTAUTH_SECRET (run: openssl rand -base64 32)"
 prompt_if_empty NEXTAUTH_URL         "NEXTAUTH_URL (e.g. http://54.171.14.135:3000)"
 
+echo "=== Adding swap (prevents OOM during builds) ==="
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
 echo "=== Installing Docker ==="
 if ! command -v docker &>/dev/null; then
   curl -fsSL https://get.docker.com | sh
