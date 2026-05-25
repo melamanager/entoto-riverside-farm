@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Leaf, Shield, UserCircle2, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Leaf, Shield, UserCircle2, Lock, Eye, EyeOff, ArrowRight, KeyRound } from "lucide-react";
 
 const LOGINABLE_USERS = [
   { id: "f-008", name: "Nuredin Hassen",   avatar: "NH", role: "manager"    as const, assignedValves: ["valve-a","valve-b","valve-c"] },
@@ -15,6 +15,12 @@ const LOGINABLE_USERS = [
 
 const ROLE_ICONS = { manager: Shield, supervisor: UserCircle2, farmer: UserCircle2 };
 
+const DEMO_CREDENTIALS = [
+  { id: "f-008", label: "Manager",      name: "Nuredin Hassen", password: "manager2026"  },
+  { id: "f-006", label: "Supervisor A/B", name: "Selam Girma",  password: "supervisor01" },
+  { id: "f-007", label: "Supervisor C",   name: "Yonas Alemu",  password: "supervisor02" },
+];
+
 export default function LoginPage() {
   const router = useRouter();
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -22,6 +28,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -66,9 +73,44 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-[#161b22] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="px-6 pt-6 pb-2">
-            <h2 className="text-lg font-semibold text-white mb-1">Sign in</h2>
-            <p className="text-slate-500 text-sm">Select your account and enter your password.</p>
+          <div className="px-6 pt-6 pb-2 flex items-start justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-white mb-1">Sign in</h2>
+              <p className="text-slate-500 text-sm">Select your account and enter your password.</p>
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowDemo(p => !p)}
+                title="Demo credentials"
+                className={`mt-0.5 size-8 rounded-lg grid place-items-center transition-colors ${
+                  showDemo
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                    : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-slate-200"
+                }`}
+              >
+                <KeyRound className="size-4" />
+              </button>
+              {showDemo && (
+                <div className="absolute right-0 top-10 z-10 w-64 bg-[#1c2230] border border-white/15 rounded-xl shadow-2xl p-2 space-y-1">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-2 pb-1">Click to fill credentials</p>
+                  {DEMO_CREDENTIALS.map(d => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => { setSelectedUser(d.id); setPassword(d.password); setError(""); setShowDemo(false); }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/8 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-300 group-hover:text-white">{d.label}</span>
+                        <span className="text-[10px] font-mono text-emerald-400">{d.password}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{d.name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <form onSubmit={handleLogin} className="p-6 pt-4 space-y-4">
@@ -158,16 +200,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="px-6 pb-5">
-            <div className="bg-white/3 border border-white/8 rounded-lg p-3">
-              <div className="text-[11px] text-slate-500 font-semibold mb-1.5">Demo credentials</div>
-              <div className="space-y-1 text-[11px] text-slate-500 font-mono">
-                <div><span className="text-slate-400">Manager:</span> <span className="text-slate-300">manager2026</span></div>
-                <div><span className="text-slate-400">Supervisor A/B:</span> <span className="text-slate-300">supervisor01</span></div>
-                <div><span className="text-slate-400">Supervisor C:</span> <span className="text-slate-300">supervisor02</span></div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <p className="text-center text-[11px] text-slate-700 mt-4">
