@@ -15,7 +15,7 @@ prompt_if_empty() {
 echo "=== Checking required secrets ==="
 prompt_if_empty POSTGRES_PASSWORD    "POSTGRES_PASSWORD"
 prompt_if_empty NEXTAUTH_SECRET      "NEXTAUTH_SECRET (run: openssl rand -base64 32)"
-prompt_if_empty NEXTAUTH_URL         "NEXTAUTH_URL (e.g. http://52.209.207.200:3000)"
+prompt_if_empty NEXTAUTH_URL         "NEXTAUTH_URL (e.g. http://54.171.14.135:3000)"
 
 echo "=== Installing Docker ==="
 if ! command -v docker &>/dev/null; then
