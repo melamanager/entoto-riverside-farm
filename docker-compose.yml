@@ -16,6 +16,21 @@ services:
     networks:
       - farm_net
 
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: sh -c "npx prisma migrate deploy"
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://entoto:${POSTGRES_PASSWORD}@postgres:5432/entoto_farm
+    networks:
+      - farm_net
+
   app:
     build:
       context: .
@@ -24,6 +39,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://entoto:${POSTGRES_PASSWORD}@postgres:5432/entoto_farm
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
