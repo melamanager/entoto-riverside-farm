@@ -23,11 +23,9 @@ jobs:
             git checkout "$GIT_BRANCH"
             git pull origin "$GIT_BRANCH"
 
-            cat > .env <<EOF
-            POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-            NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-            NEXTAUTH_URL=$NEXTAUTH_URL
-            EOF
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD" > .env
+            printf 'NEXTAUTH_SECRET=%s\n'   "$NEXTAUTH_SECRET"   >> .env
+            printf 'NEXTAUTH_URL=%s\n'      "$NEXTAUTH_URL"       >> .env
 
             docker compose up -d --build
         env:

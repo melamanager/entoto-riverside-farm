@@ -14,10 +14,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN npx prisma generate
-
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL=postgresql://placeholder:placeholder@placeholder:5432/placeholder
+
+RUN npx prisma generate
 RUN npm run build
 
 # ── Runner ────────────────────────────────────────────────────────────────────
