@@ -1,5 +1,8 @@
-import { getWeather, calcDiseaseRisks } from "@/lib/weather";
+"use client";
+
+import { useEffect, useState } from "react";
 import { Cloud, Droplets, Wind, Sun, AlertTriangle, CheckCircle2, Wifi, WifiOff } from "lucide-react";
+import type { WeatherData, DiseaseRisk } from "@/lib/weather";
 
 const RISK_STYLE = {
   High:   { badge: "bg-red-100 text-red-700 border border-red-200",         dot: "bg-red-500",     bar: "bg-red-500"     },
@@ -10,9 +13,25 @@ const RISK_STYLE = {
 const UV_LABEL = (uv: number) =>
   uv <= 2 ? "Low" : uv <= 5 ? "Moderate" : uv <= 7 ? "High" : "Very High";
 
-export async function WeatherWidget() {
-  const weather = await getWeather();
-  const risks   = calcDiseaseRisks(weather);
+export function WeatherWidget() {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [risks, setRisks]     = useState<DiseaseRisk[]>([]);
+
+  useEffect(() => {
+    fetch("/api/weather")
+      .then(r => r.json())
+      .then(({ weather, risks }) => { setWeather(weather); setRisks(risks); })
+      .catch(() => {});
+  }, []);
+
+  if (!weather) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden h-full flex flex-col items-center justify-center text-slate-400 text-sm">
+        Loading weather…
+      </div>
+    );
+  }
+
   const highRisks = risks.filter(r => r.risk === "High").length;
 
   return (
