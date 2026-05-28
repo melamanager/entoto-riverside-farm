@@ -3,6 +3,8 @@ name: Deploy to Lightsail
 on:
   push:
     branches: [claude/disease-reporter-identification-g1MTI, master]
+    paths-ignore:
+      - "**/*.md"
 
 jobs:
   deploy:
@@ -14,6 +16,7 @@ jobs:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ${{ secrets.LIGHTSAIL_USER }}
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          command_timeout: 30m
           envs: POSTGRES_PASSWORD,NEXTAUTH_SECRET,NEXTAUTH_URL,GIT_BRANCH
           script: |
             set -e
