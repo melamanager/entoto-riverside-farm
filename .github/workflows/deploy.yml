@@ -19,39 +19,40 @@ jobs:
             set -e
             cd /opt/farm
 
-            git fetch origin
-            git checkout "$GIT_BRANCH"
-            git pull origin "$GIT_BRANCH"
+            sudo git config --global --add safe.directory /opt/farm
+            sudo git fetch origin
+            sudo git checkout "$GIT_BRANCH"
+            sudo git pull origin "$GIT_BRANCH"
 
             dc_escape() { printf '%s' "$1" | sed 's/\$/\$\$/g'; }
-            printf 'POSTGRES_PASSWORD=%s\n' "$(dc_escape "$POSTGRES_PASSWORD")" > .env
-            printf 'NEXTAUTH_SECRET=%s\n'   "$(dc_escape "$NEXTAUTH_SECRET")"   >> .env
-            printf 'NEXTAUTH_URL=%s\n'      "$(dc_escape "$NEXTAUTH_URL")"       >> .env
+            sudo sh -c "printf 'POSTGRES_PASSWORD=%s\n' '$(dc_escape "$POSTGRES_PASSWORD")' > .env"
+            sudo sh -c "printf 'NEXTAUTH_SECRET=%s\n' '$(dc_escape "$NEXTAUTH_SECRET")' >> .env"
+            sudo sh -c "printf 'NEXTAUTH_URL=%s\n' '$(dc_escape "$NEXTAUTH_URL")' >> .env"
 
-            docker compose up -d --build
+            sudo docker compose up -d --build
 
             echo "=== Container status ==="
-            docker compose ps
+            sudo docker compose ps
 
             echo "=== Waiting for app to be ready ==="
             for i in $(seq 1 30); do
-              if curl -fsS http://localhost:3000/api/health > /dev/null 2>&1; then
+              if curl -fsS -o /dev/null http://localhost:3000/login; then
                 echo "App is healthy after ${i}s"
                 break
               fi
               if [ "$i" -eq 30 ]; then
                 echo "ERROR: App did not become healthy within 30s"
-                docker compose logs --tail=100 app
+                sudo docker compose logs --tail=100 app
                 exit 1
               fi
               sleep 1
             done
 
             echo "=== Health check ==="
-            curl -fsS http://localhost:3000/api/health
+            curl -fsS -I http://localhost:3000/login
 
             echo "=== Recent app logs ==="
-            docker compose logs --tail=50 app
+            sudo docker compose logs --tail=50 app
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
