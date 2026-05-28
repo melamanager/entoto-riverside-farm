@@ -15,7 +15,12 @@ export async function GET(req: Request) {
       ...(assignedTo ? { assignedTo } : {}),
       ...(status ? { status: status as "pending" | "in_progress" | "done" } : {}),
     },
-    include: { assignee: true, creator: true, bed: true },
+    include: {
+      assignee: true,
+      creator: true,
+      bed: true,
+      children: { include: { assignee: true, creator: true }, orderBy: { createdAt: "asc" } },
+    },
     orderBy: { createdAt: "desc" },
   });
 

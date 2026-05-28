@@ -168,6 +168,13 @@ model Task {
   followUpDueDate    String?
   managerNote        String?
   overdueNotifiedAt  DateTime?
+  progressNotes      Json      @default("[]")
+  parentTaskId       String?
+  parent             Task?     @relation("TaskParent", fields: [parentTaskId], references: [id])
+  children           Task[]    @relation("TaskParent")
+  completionNote     String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
 
   updatedAt DateTime @updatedAt
 }

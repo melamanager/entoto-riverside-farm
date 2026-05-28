@@ -80,6 +80,12 @@ export interface DiseaseReport {
   proofImageUrl?: string;           // supervisor's uploaded proof image (data URL)
 }
 
+export interface ProgressNote {
+  by: string;   // farmerId
+  note: string;
+  at: string;   // ISO timestamp
+}
+
 export interface TaskWorkerAssignment {
   farmerId: string;
   shift: "morning" | "afternoon" | "full_day";
@@ -107,6 +113,12 @@ export interface Task {
   followUpDueDate?: string;
   managerNote?: string;
   overdueNotifiedAt?: string;
+  progressNotes: ProgressNote[];
+  parentTaskId?: string;
+  children?: Task[];
+  completionNote?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
 }
 
 export interface AttendanceRecord {

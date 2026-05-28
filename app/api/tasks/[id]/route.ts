@@ -7,7 +7,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const body = await req.json();
+  const body = await req.json() as Record<string, unknown>;
+
+  const { role } = session.user as { role: string };
+  if (role !== "manager") {
+    delete body.reviewedBy;
+    delete body.reviewedAt;
+  }
 
   const task = await prisma.task.update({ where: { id }, data: body });
   return NextResponse.json(task);
