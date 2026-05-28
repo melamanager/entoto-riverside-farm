@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   MessageSquare, Send, Cloud, Bot, Settings, CheckCircle2,
-  XCircle, Loader2, Eye, EyeOff, TestTube2, Info,
+  XCircle, Loader2, Eye, EyeOff, TestTube2, Info, SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { OPTION_DEFAULTS, type OptionKey, type SelectOption } from "@/lib/options";
+import { useOptions } from "@/lib/use-options";
 
 interface SettingsState {
   sms_token:         string;
@@ -31,6 +33,32 @@ const DEFAULTS: SettingsState = {
   telegram_enabled: "true",
   weather_api_key:  "",
 };
+
+const OPTION_KEYS = Object.keys(OPTION_DEFAULTS) as OptionKey[];
+
+function optionTitle(key: string) {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
+}
+
+function serializeOptions(options: SelectOption[]) {
+  return options.map(o => o.label === o.value ? o.value : `${o.value} | ${o.label}`).join("\n");
+}
+
+function parseOptionsDraft(draft: string, current: SelectOption[]) {
+  return draft
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const [rawValue, rawLabel] = line.split("|").map(part => part.trim());
+      const existing = current.find(o => o.value === rawValue);
+      return {
+        ...existing,
+        value: rawValue,
+        label: rawLabel || existing?.label || rawValue,
+      };
+    });
+}
 
 function TokenField({
   label, value, onChange, placeholder, hint,
@@ -80,9 +108,13 @@ function TokenField({
 export default function SettingsPage() {
   const { isManager } = useAuth();
   const router = useRouter();
+  const options = useOptions();
   const [settings, setSettings] = useState<SettingsState>(DEFAULTS);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
+  const [optionKey, setOptionKey] = useState<OptionKey>("varieties");
+  const [optionDraft, setOptionDraft] = useState("");
+  const [savingOptions, setSavingOptions] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [testing, setTesting]   = useState<string | null>(null);
   const [chatUpdates, setChatUpdates] = useState<{ id: number; type?: string }[]>([]);
@@ -94,6 +126,12 @@ export default function SettingsPage() {
       setLoading(false);
     });
   }, [isManager, router]);
+
+  const selectedOptions = useMemo(() => options[optionKey] ?? [], [options, optionKey]);
+
+  useEffect(() => {
+    setOptionDraft(serializeOptions(selectedOptions));
+  }, [selectedOptions]);
 
   function set(key: keyof SettingsState, value: string) {
     setSettings(s => ({ ...s, [key]: value }));
@@ -111,6 +149,26 @@ export default function SettingsPage() {
       else toast.error("Failed to save settings");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveDropdownOptions() {
+    const nextOptions = parseOptionsDraft(optionDraft, selectedOptions);
+    if (nextOptions.length === 0) {
+      toast.error("Add at least one option");
+      return;
+    }
+    setSavingOptions(true);
+    try {
+      const res = await fetch("/api/options", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [optionKey]: nextOptions }),
+      });
+      if (res.ok) toast.success(`${optionTitle(optionKey)} options saved`);
+      else toast.error("Failed to save dropdown options");
+    } finally {
+      setSavingOptions(false);
     }
   }
 
@@ -382,6 +440,50 @@ export default function SettingsPage() {
           placeholder="aa1bCmz9jxDoAT4lazNKw5PRNZwsmvLH"
           hint="From tomorrow.io dashboard — free tier supports up to 500 calls/day"
         />
+      </Card>
+
+      {/* ── Dynamic dropdowns ─────────────────────────────────────────────────── */}
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-xl bg-violet-100 grid place-items-center">
+              <SlidersHorizontal className="size-4 text-violet-700" />
+            </div>
+            <div>
+              <div className="font-bold text-slate-900">Dropdown Options</div>
+              <div className="text-xs text-slate-500">Edit reusable lists used across farm forms</div>
+            </div>
+          </div>
+          <Button onClick={saveDropdownOptions} disabled={savingOptions} size="sm" className="bg-violet-600 hover:bg-violet-700 gap-2">
+            {savingOptions ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+            Save list
+          </Button>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-700 block mb-1">List</label>
+          <select
+            value={optionKey}
+            onChange={e => setOptionKey(e.target.value as OptionKey)}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+          >
+            {OPTION_KEYS.map(key => (
+              <option key={key} value={key}>{optionTitle(key)}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-700 block mb-1">Options</label>
+          <textarea
+            value={optionDraft}
+            onChange={e => setOptionDraft(e.target.value)}
+            rows={8}
+            spellCheck={false}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+          />
+          <p className="text-[11px] text-slate-400 mt-1">Use one option per line. Write <span className="font-mono">value | label</span> when the saved value and display label differ.</p>
+        </div>
       </Card>
 
       {/* ── Status summary ────────────────────────────────────────────────────── */}

@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import type { Task, TaskWorkerAssignment, Farmer, Bed } from "@/lib/types";
+import { useOptions } from "@/lib/use-options";
 import { AssignmentsSection } from "./_assignments";
 import { FollowUpsSection } from "./_follow-ups";
 
@@ -34,12 +35,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   inspection: "bg-purple-100 text-purple-700 border-purple-200",
   general:    "bg-slate-100 text-slate-600 border-slate-200",
 };
-const SHIFT_LABELS: Record<TaskWorkerAssignment["shift"], string> = {
-  morning:   "🌅 Morning",
-  afternoon: "☀️ Afternoon",
-  full_day:  "⏰ Full Day",
-};
-
 type Section = "tasks" | "assignments" | "follow-ups";
 const SECTION_TABS: { key: Section; label: string; icon: typeof ListChecks }[] = [
   { key: "tasks",       label: "Daily Tasks",  icon: ListChecks    },
@@ -51,6 +46,7 @@ export default function TasksPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
+  const options = useOptions();
 
   const [section, setSection]               = useState<Section>("tasks");
   const [tasks, setTasks]                   = useState<Task[]>([]);
@@ -97,6 +93,8 @@ export default function TasksPage() {
 
   const FARMERS_ONLY = farmers.filter(f => f.role === "farmer");
   const SUPERVISORS  = farmers.filter(f => f.role === "supervisor");
+  const shiftLabel = (shift: TaskWorkerAssignment["shift"]) =>
+    options.shifts.find(s => s.value === shift)?.label ?? shift.replace("_", " ");
 
   function getFarmer(farmerId: string): Farmer | undefined {
     return farmers.find(f => f.id === farmerId);
@@ -186,7 +184,7 @@ export default function TasksPage() {
     setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
     setAssignWorkerOpen(false);
     setNewWorker({ farmerId: FARMERS_ONLY[0]?.id ?? "", shift: "morning" });
-    toast.success(`${getFarmer(wa.farmerId)?.name.split(" ")[0]} assigned — ${SHIFT_LABELS[wa.shift]}`);
+    toast.success(`${getFarmer(wa.farmerId)?.name.split(" ")[0]} assigned — ${shiftLabel(wa.shift)}`);
   }
 
   async function removeWorkerFromTask(farmerId: string) {
@@ -634,8 +632,8 @@ export default function TasksPage() {
                           onChange={e => setNewWorker(p => ({ ...p, shift: e.target.value as TaskWorkerAssignment["shift"] }))}
                           className="border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white"
                         >
-                          {Object.entries(SHIFT_LABELS).map(([k, v]) => (
-                            <option key={k} value={k}>{v}</option>
+                          {options.shifts.map(s => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
                           ))}
                         </select>
                         <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 px-3"
@@ -665,7 +663,7 @@ export default function TasksPage() {
                               <div className="text-[10px] text-slate-400 capitalize">{farmer?.role}</div>
                             </div>
                             <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-semibold shrink-0">
-                              {SHIFT_LABELS[wa.shift]}
+                              {shiftLabel(wa.shift)}
                             </span>
                             {selectedTask.status !== "done" && (
                               <button onClick={() => removeWorkerFromTask(wa.farmerId)}
@@ -875,9 +873,9 @@ export default function TasksPage() {
                     <select value={newTask.priority}
                       onChange={e => setNewTask(p => ({ ...p, priority: e.target.value as Task["priority"] }))}
                       className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-                      <option value="high">🔴 High</option>
-                      <option value="medium">🟡 Medium</option>
-                      <option value="low">⚪ Low</option>
+                      {options.taskPriorities.map(p => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -885,11 +883,9 @@ export default function TasksPage() {
                     <select value={newTask.category}
                       onChange={e => setNewTask(p => ({ ...p, category: e.target.value as Task["category"] }))}
                       className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-                      <option value="disease">Disease</option>
-                      <option value="harvest">Harvest</option>
-                      <option value="irrigation">Irrigation</option>
-                      <option value="inspection">Inspection</option>
-                      <option value="general">General</option>
+                      {options.taskCategories.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

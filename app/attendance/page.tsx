@@ -8,13 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save } from "lucide-react";
 import { toast } from "sonner";
 import type { Farmer, AttendanceRecord, AttendanceStatus, Valve } from "@/lib/types";
-
-const STATUSES: { value: AttendanceStatus; label: string; color: string }[] = [
-  { value: "present", label: "Present", color: "bg-emerald-500" },
-  { value: "late",    label: "Late",    color: "bg-amber-500"   },
-  { value: "absent",  label: "Absent",  color: "bg-red-500"     },
-  { value: "leave",   label: "Leave",   color: "bg-slate-400"   },
-];
+import { useOptions } from "@/lib/use-options";
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -24,6 +18,12 @@ const STATUS_ICONS = {
 };
 
 export default function AttendancePage() {
+  const options = useOptions();
+  const statuses = options.attendanceStatuses.map(s => ({
+    value: s.value as AttendanceStatus,
+    label: s.label,
+    color: s.color ?? "bg-slate-400",
+  }));
   const today = new Date().toISOString().split("T")[0];
 
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -196,7 +196,7 @@ export default function AttendancePage() {
                         className="text-xs border border-slate-200 rounded px-2 py-1 w-24 text-slate-700"
                       />
                     </td>
-                    {STATUSES.map(s => (
+                    {statuses.map(s => (
                       <td key={s.value} className="text-center px-2">
                         <button
                           onClick={() => setStatus(f.id, s.value)}

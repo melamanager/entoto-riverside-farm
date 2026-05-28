@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import type { Farmer, Valve, Task } from "@/lib/types";
 import type { WorkerAssignment } from "@/lib/erp-types";
+import { useOptions } from "@/lib/use-options";
 
 const ROLE_STYLE = {
   manager:    { badge: "bg-amber-100 text-amber-800 border-amber-200",    dot: "bg-amber-400"   },
@@ -33,6 +34,7 @@ function initials(name: string) {
 }
 
 export default function EmployeesPage() {
+  const options = useOptions();
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [valves, setValves] = useState<Valve[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -194,9 +196,9 @@ export default function EmployeesPage() {
               onChange={e => setForm(p => ({ ...p, role: e.target.value as Farmer["role"] }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
             >
-              <option value="farmer">Field Worker</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="manager">Manager</option>
+              {options.farmerRoles.map(role => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
             </select>
           </div>
           <div>

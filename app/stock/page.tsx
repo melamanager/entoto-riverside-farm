@@ -17,8 +17,7 @@ import { STOCK_CATEGORY_LABELS, STOCK_CATEGORY_ICONS } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import type { Farmer } from "@/lib/types";
-
-const CATEGORY_FILTER = ["all", "fertilizer", "pesticide", "packaging", "tool", "seed", "other"] as const;
+import { useOptions } from "@/lib/use-options";
 
 const UNIT_LABELS: Record<string, string> = {
   kg: "kg", L: "L", g: "g", ml: "ml",
@@ -65,10 +64,11 @@ function parseTransaction(raw: Record<string, unknown>): StockTransaction {
 export default function StockPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
+  const options = useOptions();
   const [items, setItems]         = useState<StockItem[]>([]);
   const [transactions, setTx]     = useState<StockTransaction[]>([]);
   const [farmers, setFarmers]     = useState<Farmer[]>([]);
-  const [catFilter, setCatFilter] = useState<typeof CATEGORY_FILTER[number]>("all");
+  const [catFilter, setCatFilter] = useState<StockCategory | "all">("all");
   const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
   const [historyTx, setHistoryTx]     = useState<StockTransaction[]>([]);
   const [txDialogOpen, setTxDialogOpen] = useState(false);
@@ -225,14 +225,14 @@ export default function StockPage() {
 
       {/* Category filter */}
       <div className="flex items-center gap-1 flex-wrap">
-        {CATEGORY_FILTER.map(c => (
-          <button key={c} onClick={() => setCatFilter(c)}
+        {[{ value: "all", label: "All Items", icon: undefined }, ...options.stockCategories].map(c => (
+          <button key={c.value} onClick={() => setCatFilter(c.value as StockCategory | "all")}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all capitalize ${
-              catFilter === c
+              catFilter === c.value
                 ? "bg-slate-900 text-white border-slate-900"
                 : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
             }`}>
-            {c === "all" ? "All Items" : `${STOCK_CATEGORY_ICONS[c as StockCategory]} ${STOCK_CATEGORY_LABELS[c as StockCategory]}`}
+            {c.value === "all" ? c.label : `${c.icon ?? ""} ${c.label}`}
           </button>
         ))}
       </div>
@@ -356,10 +356,9 @@ export default function StockPage() {
               <select value={txForm.type}
                 onChange={e => setTxForm(p => ({ ...p, type: e.target.value as TransactionType }))}
                 className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-                <option value="stock_in">➕ Received / Restocked</option>
-                <option value="stock_out">➖ Used / Issued</option>
-                <option value="adjustment">🔄 Adjustment (recount)</option>
-                <option value="waste">🗑️ Waste / Damaged</option>
+                {options.stockTransactionTypes.map(type => (
+                  <option key={type.value} value={type.value}>{type.label.replace("_", " ")}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -459,14 +458,14 @@ export default function StockPage() {
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Category</label>
                   <select value={itemForm.category} onChange={e => setItemForm(p => ({ ...p, category: e.target.value as StockCategory }))}
                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-                    {Object.entries(STOCK_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    {options.stockCategories.map(c => <option key={c.value} value={c.value}>{c.icon ?? ""} {c.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Unit</label>
                   <select value={itemForm.unit} onChange={e => setItemForm(p => ({ ...p, unit: e.target.value as any }))}
                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-                    {["kg", "L", "g", "ml", "piece", "box", "bag", "roll"].map(u => <option key={u} value={u}>{u}</option>)}
+                    {options.stockUnits.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
               </div>

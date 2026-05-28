@@ -15,6 +15,7 @@ import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose, C
 import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
 const STATUS_STYLE: Record<PackagingStatus, string> = {
   in_progress: "bg-blue-100 text-blue-700 border-blue-200",
@@ -29,10 +30,6 @@ const PURPOSE_STYLE: Record<PackagingPurpose, string> = {
   hotel:       "bg-sky-100 text-sky-700 border-sky-200",
   supermarket: "bg-teal-100 text-teal-700 border-teal-200",
 };
-const PURPOSES: PackagingPurpose[] = ["export", "juice", "jam", "local", "hotel", "supermarket"];
-const STATUSES: PackagingStatus[] = ["in_progress", "packed", "dispatched"];
-const SIZES: PackageSize[] = ["250g", "500g", "1kg", "2kg", "bulk"];
-
 type HarvestRecord = { id: string; bedId: string; date: string; kg: number; farmerId: string; qualityGrade: string; bed?: { valveId: string; variety: string } };
 
 function emptyForm() {
@@ -51,6 +48,7 @@ function emptyForm() {
 export default function PackagingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
+  const options = useOptions();
   const [records, setRecords]   = useState<PackagingRecord[]>([]);
   const [orders, setOrders]     = useState<CustomerOrder[]>([]);
   const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
@@ -313,7 +311,7 @@ export default function PackagingPage() {
             <select value={form.purpose}
               onChange={e => setForm(p => ({ ...p, purpose: e.target.value as PackagingPurpose }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-              {PURPOSES.map(p => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+              {options.packagingPurposes.map(p => <option key={p.value} value={p.value} className="capitalize">{p.label}</option>)}
             </select>
           </div>
         </div>
@@ -386,7 +384,7 @@ export default function PackagingPage() {
           <select value={form.packageSize}
             onChange={e => setForm(p => ({ ...p, packageSize: e.target.value as PackageSize }))}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-            {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+            {options.packageSizes.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </div>
 
@@ -420,7 +418,7 @@ export default function PackagingPage() {
             <select value={form.status}
               onChange={e => setForm(p => ({ ...p, status: e.target.value as PackagingStatus }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-              {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s.replace("_"," ")}</option>)}
+              {options.packagingStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label.replace("_"," ")}</option>)}
             </select>
           </div>
         </div>

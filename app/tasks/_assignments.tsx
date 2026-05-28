@@ -11,16 +11,13 @@ import { toast } from "sonner";
 import { ACTIVITY_LABELS, ACTIVITY_ICONS } from "@/lib/erp-types";
 import type { WorkerAssignment, AssignmentStatus, ActivityType, Shift } from "@/lib/erp-types";
 import type { Farmer, Valve, Bed } from "@/lib/types";
+import { useOptions } from "@/lib/use-options";
 
 const STATUS_STYLE: Record<AssignmentStatus, string> = {
   assigned:    "bg-amber-100 text-amber-700 border-amber-200",
   in_progress: "bg-blue-100 text-blue-700 border-blue-200",
   completed:   "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
-const SHIFT_LABELS: Record<Shift, string> = { morning: "Morning", afternoon: "Afternoon", full_day: "Full Day" };
-const ACTIVITIES = Object.keys(ACTIVITY_LABELS) as ActivityType[];
-const SHIFTS: Shift[] = ["morning", "afternoon", "full_day"];
-
 const EMPTY_FORM = {
   farmerId: "", activity: "harvesting" as ActivityType,
   supervisorId: "", valveId: "", bedId: "",
@@ -30,6 +27,7 @@ const EMPTY_FORM = {
 };
 
 export function AssignmentsSection() {
+  const options = useOptions();
   const [assignments, setAssignments] = useState<WorkerAssignment[]>([]);
   const [farmers, setFarmers]         = useState<Farmer[]>([]);
   const [valves, setValves]           = useState<Valve[]>([]);
@@ -140,6 +138,12 @@ export function AssignmentsSection() {
   const assigned   = assignments.filter(a => a.status === "assigned").length;
   const totalHours = assignments.filter(a => a.hoursActual).reduce((s, a) => s + (a.hoursActual ?? 0), 0);
   const valveBeds  = (valveId: string) => beds.filter(b => b.valveId === valveId);
+  const activityLabel = (activity: ActivityType) =>
+    options.assignmentActivities.find(a => a.value === activity)?.label ?? ACTIVITY_LABELS[activity] ?? activity;
+  const activityIcon = (activity: ActivityType) =>
+    options.assignmentActivities.find(a => a.value === activity)?.icon ?? ACTIVITY_ICONS[activity] ?? "";
+  const shiftLabel = (shift: Shift) =>
+    options.shifts.find(s => s.value === shift)?.label ?? shift.replace("_", " ");
 
   function AssignmentForm() {
     return (
@@ -166,7 +170,7 @@ export function AssignmentsSection() {
           <label className="text-xs font-semibold text-slate-700 block mb-1">Activity</label>
           <select value={form.activity} onChange={e => setForm(p => ({ ...p, activity: e.target.value as ActivityType }))}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-            {ACTIVITIES.map(a => <option key={a} value={a}>{ACTIVITY_ICONS[a]} {ACTIVITY_LABELS[a]}</option>)}
+            {options.assignmentActivities.map(a => <option key={a.value} value={a.value}>{a.icon ?? ""} {a.label}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -197,7 +201,7 @@ export function AssignmentsSection() {
             <label className="text-xs font-semibold text-slate-700 block mb-1">Shift</label>
             <select value={form.shift} onChange={e => setForm(p => ({ ...p, shift: e.target.value as Shift }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {SHIFTS.map(s => <option key={s} value={s}>{SHIFT_LABELS[s]}</option>)}
+              {options.shifts.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
         </div>
@@ -218,8 +222,8 @@ export function AssignmentsSection() {
             <label className="text-xs font-semibold text-slate-700 block mb-1">Status</label>
             <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as AssignmentStatus }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-              {(["assigned","in_progress","completed"] as AssignmentStatus[]).map(s => (
-                <option key={s} value={s} className="capitalize">{s.replace("_"," ")}</option>
+              {options.assignmentStatuses.map(s => (
+                <option key={s.value} value={s.value} className="capitalize">{s.label.replace("_"," ")}</option>
               ))}
             </select>
           </div>
@@ -314,7 +318,7 @@ export function AssignmentsSection() {
                           </div>
                         </div>
                       </td>
-                      <td><span className="flex items-center gap-1.5"><span>{ACTIVITY_ICONS[a.activity]}</span><span className="text-sm">{ACTIVITY_LABELS[a.activity]}</span></span></td>
+                      <td><span className="flex items-center gap-1.5"><span>{activityIcon(a.activity)}</span><span className="text-sm">{activityLabel(a.activity)}</span></span></td>
                       <td>
                         {valve && <span className="text-xs font-semibold" style={{ color: valve.color }}>{valve.name}</span>}
                         {a.bedId && <div className="text-[10px] font-mono text-slate-400">{a.bedId}</div>}
@@ -325,7 +329,7 @@ export function AssignmentsSection() {
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                           a.shift === "full_day" ? "bg-slate-100 text-slate-700" :
                           a.shift === "morning" ? "bg-amber-50 text-amber-700" : "bg-indigo-50 text-indigo-700"
-                        }`}>{SHIFT_LABELS[a.shift]}</span>
+                        }`}>{shiftLabel(a.shift)}</span>
                       </td>
                       <td className="tabular-nums text-center">{a.hoursExpected}h</td>
                       <td className="tabular-nums text-center font-semibold">{a.hoursActual ? `${a.hoursActual}h` : <span className="text-slate-400">—</span>}</td>

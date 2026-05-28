@@ -14,6 +14,7 @@ import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
 import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus, PackagingRecord, FertigationRecord } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
 const PAYMENT_STYLE: Record<PaymentStatus, string> = {
   paid:    "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -45,6 +46,7 @@ const EMPTY_FORM = {
 type ActiveTab = "orders" | "revenue";
 
 export default function OrdersPage() {
+  const options = useOptions();
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const [activeTab, setActiveTab]       = useState<ActiveTab>("orders");
@@ -223,8 +225,8 @@ export default function OrdersPage() {
             <select value={form.customerType}
               onChange={e => setForm(p => ({ ...p, customerType: e.target.value as CustomerType }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {(Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map(ct => (
-                <option key={ct} value={ct}>{CUSTOMER_ICONS[ct]} {CUSTOMER_TYPE_LABELS[ct]}</option>
+              {options.customerTypes.map(ct => (
+                <option key={ct.value} value={ct.value}>{CUSTOMER_ICONS[ct.value as CustomerType] ?? ""} {ct.label}</option>
               ))}
             </select>
           </div>
@@ -282,8 +284,8 @@ export default function OrdersPage() {
             <select value={form.paymentStatus}
               onChange={e => setForm(p => ({ ...p, paymentStatus: e.target.value as PaymentStatus }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-              {(["pending","partial","paid","overdue"] as PaymentStatus[]).map(s => (
-                <option key={s} value={s} className="capitalize">{s}</option>
+              {options.paymentStatuses.map(s => (
+                <option key={s.value} value={s.value} className="capitalize">{s.label}</option>
               ))}
             </select>
           </div>
@@ -292,8 +294,8 @@ export default function OrdersPage() {
             <select value={form.deliveryStatus}
               onChange={e => setForm(p => ({ ...p, deliveryStatus: e.target.value as DeliveryStatus }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {(["pending","in_transit","delivered","cancelled"] as DeliveryStatus[]).map(s => (
-                <option key={s} value={s}>{s.replace("_", " ")}</option>
+              {options.deliveryStatuses.map(s => (
+                <option key={s.value} value={s.value}>{s.label.replace("_", " ")}</option>
               ))}
             </select>
           </div>

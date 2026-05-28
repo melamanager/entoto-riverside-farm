@@ -10,11 +10,7 @@ import { Sprout, Users, Wheat, AlertTriangle, Plus, Pencil, Trash2, X } from "lu
 import { ValveIcon } from "@/components/valve-icon";
 import { toast } from "sonner";
 import type { Valve, Bed, Farmer, HarvestRecord } from "@/lib/types";
-
-const COLORS = [
-  "#10b981", "#3b82f6", "#a855f7", "#f59e0b",
-  "#ef4444", "#ec4899", "#14b8a6", "#f97316",
-];
+import { useOptions } from "@/lib/use-options";
 
 const EMPTY_FORM = {
   name: "", color: "#10b981", irrigationSchedule: "", supervisorId: "",
@@ -23,6 +19,7 @@ const EMPTY_FORM = {
 function plantsInBed(bed: Bed): number { return bed.lengthM * bed.plantsPerMeter; }
 
 export default function ValvesIndex() {
+  const options = useOptions();
   const [valves, setValves]     = useState<Valve[]>([]);
   const [beds, setBeds]         = useState<Bed[]>([]);
   const [farmers, setFarmers]   = useState<Farmer[]>([]);
@@ -157,7 +154,7 @@ export default function ValvesIndex() {
         <div>
           <label className="text-xs font-semibold text-slate-700 block mb-1.5">Zone Color</label>
           <div className="flex gap-2 flex-wrap">
-            {COLORS.map(c => (
+            {options.valveColors.map(({ value: c }) => (
               <button
                 key={c}
                 type="button"

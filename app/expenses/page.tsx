@@ -12,8 +12,7 @@ import { toast } from "sonner";
 import type { Expense, ExpenseCategory, Farmer } from "@/lib/types";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
-
-const CATEGORIES = Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[];
+import { useOptions } from "@/lib/use-options";
 
 function emptyExpense(userId = ""): Omit<Expense, "id"> {
   return {
@@ -30,6 +29,8 @@ function emptyExpense(userId = ""): Omit<Expense, "id"> {
 
 export default function ExpensesPage() {
   const { user } = useAuth();
+  const options = useOptions();
+  const categories = options.expenseCategories.map(o => o.value as ExpenseCategory);
   const thisMonth = new Date().toISOString().slice(0, 7);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -81,10 +82,10 @@ export default function ExpensesPage() {
   const byCategory = useMemo(() => {
     const sums: Partial<Record<ExpenseCategory, number>> = {};
     expenses.forEach(e => { sums[e.category] = (sums[e.category] ?? 0) + e.amountETB; });
-    return CATEGORIES.map(c => ({ category: c, total: sums[c] ?? 0 }))
+    return categories.map(c => ({ category: c, total: sums[c] ?? 0 }))
       .filter(x => x.total > 0)
       .sort((a, b) => b.total - a.total);
-  }, [expenses]);
+  }, [categories, expenses]);
 
   const maxBar = byCategory[0]?.total ?? 1;
 
@@ -199,7 +200,7 @@ export default function ExpensesPage() {
             >
               All
             </button>
-            {CATEGORIES.map(c => (
+            {categories.map(c => (
               <button
                 key={c}
                 onClick={() => setCatFilter(c)}
@@ -277,7 +278,7 @@ export default function ExpensesPage() {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Receipt className="size-4 text-emerald-600" />Add Expense</DialogTitle></DialogHeader>
-          <ExpenseForm form={form} setForm={setForm} payers={managerNames} />
+          <ExpenseForm form={form} setForm={setForm} payers={managerNames} categories={options.expenseCategories} />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSaveAdd}>Create</Button>
@@ -289,7 +290,7 @@ export default function ExpensesPage() {
       <Dialog open={!!editTarget} onOpenChange={v => { if (!v) setEditTarget(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Pencil className="size-4 text-emerald-600" />Edit Expense</DialogTitle></DialogHeader>
-          <ExpenseForm form={form} setForm={setForm} payers={managerNames} />
+          <ExpenseForm form={form} setForm={setForm} payers={managerNames} categories={options.expenseCategories} />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSaveEdit}>Save</Button>
@@ -316,9 +317,10 @@ type FormProps = {
   form: Omit<Expense, "id">;
   setForm: React.Dispatch<React.SetStateAction<Omit<Expense, "id">>>;
   payers: Array<{ id: string; name: string }>;
+  categories: Array<{ value: string; label: string }>;
 };
 
-function ExpenseForm({ form, setForm, payers }: FormProps) {
+function ExpenseForm({ form, setForm, payers, categories }: FormProps) {
   const f = (field: keyof Omit<Expense, "id">) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: field === "amountETB" ? parseFloat(e.target.value) || 0 : e.target.value }));
 
@@ -332,8 +334,8 @@ function ExpenseForm({ form, setForm, payers }: FormProps) {
         <label className="block">
           <span className="text-xs font-semibold text-slate-600 mb-1 block">Category</span>
           <select value={form.category} onChange={f("category")} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
-            {(Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[]).map(c => (
-              <option key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</option>
+            {categories.map(c => (
+              <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
         </label>

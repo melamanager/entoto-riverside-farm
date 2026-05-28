@@ -13,6 +13,7 @@ import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
 import type { Bed, Valve, Farmer } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
 const TODAY = new Date().toISOString().split("T")[0];
 // Timeline range — covers all planting/harvest windows
@@ -26,9 +27,6 @@ const STATUS_STYLE: Record<PlantingStatus, { badge: string; dot: string; bar: st
   harvested: { badge: "bg-amber-100 text-amber-700 border-amber-200",       dot: "bg-amber-500",   bar: "bg-amber-400"   },
   failed:    { badge: "bg-red-100 text-red-700 border-red-200",             dot: "bg-red-500",     bar: "bg-red-400"     },
 };
-const STATUSES: PlantingStatus[] = ["planned", "planted", "growing", "harvested", "failed"];
-const SEED_SOURCES = ["Nakuru Horticulture KE", "Ethiopian Horticulture", "Holland Horticulture", "Local Nursery"];
-
 const EMPTY_FORM = {
   bedId: "", valveId: "", variety: "Festival",
   plannedDate: TODAY, actualDate: "",
@@ -65,6 +63,7 @@ const TLINE_MONTHS = (() => {
 export default function PlantingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
+  const options = useOptions();
   const [plantings, setPlantings]       = useState<PlantingRecord[]>([]);
   const [beds, setBeds]                 = useState<Bed[]>([]);
   const [valves, setValves]             = useState<Valve[]>([]);
@@ -235,7 +234,7 @@ export default function PlantingPage() {
             <select value={form.seedSource}
               onChange={e => setForm(p => ({ ...p, seedSource: e.target.value }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {SEED_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              {options.seedSources.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
         </div>
@@ -244,7 +243,7 @@ export default function PlantingPage() {
           <select value={form.status}
             onChange={e => setForm(p => ({ ...p, status: e.target.value as PlantingStatus }))}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-            {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+            {options.plantingStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label}</option>)}
           </select>
         </div>
         <div>

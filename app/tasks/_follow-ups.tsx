@@ -17,6 +17,7 @@ import { FOLLOW_UP_ENTITY_LABELS, FOLLOW_UP_ENTITY_ICONS } from "@/lib/erp-types
 import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -63,6 +64,7 @@ type FilterTab = "all" | "pending" | "overdue" | "done" | "today";
 export function FollowUpsSection() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
+  const options = useOptions();
   const [followUps, setFollowUps]   = useState<FollowUp[]>([]);
   const [farmers, setFarmers]       = useState<Farmer[]>([]);
   const [valves, setValves]         = useState<Valve[]>([]);
@@ -83,6 +85,10 @@ export function FollowUpsSection() {
   }, []);
 
   const managers = farmers.filter(f => f.role === "manager" || f.role === "supervisor");
+  const entityLabel = (entityType: FollowUpEntityType) =>
+    options.followUpEntityTypes.find(e => e.value === entityType)?.label ?? FOLLOW_UP_ENTITY_LABELS[entityType] ?? entityType;
+  const entityIcon = (entityType: FollowUpEntityType) =>
+    options.followUpEntityTypes.find(e => e.value === entityType)?.icon ?? FOLLOW_UP_ENTITY_ICONS[entityType] ?? "";
 
   const computed = useMemo(() => {
     return followUps.map(fu => {
@@ -270,14 +276,14 @@ export function FollowUpsSection() {
         </div>
         <div className="flex items-center gap-1 ml-2">
           <Filter className="size-3.5 text-slate-400" />
-          {(["all", "disease", "planting", "fertigation", "task", "general"] as (FollowUpEntityType | "all")[]).map(e => (
-            <button key={e} onClick={() => setEntity(e)}
+          {[{ value: "all", label: t.followUps.allTypes, icon: undefined }, ...options.followUpEntityTypes].map(e => (
+            <button key={e.value} onClick={() => setEntity(e.value as FollowUpEntityType | "all")}
               className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all capitalize ${
-                entityFilter === e
+                entityFilter === e.value
                   ? "bg-slate-800 text-white border-slate-800"
                   : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
               }`}>
-              {e === "all" ? t.followUps.allTypes : `${FOLLOW_UP_ENTITY_ICONS[e]} ${FOLLOW_UP_ENTITY_LABELS[e]}`}
+              {e.value === "all" ? e.label : `${e.icon ?? ""} ${e.label}`}
             </button>
           ))}
         </div>
@@ -308,7 +314,7 @@ export function FollowUpsSection() {
                       )}
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <Badge className={`text-[10px] capitalize ${PRIORITY_STYLE[fu.priority]}`}>{fu.priority}</Badge>
-                        <span className="text-[10px] text-slate-400 capitalize">{FOLLOW_UP_ENTITY_LABELS[fu.entityType]}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">{entityLabel(fu.entityType)}</span>
                         {fu.bedId && <span className="text-[10px] font-mono text-slate-400">{fu.bedId}</span>}
                         {valve && <span className="text-[10px] font-semibold" style={{ color: valve.color }}>{valve.name}</span>}
                         {worker && <span className="text-[10px] text-slate-500">→ {worker.name.split(" ")[0]}</span>}
@@ -433,8 +439,8 @@ export function FollowUpsSection() {
                   <select value={form.entityType}
                     onChange={e => setForm(p => ({ ...p, entityType: e.target.value as FollowUpEntityType }))}
                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-                    {Object.entries(FOLLOW_UP_ENTITY_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{FOLLOW_UP_ENTITY_ICONS[k as FollowUpEntityType]} {v}</option>
+                    {options.followUpEntityTypes.map(e => (
+                      <option key={e.value} value={e.value}>{e.icon ?? entityIcon(e.value as FollowUpEntityType)} {e.label}</option>
                     ))}
                   </select>
                 </div>
@@ -443,9 +449,9 @@ export function FollowUpsSection() {
                   <select value={form.priority}
                     onChange={e => setForm(p => ({ ...p, priority: e.target.value as FollowUpPriority }))}
                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-                    <option value="low">🟢 Low</option>
-                    <option value="normal">🔵 Normal</option>
-                    <option value="urgent">🔴 Urgent</option>
+                    {options.followUpPriorities.map(p => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>

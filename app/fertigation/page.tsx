@@ -12,6 +12,7 @@ import type { StockItem } from "@/lib/erp-types";
 import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
 const STATUS_STYLE: Record<FertigationStatus, string> = {
   applied:   "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -23,14 +24,6 @@ const METHOD_STYLE: Record<ApplicationMethod, string> = {
   foliar:      "bg-purple-100 text-purple-700",
   soil_drench: "bg-amber-100 text-amber-700",
 };
-const METHODS: ApplicationMethod[] = ["drip", "foliar", "soil_drench"];
-const STATUSES: FertigationStatus[] = ["scheduled", "applied", "skipped"];
-
-const COMMON_FERTILIZERS = [
-  "NPK 20-20-20", "Calcium Nitrate", "Potassium Sulfate",
-  "Humic Acid", "Iron Chelate (EDTA-Fe)", "Magnesium Sulfate", "Other",
-];
-
 function emptyForm() {
   const today    = new Date().toISOString().split("T")[0];
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
@@ -64,6 +57,7 @@ function parseFertigationRecord(raw: Record<string, unknown>): FertigationRecord
 export default function FertigationPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
+  const options = useOptions();
   const [records, setRecords]   = useState<FertigationRecord[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [valves, setValves]     = useState<Valve[]>([]);
@@ -162,6 +156,7 @@ export default function FertigationPage() {
   }
 
   function FertigationForm() {
+    const fertilizerValues = [...options.fertilizers.map(f => f.value), "Other"];
     const stockItem = findStockItem(form.fertilizerType);
     const neededKg  = (form.dosageGPerL * form.waterVolumeLiters) / 1000;
     const hasEnough = stockItem ? stockItem.currentQty >= neededKg : true;
@@ -192,12 +187,20 @@ export default function FertigationPage() {
         </div>
         <div>
           <label className="text-xs font-semibold text-slate-700 block mb-1">Fertilizer Type</label>
-          <select value={COMMON_FERTILIZERS.includes(form.fertilizerType) ? form.fertilizerType : "Other"}
-            onChange={e => setForm(p => ({ ...p, fertilizerType: e.target.value === "Other" ? "" : e.target.value }))}
+          <select value={fertilizerValues.includes(form.fertilizerType) ? form.fertilizerType : "Other"}
+            onChange={e => {
+              const picked = options.fertilizers.find(f => f.value === e.target.value);
+              setForm(p => ({
+                ...p,
+                fertilizerType: e.target.value === "Other" ? "" : e.target.value,
+                activeIngredient: String(picked?.meta?.activeIngredient ?? p.activeIngredient),
+              }));
+            }}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-            {COMMON_FERTILIZERS.map(f => <option key={f} value={f}>{f}</option>)}
+            {options.fertilizers.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+            <option value="Other">Other</option>
           </select>
-          {!COMMON_FERTILIZERS.slice(0, -1).includes(form.fertilizerType) && (
+          {!options.fertilizers.some(f => f.value === form.fertilizerType) && (
             <input value={form.fertilizerType}
               onChange={e => setForm(p => ({ ...p, fertilizerType: e.target.value }))}
               placeholder="Enter fertilizer name..."
@@ -270,7 +273,7 @@ export default function FertigationPage() {
             <select value={form.applicationMethod}
               onChange={e => setForm(p => ({ ...p, applicationMethod: e.target.value as ApplicationMethod }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {METHODS.map(m => <option key={m} value={m} className="capitalize">{m.replace("_", " ")}</option>)}
+              {options.applicationMethods.map(m => <option key={m.value} value={m.value} className="capitalize">{m.label.replace("_", " ")}</option>)}
             </select>
           </div>
           <div>
@@ -288,7 +291,7 @@ export default function FertigationPage() {
           <select value={form.status}
             onChange={e => setForm(p => ({ ...p, status: e.target.value as FertigationStatus }))}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-            {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+            {options.fertigationStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label}</option>)}
           </select>
         </div>
         <div>

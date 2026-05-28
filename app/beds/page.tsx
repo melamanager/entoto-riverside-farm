@@ -11,17 +11,7 @@ import { toast } from "sonner";
 import type { Bed, GrowthStage, HealthStatus, Farmer, Valve } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-
-const VARIETIES = [
-  { variety: "California Albion",      origin: "USA — California" },
-  { variety: "Australian San Andreas", origin: "Australia — Victoria" },
-  { variety: "Camarosa",               origin: "USA — California" },
-  { variety: "Festival",               origin: "USA — Florida" },
-  { variety: "Monterey",               origin: "USA — California" },
-];
-
-const STAGES: GrowthStage[] = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"];
-const HEALTH: HealthStatus[] = ["healthy", "warning", "infected"];
+import { useOptions } from "@/lib/use-options";
 
 const EMPTY_FORM = {
   valveId: "", lengthM: 40, plantsPerMeter: 8,
@@ -43,6 +33,7 @@ type HarvestRecord = { id: string; bedId: string; kg: number };
 export default function BedsIndex() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
+  const options = useOptions();
   const [beds, setBeds]     = useState<Bed[]>([]);
   const [valves, setValves] = useState<Valve[]>([]);
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -106,11 +97,11 @@ export default function BedsIndex() {
     const letter = valve?.name.split(" ").pop()?.toUpperCase() ?? "X";
     const existing = beds.filter(b => b.valveId === form.valveId).length;
     const id = `${letter}-BED-${String(existing + 1).padStart(2, "0")}`;
-    const variety = VARIETIES.find(v => v.variety === form.variety) ?? VARIETIES[0];
+    const variety = options.varieties.find(v => v.value === form.variety) ?? options.varieties[0];
     const newBed: Bed = {
       id, valveId: form.valveId, lengthM: form.lengthM,
       plantsPerMeter: form.plantsPerMeter, variety: form.variety,
-      origin: variety.origin, plantedDate: form.plantedDate,
+      origin: String(variety?.meta?.origin ?? ""), plantedDate: form.plantedDate,
       stage: form.stage, health: form.health, farmerId: form.farmerId,
       row: Math.floor(existing / 4), col: existing % 4,
     };
@@ -132,11 +123,11 @@ export default function BedsIndex() {
 
   async function handleEdit() {
     if (!editTarget) return;
-    const variety = VARIETIES.find(v => v.variety === form.variety);
+    const variety = options.varieties.find(v => v.value === form.variety);
     const body = {
       valveId: form.valveId, lengthM: form.lengthM,
       plantsPerMeter: form.plantsPerMeter, variety: form.variety,
-      origin: variety?.origin ?? editTarget.origin,
+      origin: String(variety?.meta?.origin ?? editTarget.origin),
       plantedDate: form.plantedDate, stage: form.stage,
       health: form.health, farmerId: form.farmerId,
     };
@@ -204,7 +195,7 @@ export default function BedsIndex() {
             onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
             className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
           >
-            {VARIETIES.map(v => <option key={v.variety} value={v.variety}>{v.variety}</option>)}
+            {options.varieties.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
           </select>
         </div>
 
@@ -244,7 +235,7 @@ export default function BedsIndex() {
               onChange={e => setForm(p => ({ ...p, stage: e.target.value as GrowthStage }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize"
             >
-              {STAGES.map(s => <option key={s} value={s}>{t.growthStages[s]}</option>)}
+              {options.growthStages.map(s => <option key={s.value} value={s.value}>{t.growthStages[s.value as GrowthStage] ?? s.label}</option>)}
             </select>
           </div>
           <div>
@@ -254,7 +245,7 @@ export default function BedsIndex() {
               onChange={e => setForm(p => ({ ...p, health: e.target.value as HealthStatus }))}
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize"
             >
-              {HEALTH.map(h => <option key={h} value={h} className="capitalize">{h}</option>)}
+              {options.healthStatuses.map(h => <option key={h.value} value={h.value} className="capitalize">{h.label}</option>)}
             </select>
           </div>
         </div>
