@@ -68,7 +68,7 @@ export default function ValvesIndex() {
     setEditTarget(v);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.name.trim()) { toast.error("Valve name is required"); return; }
     if (!form.supervisorId) { toast.error("Please assign a supervisor"); return; }
     const id = `valve-${form.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
@@ -78,28 +78,61 @@ export default function ValvesIndex() {
       supervisorId: form.supervisorId,
       x: 40 + valves.length * 140, y: 60, width: 260, height: 180,
     };
-    setValves(prev => [...prev, newValve]);
-    toast.success(`${newValve.name} created`);
+    const res = await fetch("/api/valves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newValve),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to create valve");
+      return;
+    }
+    const created = await res.json();
+    setValves(prev => [...prev, created]);
+    toast.success(`${created.name} created`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
     if (!form.name.trim()) { toast.error("Valve name is required"); return; }
+    const body = {
+      name: form.name.trim(),
+      color: form.color,
+      irrigationSchedule: form.irrigationSchedule,
+      supervisorId: form.supervisorId,
+    };
+    const res = await fetch(`/api/valves/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to update valve");
+      return;
+    }
+    const updated = await res.json();
     setValves(prev => prev.map(v =>
-      v.id === editTarget.id
-        ? { ...v, name: form.name.trim(), color: form.color, irrigationSchedule: form.irrigationSchedule, supervisorId: form.supervisorId }
-        : v
+      v.id === editTarget.id ? updated : v
     ));
-    toast.success(`${form.name} updated`);
+    toast.success(`${updated.name} updated`);
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
     const hasBeds = beds.some(b => b.valveId === deleteTarget.id);
     if (hasBeds) {
       toast.error("Cannot delete — this valve has active beds assigned to it.");
+      setDeleteTarget(null);
+      return;
+    }
+    const res = await fetch(`/api/valves/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to delete valve");
       setDeleteTarget(null);
       return;
     }

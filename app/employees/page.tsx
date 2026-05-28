@@ -99,11 +99,16 @@ export default function EmployeesPage() {
       nationalId: form.nationalId || undefined,
       emergencyContact: form.emergencyContact || undefined,
     };
-    await fetch("/api/farmers", {
+    const res = await fetch("/api/farmers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to add staff member");
+      return;
+    }
     await fetchFarmers();
     toast.success(`${form.name.trim()} added to staff`);
     setCreateOpen(false);
@@ -122,11 +127,16 @@ export default function EmployeesPage() {
       assignedValves: form.assignedValves,
       joinedDate: form.joinedDate,
     };
-    await fetch(`/api/farmers/${editTarget.id}`, {
+    const res = await fetch(`/api/farmers/${editTarget.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to update staff member");
+      return;
+    }
     await fetchFarmers();
     toast.success(`${form.name.trim()} updated`);
     setEditTarget(null);
@@ -134,6 +144,13 @@ export default function EmployeesPage() {
 
   async function handleDelete() {
     if (!deleteTarget) return;
+    const res = await fetch(`/api/farmers/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to delete staff member");
+      setDeleteTarget(null);
+      return;
+    }
     toast.success(`${deleteTarget.name} removed from staff`);
     setDeleteTarget(null);
     await fetchFarmers();

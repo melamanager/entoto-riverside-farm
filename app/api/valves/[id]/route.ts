@@ -22,3 +22,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   return NextResponse.json(valve);
 }
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const body = await req.json();
+  const valve = await prisma.valve.update({ where: { id }, data: body });
+  return NextResponse.json(valve);
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const bedCount = await prisma.bed.count({ where: { valveId: id } });
+  if (bedCount > 0) {
+    return NextResponse.json(
+      { error: "Cannot delete a valve with active beds." },
+      { status: 409 }
+    );
+  }
+
+  await prisma.valve.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

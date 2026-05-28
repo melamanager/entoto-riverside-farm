@@ -98,7 +98,7 @@ export default function BedsIndex() {
     setEditTarget(b);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.valveId) { toast.error("Please select a valve"); return; }
     if (!form.farmerId) { toast.error("Please assign a farmer"); return; }
     if (form.lengthM <= 0) { toast.error("Length must be > 0"); return; }
@@ -114,8 +114,19 @@ export default function BedsIndex() {
       stage: form.stage, health: form.health, farmerId: form.farmerId,
       row: Math.floor(existing / 4), col: existing % 4,
     };
-    setBeds(prev => [...prev, newBed]);
-    toast.success(`${id} created`);
+    const res = await fetch("/api/beds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newBed),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to create bed");
+      return;
+    }
+    const created = await res.json();
+    setBeds(prev => [...prev, created]);
+    toast.success(`${created.id} created`);
     setCreateOpen(false);
   }
 
@@ -136,8 +147,15 @@ export default function BedsIndex() {
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
+    const res = await fetch(`/api/beds/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to delete bed");
+      setDeleteTarget(null);
+      return;
+    }
     setBeds(prev => prev.filter(b => b.id !== deleteTarget.id));
     toast.success(`${deleteTarget.id} deleted`);
     setDeleteTarget(null);

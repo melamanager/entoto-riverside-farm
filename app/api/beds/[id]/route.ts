@@ -33,3 +33,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const bed = await prisma.bed.update({ where: { id }, data: body });
   return NextResponse.json(bed);
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const related = await prisma.bed.findUnique({
+    where: { id },
+    select: {
+      _count: {
+        select: {
+          harvestRecords: true,
+          diseaseReports: true,
+          tasks: true,
+          attendanceRecords: true,
+          plantingRecords: true,
+          fertigationRecords: true,
+          workerAssignments: true,
+          followUps: true,
+        },
+      },
+    },
+  });
+
+  if (!related) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (Object.values(related._count).some(count => count > 0)) {
+    return NextResponse.json(
+      { error: "Cannot delete a bed with related records." },
+      { status: 409 }
+    );
+  }
+
+  await prisma.bed.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}
