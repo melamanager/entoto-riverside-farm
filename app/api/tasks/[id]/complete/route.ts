@@ -13,6 +13,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const task = await prisma.task.findUnique({ where: { id } });
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (task.assignedTo !== farmerId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (task.status === "done") return NextResponse.json({ error: "Task is already complete" }, { status: 400 });
   if (task.requiresImageProof && !proofImageUrl) return NextResponse.json({ error: "Proof photo required" }, { status: 400 });
 
   const updated = await prisma.task.update({

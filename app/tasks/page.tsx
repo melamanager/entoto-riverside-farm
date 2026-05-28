@@ -12,13 +12,13 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ListChecks, Plus, CheckCircle2, Clock, AlertCircle,
   Upload, ImageIcon, Eye, X, FileImage, ShieldCheck,
-  ClipboardList, Bell, UserPlus, Users, Trash2,
+  ClipboardList, Bell, UserPlus, Users, Trash2, GitBranch,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import type { Task, TaskWorkerAssignment, Farmer, Bed } from "@/lib/types";
+import type { Task, TaskWorkerAssignment, Farmer, Bed, ProgressNote } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
 import { AssignmentsSection } from "./_assignments";
 import { FollowUpsSection } from "./_follow-ups";
@@ -80,6 +80,20 @@ export default function TasksPage() {
     shift: "morning",
   });
 
+  // New state for task flow features
+  const [progressNoteInput, setProgressNoteInput] = useState("");
+  const [completionNoteInput, setCompletionNoteInput] = useState("");
+  const [showCompleteForm, setShowCompleteForm] = useState(false);
+  const [requestCorrectionOpen, setRequestCorrectionOpen] = useState(false);
+  const [correctionForm, setCorrectionForm] = useState({
+    title: "",
+    assignedTo: "",
+    dueDate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
+    priority: "medium" as Task["priority"],
+    category: "general" as Task["category"],
+    description: "",
+  });
+
   const proofInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -91,8 +105,9 @@ export default function TasksPage() {
     fetch("/api/beds").then(r => r.json()).then(setBeds);
   }, []);
 
-  const FARMERS_ONLY = farmers.filter(f => f.role === "farmer");
-  const SUPERVISORS  = farmers.filter(f => f.role === "supervisor");
+  const FARMERS_ONLY  = farmers.filter(f => f.role === "farmer");
+  const SUPERVISORS   = farmers.filter(f => f.role === "supervisor");
+  const SUPERVISORS_AND_MANAGERS = farmers.filter(f => f.role === "supervisor" || f.role === "manager");
   const shiftLabel = (shift: TaskWorkerAssignment["shift"]) =>
     options.shifts.find(s => s.value === shift)?.label ?? shift.replace("_", " ");
 
@@ -104,11 +119,26 @@ export default function TasksPage() {
     return beds.find(b => b.id === bedId);
   }
 
+  /** Replace a task in the tasks array (also updates selectedTask if open) */
+  function replaceTask(updated: Task) {
+    setTasks(prev => prev.map(t => {
+      if (t.id === updated.id) return updated;
+      // Also update if this task appears as a child
+      if (t.children) {
+        return { ...t, children: t.children.map(c => c.id === updated.id ? updated : c) };
+      }
+      return t;
+    }));
+    if (selectedTask?.id === updated.id) setSelectedTask(updated);
+  }
+
   const supervisorId  = user?.id;
   const visibleTasks  = isSupervisor
     ? tasks.filter(t => t.assignedTo === supervisorId)
     : tasks;
-  const filtered   = visibleTasks.filter(t => filter === "all" || t.status === filter);
+  // Top-level only (no parentTaskId) for the main list
+  const topLevelVisible = visibleTasks.filter(t => !t.parentTaskId);
+  const filtered   = topLevelVisible.filter(t => filter === "all" || t.status === filter);
   const pending    = visibleTasks.filter(t => t.status === "pending").length;
   const inProgress = visibleTasks.filter(t => t.status === "in_progress").length;
   const done       = visibleTasks.filter(t => t.status === "done").length;
@@ -126,7 +156,7 @@ export default function TasksPage() {
     reader.readAsDataURL(file);
   }
 
-  /* ── Task status update ──────────────────────────────────────────── */
+  /* ── Task status update (legacy, kept for safety) ───────────────── */
   async function updateStatus(taskId: string, status: Task["status"]) {
     const patchBody: Partial<Task> = {
       status,
@@ -161,6 +191,99 @@ export default function TasksPage() {
       setProofImage(null);
       setProofImageName("");
     }
+  }
+
+  /* ── New action API helpers ──────────────────────────────────────── */
+  async function startTask(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}/start`, { method: "PATCH" });
+    if (!res.ok) { toast.error("Could not start task"); return; }
+    const updated: Task = await res.json();
+    replaceTask(updated);
+    toast.success("Task started");
+  }
+
+  async function addProgressNote(taskId: string, note: string) {
+    if (!note.trim()) return;
+    const res = await fetch(`/api/tasks/${taskId}/progress`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
+    if (!res.ok) { toast.error("Could not add note"); return; }
+    const updated: Task = await res.json();
+    replaceTask(updated);
+    setProgressNoteInput("");
+    toast.success("Progress note added");
+  }
+
+  async function completeTask(taskId: string, completionNote: string, proofImageUrl?: string) {
+    const res = await fetch(`/api/tasks/${taskId}/complete`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completionNote: completionNote || undefined, proofImageUrl }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string };
+      toast.error(err.error ?? "Could not complete task");
+      return;
+    }
+    const updated: Task = await res.json();
+    replaceTask(updated);
+    setShowCompleteForm(false);
+    setCompletionNoteInput("");
+    setProofImage(null);
+    setProofImageName("");
+    toast.success("Task completed ✓");
+  }
+
+  async function approveTask(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}/approve`, { method: "PATCH" });
+    if (!res.ok) { toast.error("Could not approve task"); return; }
+    const updated: Task = await res.json();
+    replaceTask(updated);
+    toast.success("Task approved ✓");
+  }
+
+  async function submitCorrection(taskId: string) {
+    if (!correctionForm.title.trim() || !correctionForm.assignedTo) {
+      toast.error("Title and assignee required");
+      return;
+    }
+    const res = await fetch(`/api/tasks/${taskId}/followup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: correctionForm.title.trim(),
+        description: correctionForm.description.trim(),
+        assignedTo: correctionForm.assignedTo,
+        dueDate: correctionForm.dueDate,
+        priority: correctionForm.priority,
+        category: correctionForm.category,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string };
+      toast.error(err.error ?? "Could not create correction task");
+      return;
+    }
+    const newChild: Task = await res.json();
+    // Add child to parent task in state
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, children: [...(t.children ?? []), newChild] };
+      }
+      return t;
+    }));
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(prev => prev ? { ...prev, children: [...(prev.children ?? []), newChild] } : prev);
+    }
+    setRequestCorrectionOpen(false);
+    setCorrectionForm({
+      title: "", assignedTo: "", description: "",
+      dueDate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
+      priority: "medium", category: "general",
+    });
+    toast.success("Correction task created");
   }
 
   /* ── Worker assignments ──────────────────────────────────────────── */
@@ -269,6 +392,15 @@ export default function TasksPage() {
     setShowMgrActions(false);
     setManagerNote("");
     setExtendDate("");
+    setProgressNoteInput("");
+    setCompletionNoteInput("");
+    setShowCompleteForm(false);
+    setRequestCorrectionOpen(false);
+    setCorrectionForm({
+      title: "", assignedTo: "", description: "",
+      dueDate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
+      priority: "medium", category: "general",
+    });
   }
 
   async function sendOverdueReminder(task: Task) {
@@ -329,6 +461,98 @@ export default function TasksPage() {
   }
 
   const canCreateTask = isManager || isSupervisor;
+
+  /* ── Render a single task card ───────────────────────────────────── */
+  function renderTaskCard(task: Task, isChild = false) {
+    const farmer  = getFarmer(task.assignedTo);
+    const creator = getFarmer(task.createdBy);
+    const bed     = task.bedId ? getBed(task.bedId) : null;
+    const overdue = task.status !== "done" && task.dueDate < TODAY;
+    const workerCount = task.workerAssignments?.length ?? 0;
+    return (
+      <Card key={task.id}
+        className={`border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer ${isChild ? "border-l-4 border-l-blue-400 ml-6" : ""}`}
+        onClick={() => openTask(task)}>
+        <div className="flex items-start gap-4 p-4">
+          <span className={`size-2.5 rounded-full mt-1.5 shrink-0 ${PRIORITY_COLORS[task.priority]}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-2 flex-wrap">
+              {isChild && (
+                <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                  <GitBranch className="size-2.5" /> Follow-up
+                </span>
+              )}
+              <span className={`font-semibold text-sm ${task.status === "done" ? "line-through text-slate-400" : "text-slate-900"}`}>
+                {task.title}
+              </span>
+              <Badge className={`text-[10px] capitalize ${CATEGORY_COLORS[task.category]}`}>{task.category}</Badge>
+              {overdue && <Badge variant="destructive" className="text-[10px]">Overdue</Badge>}
+              {task.requiresImageProof && (
+                <Badge className="text-[10px] bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 gap-0.5">
+                  <ImageIcon className="size-2.5" /> Photo Required
+                </Badge>
+              )}
+              {task.requiresFollowUp && (
+                <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 gap-0.5">
+                  <Bell className="size-2.5" /> Follow-up
+                </Badge>
+              )}
+              {bed && (
+                <Link href={`/beds/${bed.id}`} onClick={e => e.stopPropagation()}
+                  className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-200">
+                  {bed.id}
+                </Link>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-1 line-clamp-1">{task.description}</p>
+            {task.progressNote && (
+              <div className="mt-2 text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1 italic">
+                &ldquo;{task.progressNote}&rdquo;
+              </div>
+            )}
+            {task.proofImageUrl && (
+              <button onClick={e => { e.stopPropagation(); setPreviewUrl(task.proofImageUrl!); }}
+                className="mt-1.5 flex items-center gap-1.5 text-[11px] text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded hover:bg-purple-100 transition-colors">
+                <FileImage className="size-3" /> View proof photo
+              </button>
+            )}
+            <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400">
+              <span>By {creator?.name.split(" ")[0]}</span>
+              <span>·</span>
+              <span>Due {new Date(task.dueDate).toLocaleDateString("en", { month: "short", day: "numeric" })}</span>
+              {workerCount > 0 && (
+                <span className="flex items-center gap-1 text-blue-500">
+                  <Users className="size-3" /> {workerCount} worker{workerCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {task.completedAt && (
+                <><span>·</span><span className="text-emerald-600">✓ Done {new Date(task.completedAt).toLocaleDateString("en", { month: "short", day: "numeric" })}</span></>
+              )}
+              {task.reviewedAt && (
+                <><span>·</span><span className="text-emerald-700 font-semibold">✓ Approved</span></>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <Avatar className="size-7">
+                <AvatarFallback className="bg-slate-100 text-slate-700 text-[10px] font-bold">{farmer?.avatar}</AvatarFallback>
+              </Avatar>
+              <div className="hidden sm:block">
+                <div className="text-[11px] font-semibold text-slate-700">{farmer?.name.split(" ")[0]}</div>
+                <div className="text-[10px] text-slate-400 capitalize">{farmer?.role}</div>
+              </div>
+            </div>
+            <Badge className={`text-[10px] capitalize ${
+              task.status === "done" ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100" :
+              task.status === "in_progress" ? "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100" :
+              "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100"
+            }`}>{task.status.replace("_", " ")}</Badge>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -451,7 +675,7 @@ export default function TasksPage() {
             ))}
           </div>
 
-          {/* Task list */}
+          {/* Task list — top-level with indented children */}
           <div className="space-y-2">
             {filtered.length === 0 && (
               <div className="text-center py-12 text-slate-400">
@@ -459,92 +683,21 @@ export default function TasksPage() {
                 <p className="text-sm">{t.tasks.noTasks}</p>
               </div>
             )}
-            {filtered.map(task => {
-              const farmer  = getFarmer(task.assignedTo);
-              const creator = getFarmer(task.createdBy);
-              const bed     = task.bedId ? getBed(task.bedId) : null;
-              const overdue = task.status !== "done" && task.dueDate < TODAY;
-              const workerCount = task.workerAssignments?.length ?? 0;
-              return (
-                <Card key={task.id}
-                  className="border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
-                  onClick={() => openTask(task)}>
-                  <div className="flex items-start gap-4 p-4">
-                    <span className={`size-2.5 rounded-full mt-1.5 shrink-0 ${PRIORITY_COLORS[task.priority]}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-2 flex-wrap">
-                        <span className={`font-semibold text-sm ${task.status === "done" ? "line-through text-slate-400" : "text-slate-900"}`}>
-                          {task.title}
-                        </span>
-                        <Badge className={`text-[10px] capitalize ${CATEGORY_COLORS[task.category]}`}>{task.category}</Badge>
-                        {overdue && <Badge variant="destructive" className="text-[10px]">Overdue</Badge>}
-                        {task.requiresImageProof && (
-                          <Badge className="text-[10px] bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 gap-0.5">
-                            <ImageIcon className="size-2.5" /> Photo Required
-                          </Badge>
-                        )}
-                        {task.requiresFollowUp && (
-                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 gap-0.5">
-                            <Bell className="size-2.5" /> Follow-up
-                          </Badge>
-                        )}
-                        {bed && (
-                          <Link href={`/beds/${bed.id}`} onClick={e => e.stopPropagation()}
-                            className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-200">
-                            {bed.id}
-                          </Link>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-1">{task.description}</p>
-                      {task.progressNote && (
-                        <div className="mt-2 text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1 italic">
-                          "{task.progressNote}"
-                        </div>
-                      )}
-                      {task.proofImageUrl && (
-                        <button onClick={e => { e.stopPropagation(); setPreviewUrl(task.proofImageUrl!); }}
-                          className="mt-1.5 flex items-center gap-1.5 text-[11px] text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded hover:bg-purple-100 transition-colors">
-                          <FileImage className="size-3" /> View proof photo
-                        </button>
-                      )}
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400">
-                        <span>By {creator?.name.split(" ")[0]}</span>
-                        <span>·</span>
-                        <span>Due {new Date(task.dueDate).toLocaleDateString("en", { month: "short", day: "numeric" })}</span>
-                        {workerCount > 0 && (
-                          <span className="flex items-center gap-1 text-blue-500">
-                            <Users className="size-3" /> {workerCount} worker{workerCount > 1 ? "s" : ""}
-                          </span>
-                        )}
-                        {task.completedAt && (
-                          <><span>·</span><span className="text-emerald-600">✓ Done {new Date(task.completedAt).toLocaleDateString("en", { month: "short", day: "numeric" })}</span></>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="size-7">
-                          <AvatarFallback className="bg-slate-100 text-slate-700 text-[10px] font-bold">{farmer?.avatar}</AvatarFallback>
-                        </Avatar>
-                        <div className="hidden sm:block">
-                          <div className="text-[11px] font-semibold text-slate-700">{farmer?.name.split(" ")[0]}</div>
-                          <div className="text-[10px] text-slate-400 capitalize">{farmer?.role}</div>
-                        </div>
-                      </div>
-                      <Badge className={`text-[10px] capitalize ${
-                        task.status === "done" ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100" :
-                        task.status === "in_progress" ? "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100" :
-                        "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100"
-                      }`}>{task.status.replace("_", " ")}</Badge>
-                    </div>
+            {filtered.map(task => (
+              <div key={task.id} className="space-y-1.5">
+                {renderTaskCard(task, false)}
+                {/* Indented follow-up children */}
+                {(task.children ?? []).length > 0 && (
+                  <div className="space-y-1.5">
+                    {(task.children ?? []).map(child => renderTaskCard(child, true))}
                   </div>
-                </Card>
-              );
-            })}
+                )}
+              </div>
+            ))}
           </div>
 
           {/* ── Task detail dialog ──────────────────────────────────────── */}
-          <Dialog open={!!selectedTask} onOpenChange={o => { if (!o) { setSelectedTask(null); setAssignWorkerOpen(false); } }}>
+          <Dialog open={!!selectedTask} onOpenChange={o => { if (!o) { setSelectedTask(null); setAssignWorkerOpen(false); setShowCompleteForm(false); setRequestCorrectionOpen(false); setProgressNoteInput(""); setCompletionNoteInput(""); setManagerNote(""); setExtendDate(""); } }}>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 pr-6">
@@ -554,6 +707,18 @@ export default function TasksPage() {
               </DialogHeader>
               {selectedTask && (
                 <div className="space-y-4">
+
+                  {/* Follow-up for parent info box */}
+                  {selectedTask.parentTaskId && (() => {
+                    const parent = tasks.find(t => t.id === selectedTask.parentTaskId);
+                    return (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                        <GitBranch className="size-3.5 shrink-0" />
+                        <span>Follow-up for: <span className="font-semibold">{parent?.title ?? selectedTask.parentTaskId}</span></span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Status badges */}
                   <div className="flex flex-wrap gap-2">
                     <Badge className={`text-[10px] capitalize ${CATEGORY_COLORS[selectedTask.category]}`}>{selectedTask.category}</Badge>
@@ -571,6 +736,11 @@ export default function TasksPage() {
                     {selectedTask.requiresFollowUp && (
                       <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 gap-0.5">
                         <Bell className="size-2.5" /> Follow-up {selectedTask.followUpDueDate ? `by ${new Date(selectedTask.followUpDueDate).toLocaleDateString("en", { month: "short", day: "numeric" })}` : ""}
+                      </Badge>
+                    )}
+                    {selectedTask.reviewedAt && (
+                      <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 gap-0.5">
+                        <CheckCircle2 className="size-2.5" /> Approved
                       </Badge>
                     )}
                   </div>
@@ -598,7 +768,31 @@ export default function TasksPage() {
                         <Link href={`/beds/${selectedTask.bedId}`} className="font-mono font-semibold text-emerald-700 hover:underline">{selectedTask.bedId}</Link>
                       </div>
                     )}
+                    {selectedTask.reviewedAt && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Approved by</span>
+                        <span className="font-semibold text-emerald-700">
+                          {selectedTask.reviewedBy ? (getFarmer(selectedTask.reviewedBy)?.name ?? selectedTask.reviewedBy) : "Manager"} on {new Date(selectedTask.reviewedAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                        </span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* ── Completion note (if done) ─────────────────────── */}
+                  {selectedTask.status === "done" && selectedTask.completionNote && (
+                    <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <div className="text-xs font-semibold text-emerald-800 mb-1">Completion Note</div>
+                      <p className="text-xs text-emerald-700 italic">&ldquo;{selectedTask.completionNote}&rdquo;</p>
+                    </div>
+                  )}
+
+                  {/* ── Approved badge (full) ─────────────────────────── */}
+                  {selectedTask.reviewedAt && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+                      <CheckCircle2 className="size-3.5 shrink-0" />
+                      <span>Approved by <span className="font-semibold">{getFarmer(selectedTask.reviewedBy ?? "")?.name ?? selectedTask.reviewedBy}</span> on {new Date(selectedTask.reviewedAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}</span>
+                    </div>
+                  )}
 
                   {/* ── Worker assignment section ──────────────────────── */}
                   <div className="rounded-lg border border-slate-200 overflow-hidden">
@@ -677,6 +871,55 @@ export default function TasksPage() {
                     </div>
                   </div>
 
+                  {/* ── Progress notes timeline ───────────────────────── */}
+                  {(selectedTask.progressNotes ?? []).length > 0 && (
+                    <div className="rounded-lg border border-slate-200 overflow-hidden">
+                      <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+                        <span className="text-xs font-semibold text-slate-700">Progress Notes</span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {(selectedTask.progressNotes as ProgressNote[]).map((pn, i) => {
+                          const noteAuthor = getFarmer(pn.by);
+                          return (
+                            <div key={i} className="flex items-start gap-3 px-3 py-2.5">
+                              <Avatar className="size-6 shrink-0 mt-0.5">
+                                <AvatarFallback className="bg-blue-100 text-blue-700 text-[9px] font-bold">{noteAuthor?.avatar ?? pn.by.slice(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <span className="text-[11px] font-semibold text-slate-700">{noteAuthor?.name ?? pn.by}</span>
+                                  <span className="text-[10px] text-slate-400">{new Date(pn.at).toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <p className="text-xs text-slate-600">{pn.note}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add progress note (shown when task not done) */}
+                  {selectedTask.status !== "done" && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1.5">Add Progress Note</label>
+                      <div className="flex gap-2">
+                        <input
+                          value={progressNoteInput}
+                          onChange={e => setProgressNoteInput(e.target.value)}
+                          placeholder="Describe progress, issues encountered…"
+                          className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addProgressNote(selectedTask.id, progressNoteInput); } }}
+                        />
+                        <Button size="sm" variant="outline" className="text-xs shrink-0"
+                          disabled={!progressNoteInput.trim()}
+                          onClick={() => addProgressNote(selectedTask.id, progressNoteInput)}>
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Manager overdue actions ──────────────────────── */}
                   {isManager && selectedTask.status !== "done" && selectedTask.dueDate < TODAY && (
                     <div className="rounded-lg border border-red-200 overflow-hidden">
@@ -728,7 +971,7 @@ export default function TasksPage() {
                             <div className="text-xs font-semibold text-slate-700 mb-1.5">⚠️ Penalty / Escalation Note</div>
                             {selectedTask.managerNote && (
                               <div className="mb-1.5 text-[11px] bg-red-100 text-red-800 border border-red-200 rounded px-2 py-1.5 italic">
-                                "{selectedTask.managerNote}"
+                                &ldquo;{selectedTask.managerNote}&rdquo;
                               </div>
                             )}
                             <div className="flex gap-2">
@@ -750,12 +993,6 @@ export default function TasksPage() {
                   {/* ── Progress / completion ──────────────────────────── */}
                   {selectedTask.status !== "done" && (
                     <>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Progress Note</label>
-                        <Textarea value={progressNote} onChange={e => setProgressNote(e.target.value)}
-                          placeholder="Describe what was done, any issues encountered…"
-                          className="text-sm resize-none" rows={3} />
-                      </div>
                       <div>
                         <label className={`text-xs font-semibold block mb-1.5 ${selectedTask.requiresImageProof ? "text-purple-700" : "text-slate-700"}`}>
                           Completion Photo {selectedTask.requiresImageProof
@@ -790,20 +1027,53 @@ export default function TasksPage() {
                           </button>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        {selectedTask.status === "pending" && (
-                          <Button variant="outline" className="flex-1 text-sm"
-                            onClick={() => updateStatus(selectedTask.id, "in_progress")}>
-                            <Clock className="size-3.5 mr-1.5" /> Start Task
+
+                      {/* Start / Complete buttons */}
+                      {!showCompleteForm && (
+                        <div className="flex gap-2">
+                          {selectedTask.status === "pending" && (
+                            <Button variant="outline" className="flex-1 text-sm"
+                              onClick={() => startTask(selectedTask.id)}>
+                              <Clock className="size-3.5 mr-1.5" /> Start Task
+                            </Button>
+                          )}
+                          <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-sm"
+                            onClick={() => setShowCompleteForm(true)}>
+                            <CheckCircle2 className="size-3.5 mr-1.5" /> Mark Complete
                           </Button>
-                        )}
-                        <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-sm"
-                          disabled={selectedTask.requiresImageProof && !proofImage}
-                          onClick={() => updateStatus(selectedTask.id, "done")}>
-                          <CheckCircle2 className="size-3.5 mr-1.5" /> Mark Complete
-                        </Button>
-                      </div>
-                      {selectedTask.requiresImageProof && !proofImage && (
+                        </div>
+                      )}
+
+                      {/* Inline complete form */}
+                      {showCompleteForm && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-3">
+                          <div className="text-xs font-semibold text-emerald-800">Complete Task</div>
+                          <div>
+                            <label className="text-xs font-semibold text-slate-700 block mb-1">Completion note</label>
+                            <Textarea
+                              value={completionNoteInput}
+                              onChange={e => setCompletionNoteInput(e.target.value)}
+                              placeholder="Describe what was completed, any notes…"
+                              className="text-sm resize-none" rows={3}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-sm"
+                              disabled={selectedTask.requiresImageProof && !proofImage}
+                              onClick={() => completeTask(selectedTask.id, completionNoteInput, proofImage ?? undefined)}>
+                              <CheckCircle2 className="size-3.5 mr-1.5" /> Confirm Complete
+                            </Button>
+                            <Button variant="outline" className="text-sm" onClick={() => setShowCompleteForm(false)}>
+                              Cancel
+                            </Button>
+                          </div>
+                          {selectedTask.requiresImageProof && !proofImage && (
+                            <p className="text-[11px] text-purple-600 -mt-1">Upload a proof photo to complete this task</p>
+                          )}
+                        </div>
+                      )}
+
+                      {!showCompleteForm && selectedTask.requiresImageProof && !proofImage && (
                         <p className="text-[11px] text-purple-600 text-center -mt-2">Upload a proof photo to complete this task</p>
                       )}
                     </>
@@ -822,6 +1092,92 @@ export default function TasksPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* ── Manager approval section ──────────────────────── */}
+                  {isManager && selectedTask.status === "done" && !selectedTask.reviewedAt && (
+                    <div className="rounded-lg border border-emerald-200 overflow-hidden">
+                      <div className="px-3 py-2 bg-emerald-50 border-b border-emerald-200">
+                        <span className="text-xs font-semibold text-emerald-800">Manager Review</span>
+                      </div>
+                      <div className="p-3 space-y-3">
+                        {!requestCorrectionOpen ? (
+                          <div className="flex gap-2">
+                            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-sm"
+                              onClick={() => approveTask(selectedTask.id)}>
+                              <CheckCircle2 className="size-3.5 mr-1.5" /> Approve
+                            </Button>
+                            <Button variant="outline" className="flex-1 text-sm border-amber-300 text-amber-700 hover:bg-amber-50"
+                              onClick={() => {
+                                setRequestCorrectionOpen(true);
+                                setCorrectionForm(p => ({
+                                  ...p,
+                                  title: `Correction: ${selectedTask.title}`,
+                                  assignedTo: SUPERVISORS_AND_MANAGERS[0]?.id ?? "",
+                                }));
+                              }}>
+                              Request Correction
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            <div className="text-xs font-semibold text-amber-800">Create Correction Task</div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-600 block mb-1">Title</label>
+                              <input
+                                value={correctionForm.title}
+                                onChange={e => setCorrectionForm(p => ({ ...p, title: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-600 block mb-1">Description</label>
+                              <Textarea
+                                value={correctionForm.description}
+                                onChange={e => setCorrectionForm(p => ({ ...p, description: e.target.value }))}
+                                placeholder="What needs to be corrected?"
+                                rows={2}
+                                className="text-xs resize-none"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Assign to</label>
+                                <select
+                                  value={correctionForm.assignedTo}
+                                  onChange={e => setCorrectionForm(p => ({ ...p, assignedTo: e.target.value }))}
+                                  className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs bg-white"
+                                >
+                                  {SUPERVISORS_AND_MANAGERS.map(f => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Due date</label>
+                                <input
+                                  type="date"
+                                  value={correctionForm.dueDate}
+                                  onChange={e => setCorrectionForm(p => ({ ...p, dueDate: e.target.value }))}
+                                  className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-sm"
+                                onClick={() => submitCorrection(selectedTask.id)}>
+                                Create Task
+                              </Button>
+                              <Button variant="outline" className="text-sm"
+                                onClick={() => setRequestCorrectionOpen(false)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               )}
             </DialogContent>
