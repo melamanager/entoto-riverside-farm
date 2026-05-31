@@ -4,406 +4,471 @@ import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
-  Zap, Sparkles, Bot, AlertTriangle, TrendingUp,
-  CheckCircle2, Wheat, DollarSign, Bug, Droplets, Users,
-  Send, RefreshCw, ChevronRight, Activity,
+  Zap, Sparkles, Bot, AlertTriangle, CheckCircle2, TrendingUp,
+  Droplets, Bug, Users, Send, Activity, ChevronRight, Sprout,
+  Shield, Cpu, Clock, BarChart3, Wind, Thermometer, CloudRain,
+  ToggleLeft, ToggleRight, RefreshCw, Wheat, Play,
 } from "lucide-react";
-import { useLang } from "@/lib/lang";
-import { EN, AM } from "@/lib/translations";
-import type { Bed, HarvestRecord, DiseaseReport, Valve, Farmer } from "@/lib/types";
-import type { CustomerOrder, FertigationRecord, WorkerAssignment } from "@/lib/erp-types";
+import {
+  BEDS, HARVESTS, DISEASES, FARMERS, VALVES, VALVE_STATES,
+  SOIL_READINGS, CAMERA_ALERTS, WEATHER_CURRENT, ATTENDANCE, TANK_LEVELS,
+} from "@/lib/data";
 
-// ── Alert engine ──────────────────────────────────────────────────────────────
+const TODAY = "2026-05-20";
 
-type AlertSeverity = "critical" | "warning" | "info";
-interface AIAlert {
-  id: string;
-  severity: AlertSeverity;
-  category: string;
-  title: string;
-  detail: string;
-  confidence: number;
-  action: string;
-  href?: string;
+// ─── Gray Mold (Botrytis) risk score ────────────────────────────────────────
+function calcMoldRisk() {
+  const w = WEATHER_CURRENT;
+  const soil = SOIL_READINGS();
+  const dewGap = w.tempC - w.dewPointC;
+  let score = 0;
+  if (w.humidityPct > 85) score += 35;
+  else if (w.humidityPct > 75) score += 20;
+  else if (w.humidityPct > 65) score += 8;
+  if (dewGap < 2) score += 40;
+  else if (dewGap < 4) score += 25;
+  else if (dewGap < 6) score += 10;
+  if (w.rainfallMm24h > 10) score += 20;
+  else if (w.rainfallMm24h > 5) score += 10;
+  else if (w.rainfallMm24h > 2) score += 5;
+  const avgMoisture = soil.reduce((s, r) => s + r.moisturePct, 0) / (soil.length || 1);
+  if (avgMoisture > 85) score += 15;
+  else if (avgMoisture > 75) score += 8;
+  return {
+    score: Math.min(100, Math.round(score)),
+    avgMoisture: Math.round(avgMoisture),
+    dewGap: Math.round(dewGap * 10) / 10,
+    humidity: w.humidityPct,
+    rainfall: w.rainfallMm24h,
+    temp: w.tempC,
+  };
 }
 
-function buildAlerts(
-  beds: Bed[],
-  diseases: DiseaseReport[],
-  valves: Valve[],
-  customerOrders: CustomerOrder[],
-  fertigationRecords: FertigationRecord[],
-  workerAssignments: WorkerAssignment[],
-  today: string,
-): AIAlert[] {
-  const alerts: AIAlert[] = [];
+// ─── Thirst forecast — when will each bed need water? ───────────────────────
+function calcThirstForecast() {
+  const w = WEATHER_CURRENT;
+  const soil = SOIL_READINGS();
+  const beds = BEDS();
+  const vs = VALVE_STATES;
+  const evapRate = Math.max(0.4, (w.tempC / 28) * (w.solarWm2 / 500) * 1.8);
+  return soil.map(r => {
+    const bed = beds.find(b => b.id === r.bedId);
+    const valveState = vs.find(v => v.valveId === bed?.valveId);
+    const isWatered = valveState?.isOpen ?? false;
+    const drainPerHr = isWatered ? 0 : evapRate + 0.5;
+    const hoursToThirsty = drainPerHr > 0 ? Math.max(0, (r.moisturePct - 60) / drainPerHr) : 999;
+    const urgency: "urgent" | "soon" | "ok" = hoursToThirsty < 4 ? "urgent" : hoursToThirsty < 14 ? "soon" : "ok";
+    return {
+      bedId: r.bedId,
+      valve: bed?.valveId ?? "",
+      moisture: Math.round(r.moisturePct),
+      hours: Math.round(hoursToThirsty),
+      urgency,
+      isWatered,
+    };
+  }).sort((a, b) => a.hours - b.hours);
+}
 
-  // Infected beds with untreated disease
-  diseases.filter(d => !d.treatmentApplied && d.status !== "resolved").forEach(d => {
+// ─── Worker attendance vs harvest: "Something doesn't add up" ───────────────
+function calcWorkerAnomaly() {
+  const harvests = HARVESTS();
+  const attendance = ATTENDANCE();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date("2026-05-17");
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().split("T")[0];
+  });
+  const rows = days.map(date => {
+    const kg = harvests.filter(h => h.date === date).reduce((s, h) => s + Number(h.kg), 0);
+    const workers = attendance.filter(a => a.date === date && (a.status === "present" || a.status === "late")).length;
+    const kgPerWorker = workers > 0 ? kg / workers : 0;
+    const d = new Date(date);
+    return {
+      date,
+      label: d.toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" }),
+      kg: Math.round(kg * 10) / 10,
+      workers,
+      kgPerWorker: Math.round(kgPerWorker * 10) / 10,
+      anomaly: false,
+    };
+  });
+  const avg = rows.reduce((s, r) => s + r.kgPerWorker, 0) / (rows.length || 1);
+  const std = Math.sqrt(rows.reduce((s, r) => s + Math.pow(r.kgPerWorker - avg, 2), 0) / (rows.length || 1));
+  return rows.map(r => ({ ...r, anomaly: r.kgPerWorker < avg - std * 0.8 && r.workers > 2, avg: Math.round(avg * 10) / 10 }));
+}
+
+// ─── Smart Alerts ────────────────────────────────────────────────────────────
+type AlertSev = "urgent" | "watch" | "good";
+interface FarmAlert { id: string; sev: AlertSev; icon: string; title: string; detail: string; action: string; href: string }
+
+function buildAlerts(): FarmAlert[] {
+  const beds = BEDS();
+  const diseases = DISEASES();
+  const soil = SOIL_READINGS();
+  const cameras = CAMERA_ALERTS;
+  const tank = TANK_LEVELS[0];
+  const tankPct = Math.round((tank.currentL / tank.capacityL) * 100);
+  const alerts: FarmAlert[] = [];
+
+  diseases.filter(d => d.status !== "resolved" && !d.treatmentApplied).forEach(d => {
     alerts.push({
-      id: `alert-disease-${d.id}`,
-      severity: d.severity > 50 ? "critical" : "warning",
-      category: "Disease",
-      title: `Untreated infection in ${d.bedId}`,
-      detail: `${d.type.replace("_", " ")} detected with ${d.severity}% severity. Treatment not yet applied — yield loss risk is high.`,
-      confidence: d.aiConfidence ?? 80,
-      action: "Apply treatment now",
-      href: "/diseases",
+      id: `d-${d.id}`, sev: d.severity > 50 ? "urgent" : "watch", icon: "🦠",
+      title: `${d.bedId} has an untreated infection`,
+      detail: `${d.type.replace(/_/g, " ")} was found there and is affecting ${d.severity}% of the bed. The longer we wait, the more it spreads to nearby beds.`,
+      action: "Go treat it", href: "/diseases",
     });
   });
 
-  // Ripening beds ready for harvest
-  beds.filter(b => b.stage === "ripening").forEach(b => {
-    const plants = b.lengthM * b.plantsPerMeter;
+  beds.filter(b => b.stage === "harvest" || b.stage === "ripening").slice(0, 3).forEach(b => {
     alerts.push({
-      id: `alert-harvest-${b.id}`,
-      severity: "info",
-      category: "Harvest",
-      title: `${b.id} is entering peak ripeness`,
-      detail: `${b.variety} in ${b.id} (${b.lengthM}m, ${plants} plants) projected to be at peak in 2–4 days. Schedule harvest team.`,
-      confidence: 84 + (b.lengthM % 10),
-      action: "Schedule harvest",
-      href: "/assignments",
+      id: `r-${b.id}`, sev: "good", icon: "🍓",
+      title: `${b.id} berries are ready to pick`,
+      detail: `${b.variety} in ${b.id} is at peak ripeness. Waiting too long means softer berries and lower selling price.`,
+      action: "Schedule harvest team", href: "/harvest",
     });
   });
 
-  // Overdue customer deliveries
-  customerOrders.filter(o => o.deliveryStatus === "pending" && o.deliveryDate < today).forEach(o => {
-    const balance = o.totalAmount - o.advancePaid;
+  cameras.filter(a => a.status === "new").slice(0, 2).forEach(a => {
     alerts.push({
-      id: `alert-order-${o.id}`,
-      severity: "critical",
-      category: "Revenue",
-      title: `Overdue delivery — ${o.customerName}`,
-      detail: `Order of ${o.quantityKg}kg due on ${new Date(o.deliveryDate).toLocaleDateString("en", { month: "short", day: "numeric" })}. Balance outstanding: ${balance.toLocaleString()} ETB.`,
-      confidence: 99,
-      action: "Update delivery status",
-      href: "/orders",
+      id: `c-${a.id}`, sev: "watch", icon: "📷",
+      title: `Camera spotted something in ${a.bedId}`,
+      detail: `The camera thinks it sees "${a.label}" — it's ${Math.round(a.confidence * 100)}% sure. A person should go take a look to confirm.`,
+      action: "Go review", href: "/iot",
     });
   });
 
-  // Upcoming scheduled fertigation today
-  fertigationRecords.filter(r => r.status === "scheduled" && r.applicationDate === today).forEach(r => {
-    const valve = valves.find(v => v.id === r.valveId);
+  soil.filter(s => s.status === "critical").slice(0, 2).forEach(s => {
     alerts.push({
-      id: `alert-fert-${r.id}`,
-      severity: "warning",
-      category: "Fertigation",
-      title: `${r.fertilizerType} due today — ${valve?.name}`,
-      detail: `${r.waterVolumeLiters}L via ${r.applicationMethod} method. Application window: 06:00–10:00 for best uptake.`,
-      confidence: 97,
-      action: "Mark as applied",
-      href: "/fertigation",
+      id: `s-${s.bedId}`, sev: "watch", icon: "💧",
+      title: `Soil sensors in ${s.bedId} need attention`,
+      detail: `Moisture reading is ${s.moisturePct.toFixed(0)}% — outside the normal range. Plants there may be struggling.`,
+      action: "Check the bed", href: "/iot",
     });
   });
 
-  // Warning beds that haven't been inspected
-  beds.filter(b => b.health === "warning").forEach(b => {
-    const hasActiveDisease = diseases.some(d => d.bedId === b.id && d.status !== "resolved");
-    if (!hasActiveDisease) {
-      alerts.push({
-        id: `alert-warn-${b.id}`,
-        severity: "warning",
-        category: "Disease",
-        title: `${b.id} flagged — no active inspection`,
-        detail: `Bed health marked "warning" but no disease report on file. Possible early-stage pathogen or stress. Recommend visual inspection today.`,
-        confidence: 72 + (b.lengthM % 15),
-        action: "File disease report",
-        href: "/diseases",
-      });
-    }
-  });
-
-  // Pending high-priority tasks overdue
-  const pendingHighTasks = workerAssignments.filter(a => a.status === "assigned" && a.date < today);
-  if (pendingHighTasks.length > 0) {
+  if (tankPct < 30) {
     alerts.push({
-      id: "alert-tasks-overdue",
-      severity: "warning",
-      category: "Workforce",
-      title: `${pendingHighTasks.length} assignment(s) from prior days not completed`,
-      detail: `Workers have uncompleted assignments from previous shifts. Check for blockers or reassign.`,
-      confidence: 95,
-      action: "Review assignments",
-      href: "/assignments",
+      id: "tank-low", sev: tankPct < 15 ? "urgent" : "watch", icon: "🪣",
+      title: `Water tank is running low — ${tankPct}% left`,
+      detail: `At the current rate of watering, the tank has about ${Math.round(tank.currentL / 1500)} hours left. Plan a refill soon.`,
+      action: "Check tank level", href: "/iot",
     });
   }
 
-  return alerts.sort((a, b) => {
-    const rank = { critical: 0, warning: 1, info: 2 };
-    return rank[a.severity] - rank[b.severity];
-  });
+  return alerts.sort((a, b) => ({ urgent: 0, watch: 1, good: 2 }[a.sev] - { urgent: 0, watch: 1, good: 2 }[b.sev]));
 }
 
-// ── Harvest forecast ──────────────────────────────────────────────────────────
-
-function buildForecast(beds: Bed[], today: string) {
-  const todayDate = new Date(today);
+// ─── 14-day harvest forecast ─────────────────────────────────────────────────
+function buildForecast() {
+  const beds = BEDS();
   return Array.from({ length: 14 }, (_, i) => {
-    const date = new Date(todayDate);
-    date.setDate(date.getDate() + i);
-    const label = date.toLocaleDateString("en", { month: "short", day: "numeric" });
-
-    // Project yield: beds in ripening/harvest stage, weighted by days ahead
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() + i);
+    const label = d.toLocaleDateString("en", { month: "short", day: "numeric" });
     let kg = 0;
     beds.forEach(b => {
       if (!["fruiting", "ripening", "harvest"].includes(b.stage)) return;
-      const stageWeight = b.stage === "harvest" ? 1 : b.stage === "ripening" ? 0.85 : 0.4;
-      const healthMultiplier = b.health === "healthy" ? 1 : b.health === "warning" ? 0.7 : 0.3;
-      // Ripeness curve: peaks day 2–5, tapers after
-      const ripenessCurve = i < 2 ? 0.6 : i < 6 ? 1 : i < 10 ? 0.75 : 0.5;
-      const bedYield = b.lengthM * 0.35 * stageWeight * healthMultiplier * ripenessCurve;
-      // Stagger beds — not all harvest same day
-      if ((beds.indexOf(b) + i) % 2 === 0) kg += bedYield;
+      const sw = b.stage === "harvest" ? 1 : b.stage === "ripening" ? 0.85 : 0.4;
+      const hw = b.health === "healthy" ? 1 : b.health === "warning" ? 0.7 : 0.3;
+      const curve = i < 2 ? 0.6 : i < 6 ? 1 : i < 10 ? 0.75 : 0.5;
+      if ((beds.indexOf(b) + i) % 2 === 0) kg += b.lengthM * 0.35 * sw * hw * curve;
     });
-
-    const confidence = Math.max(55, 95 - i * 3);
-    return { day: i, label, kg: Math.round(kg * 10) / 10, confidence };
+    return { day: i, label, kg: Math.round(kg * 10) / 10, conf: Math.max(55, 95 - i * 3) };
   });
 }
 
-// ── Disease risk scoring ──────────────────────────────────────────────────────
-
-function buildRiskScores(beds: Bed[], diseases: DiseaseReport[]) {
+// ─── Disease risk per bed ─────────────────────────────────────────────────────
+function buildBedRisks() {
+  const beds = BEDS();
+  const diseases = DISEASES();
   return beds.map(b => {
     let score = 0;
     if (b.health === "infected") score += 70;
     else if (b.health === "warning") score += 35;
-
-    const activeDisease = diseases.filter(d => d.bedId === b.id && d.status !== "resolved");
-    score += activeDisease.length * 15;
-    activeDisease.forEach(d => { score += d.severity * 0.3; });
-
-    // Proximity penalty: neighbour beds in same valve with disease
-    const sameValveInfected = beds.filter(ob => ob.valveId === b.valveId && ob.health === "infected" && ob.id !== b.id).length;
-    score += sameValveInfected * 8;
-
+    const active = diseases.filter(d => d.bedId === b.id && d.status !== "resolved");
+    active.forEach(d => { score += d.severity * 0.3; });
+    const neighborInfected = beds.filter(o => o.valveId === b.valveId && o.health === "infected" && o.id !== b.id).length;
+    score += neighborInfected * 8;
     return { bed: b, score: Math.min(100, Math.round(score)) };
   }).sort((a, b) => b.score - a.score).slice(0, 8);
 }
 
-// ── AI Q&A engine ─────────────────────────────────────────────────────────────
+// ─── Chat AI answers ─────────────────────────────────────────────────────────
+function aiAnswer(q: string): string {
+  const ql = q.toLowerCase();
+  const beds = BEDS();
+  const harvests = HARVESTS();
+  const diseases = DISEASES();
+  const totalKg = harvests.reduce((s, h) => s + Number(h.kg), 0);
+  const infected = beds.filter(b => b.health === "infected");
+  const ripe = beds.filter(b => b.stage === "harvest" || b.stage === "ripening");
+  const forecast = buildForecast();
+  const week1 = forecast.slice(0, 7).reduce((s, d) => s + d.kg, 0);
 
-interface QAMessage { role: "user" | "ai"; text: string; ts: string }
-
-function aiAnswer(
-  question: string,
-  beds: Bed[],
-  harvests: HarvestRecord[],
-  diseases: DiseaseReport[],
-  valves: Valve[],
-  farmers: Farmer[],
-  customerOrders: CustomerOrder[],
-  fertigationRecords: FertigationRecord[],
-  workerAssignments: WorkerAssignment[],
-  today: string,
-): string {
-  const q = question.toLowerCase();
-  const totalKg = harvests.reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
-  const bedKgMap: Record<string, number> = {};
-  harvests.forEach(h => { bedKgMap[h.bedId] = (bedKgMap[h.bedId] ?? 0) + parseFloat(h.kg.toString()); });
-  const topBed = beds.map(b => ({ b, kg: bedKgMap[b.id] ?? 0 })).sort((a, b) => b.kg - a.kg)[0];
-  const revenue = customerOrders.reduce((s, o) => s + o.totalAmount, 0);
-  const collected = customerOrders.reduce((s, o) => s + o.advancePaid, 0);
-  const outstanding = revenue - collected;
-  const infectedBeds = beds.filter(b => b.health === "infected");
-  const ripeningBeds = beds.filter(b => b.stage === "ripening");
-  const harvestBeds = beds.filter(b => b.stage === "harvest");
-
-  if (q.includes("harvest") && (q.includes("today") || q.includes("ready") || q.includes("when"))) {
-    const ready = [...harvestBeds, ...ripeningBeds];
-    if (ready.length === 0) return "No beds are currently at harvest stage. The nearest candidates are in fruiting stage — expect readiness in 7–12 days based on current growth rates.";
-    return `Based on growth stage analysis, **${ready.length} bed(s) are ready or near-ready**: ${ready.map(b => b.id).join(", ")}. I recommend prioritising ${harvestBeds[0]?.id ?? ripeningBeds[0]?.id} first — it has the highest estimated yield per metre. Schedule 2–3 workers per bed for efficient picking.`;
+  if (ql.includes("harvest") || ql.includes("pick") || ql.includes("ready")) {
+    if (ripe.length === 0) return "No beds are fully ripe yet. The ones in fruiting stage should be ready in about 7–12 days. I'll keep watching!";
+    return `Right now, **${ripe.length} bed(s) are ready or near-ready**: ${ripe.map(b => b.id).join(", ")}. I'd start with ${ripe[0].id} first — it has the best yield estimate. Best time to pick is early morning when it's cool.`;
   }
-
-  if (q.includes("disease") || q.includes("infection") || q.includes("sick")) {
-    const openDiseases = diseases.filter(d => d.status !== "resolved");
-    if (openDiseases.length === 0) return "Great news — no active disease reports. All flagged issues have been resolved. Continue weekly inspections and maintain humidity below 75%.";
-    return `There are **${openDiseases.length} active disease report(s)**. ${infectedBeds.length} bed(s) are currently infected: ${infectedBeds.map(b => b.id).join(", ")}. The highest-risk issue is ${openDiseases[0]?.type.replace("_"," ")} in ${openDiseases[0]?.bedId} (${openDiseases[0]?.severity}% severity, ${openDiseases[0]?.aiConfidence}% AI confidence). Immediate treatment is recommended to prevent spread to adjacent beds.`;
+  if (ql.includes("disease") || ql.includes("sick") || ql.includes("infection") || ql.includes("mold")) {
+    const open = diseases.filter(d => d.status !== "resolved");
+    if (open.length === 0) return "Great news — no active disease problems right now! All reported issues have been treated. Keep doing weekly checks just in case.";
+    return `There are **${open.length} open disease report(s)**. The worst one is ${open[0].type.replace(/_/g, " ")} in ${open[0].bedId} — it's affected ${open[0].severity}% of that bed and hasn't been treated yet. I'd deal with that one first.`;
   }
-
-  if (q.includes("revenue") || q.includes("money") || q.includes("profit") || q.includes("income")) {
-    return `Current season revenue stands at **${revenue.toLocaleString()} ETB** across ${customerOrders.length} orders. Collected so far: ${collected.toLocaleString()} ETB. Outstanding balance: ${outstanding.toLocaleString()} ETB. Projected next-30-day revenue based on pending orders and ripening beds: approximately ${Math.round((revenue * 0.4 + totalKg * 150) / 1000)}k ETB. Hotels and exports are your highest-margin channels.`;
+  if (ql.includes("water") || ql.includes("thirst") || ql.includes("irrigat")) {
+    const thirst = calcThirstForecast();
+    const urgent = thirst.filter(t => t.urgency === "urgent");
+    const vs = VALVE_STATES;
+    const open = vs.filter(v => v.isOpen).length;
+    if (urgent.length > 0) return `**${urgent.length} bed(s) are getting quite thirsty** — ${urgent.map(t => t.bedId).join(", ")} could run dry in under 4 hours. Right now ${open} valve(s) are open and running.`;
+    return `Water looks fine across all beds. ${open} valve(s) are currently open. The driest beds are ${thirst[0]?.bedId} (${thirst[0]?.moisture}% moisture) but still safe for now.`;
   }
-
-  if (q.includes("yield") || q.includes("produce") || q.includes("kg") || q.includes("production")) {
-    return `Season total harvest: **${totalKg.toFixed(1)} kg** across ${harvests.length} harvest events. Best performing bed: **${topBed?.b.id}** (${topBed?.kg.toFixed(1)} kg, ${topBed?.b.variety}). Average yield per metre: ${(totalKg / beds.reduce((s, b) => s + b.lengthM, 0)).toFixed(2)} kg/m. Forecast for the next 14 days: ~${buildForecast(beds, today).reduce((s, d) => s + d.kg, 0).toFixed(0)} kg projected.`;
+  if (ql.includes("forecast") || ql.includes("predict") || ql.includes("next week") || ql.includes("tomorrow")) {
+    const peak = forecast.reduce((max, d) => d.kg > max.kg ? d : max);
+    return `Over the next 7 days I'm expecting about **${week1.toFixed(0)} kg** of strawberries. The biggest harvest day should be around **${peak.label}** with roughly **${peak.kg} kg**. These numbers get less certain further out in time.`;
   }
-
-  if (q.includes("water") || q.includes("irrigat") || q.includes("fertigation")) {
-    const appliedFert = fertigationRecords.filter(r => r.status === "applied");
-    const totalLitres = appliedFert.reduce((s, r) => s + r.waterVolumeLiters, 0);
-    const totalCost = appliedFert.reduce((s, r) => s + r.cost, 0);
-    return `Applied fertigation: **${appliedFert.length} applications** using ${totalLitres.toLocaleString()} L of nutrient solution at a total input cost of ${totalCost.toLocaleString()} ETB. ${fertigationRecords.filter(r => r.status === "scheduled").length} application(s) are scheduled and pending. Next due: ${fertigationRecords.filter(r => r.status === "scheduled")[0]?.fertilizerType ?? "none"}.`;
+  if (ql.includes("worker") || ql.includes("staff") || ql.includes("team") || ql.includes("attendance") || ql.includes("farmer")) {
+    const anomaly = calcWorkerAnomaly();
+    const flagged = anomaly.filter(d => d.anomaly);
+    const farmers = FARMERS.filter(f => f.role === "farmer");
+    if (flagged.length > 0) return `I noticed something odd: on **${flagged.map(d => d.label).join(" and ")}**, you had a full team but the harvest was much lower than normal (${flagged[0].kgPerWorker} kg/worker vs the usual ${flagged[0].avg} kg/worker). Worth investigating what happened those days.`;
+    return `You have **${farmers.length} field workers** and the team has been performing consistently this week — about ${anomaly[anomaly.length - 1]?.avg ?? 0} kg per worker per day on average. No unusual drops spotted.`;
   }
-
-  if (q.includes("worker") || q.includes("farmer") || q.includes("staff") || q.includes("team") || q.includes("employee")) {
-    const farmersOnly = farmers.filter(f => f.role === "farmer");
-    const topFarmer = farmersOnly.sort((a, b) => b.performanceScore - a.performanceScore)[0];
-    const avgAttendance = Math.round(farmersOnly.reduce((s, f) => s + f.attendanceRate, 0) / (farmersOnly.length || 1));
-    return `Farm workforce: **${farmers.length} staff** (${farmersOnly.length} farmers, ${farmers.filter(f => f.role === "supervisor").length} supervisors, 1 manager). Top performer: **${topFarmer?.name}** (score ${topFarmer?.performanceScore}). Average attendance: ${avgAttendance}%. ${workerAssignments.filter(a => a.status === "in_progress" && a.date === today).length} workers active right now.`;
+  if (ql.includes("risk") || ql.includes("danger") || ql.includes("problem") || ql.includes("alert")) {
+    const alerts = buildAlerts();
+    const urgent = alerts.filter(a => a.sev === "urgent");
+    if (urgent.length > 0) return `I see **${urgent.length} urgent issue(s)** right now. Most pressing: ${urgent[0].title}. ${urgent[0].detail}`;
+    return `No urgent problems right now. There are ${alerts.filter(a => a.sev === "watch").length} things worth keeping an eye on, but nothing that needs immediate action. Farm is running well!`;
   }
-
-  if (q.includes("risk") || q.includes("danger") || q.includes("problem") || q.includes("issue") || q.includes("alert")) {
-    const alerts = buildAlerts(beds, diseases, valves, customerOrders, fertigationRecords, workerAssignments, today);
-    if (alerts.length === 0) return "No critical issues detected. Farm is operating normally. Continue routine monitoring.";
-    return `I've identified **${alerts.length} active alert(s)**. Critical: ${alerts.filter(a => a.severity === "critical").length}. Warnings: ${alerts.filter(a => a.severity === "warning").length}. Top priority: ${alerts[0]?.title}. ${alerts[0]?.detail}`;
+  if (ql.includes("mold") || ql.includes("botrytis") || ql.includes("grey") || ql.includes("gray")) {
+    const mold = calcMoldRisk();
+    const level = mold.score > 60 ? "fairly high" : mold.score > 35 ? "moderate" : "low";
+    return `Gray mold risk is **${level}** right now (score: ${mold.score}/100). Humidity is at ${mold.humidity}% and there's a ${mold.dewGap}°C gap between air temperature and dew point. ${mold.score > 50 ? "I'd keep an eye on it and avoid wetting the leaves if possible." : "Nothing to worry about today."}`;
   }
-
-  if (q.includes("forecast") || q.includes("predict") || q.includes("next week") || q.includes("future")) {
-    const forecast = buildForecast(beds, today);
-    const week1 = forecast.slice(0, 7).reduce((s, d) => s + d.kg, 0);
-    const week2 = forecast.slice(7).reduce((s, d) => s + d.kg, 0);
-    return `7-day harvest forecast: **~${week1.toFixed(0)} kg** expected. Days 8–14: ~${week2.toFixed(0)} kg. Peak yield day predicted: Day ${forecast.indexOf(forecast.reduce((max, d) => d.kg > max.kg ? d : max)) + 1} (${forecast.reduce((max, d) => d.kg > max.kg ? d : max).label}) with ~${forecast.reduce((max, d) => d.kg > max.kg ? d : max).kg.toFixed(1)} kg. Confidence decreases for days >7 due to weather variability.`;
+  if (ql.includes("recommend") || ql.includes("suggest") || ql.includes("what should") || ql.includes("advice") || ql.includes("today")) {
+    const alerts = buildAlerts();
+    const top = alerts.slice(0, 3);
+    if (top.length === 0) return "Farm looks good today! If I had to suggest anything: harvest ripe beds early morning while it's cool, and do a quick visual check of any beds that had warnings recently.";
+    return `My top suggestions for today:\n\n${top.map((a, i) => `**${i + 1}. ${a.title}** — ${a.action}`).join("\n")}`;
   }
-
-  if (q.includes("recommend") || q.includes("suggest") || q.includes("should i") || q.includes("what do") || q.includes("advice")) {
-    const topActions = buildAlerts(beds, diseases, valves, customerOrders, fertigationRecords, workerAssignments, today).slice(0, 3).map(a => `• **${a.title}** — ${a.action}`).join("\n");
-    return `Top 3 recommended actions for today:\n\n${topActions || "• Continue routine monitoring\n• Harvest ripe beds early morning\n• Check soil moisture in Valve C"}`;
+  if (ql.includes("season") || ql.includes("total") || ql.includes("how much") || ql.includes("kg")) {
+    const byBed: Record<string, number> = {};
+    harvests.forEach(h => { byBed[h.bedId] = (byBed[h.bedId] ?? 0) + Number(h.kg); });
+    const topBed = Object.entries(byBed).sort((a, b) => b[1] - a[1])[0];
+    return `Season harvest so far: **${totalKg.toFixed(1)} kg** across all beds. Best performer is **${topBed?.[0]}** (${topBed?.[1]?.toFixed(1)} kg). In the next 14 days I'm expecting another ~${forecast.reduce((s, d) => s + d.kg, 0).toFixed(0)} kg.`;
   }
-
-  if (q.includes("best") && q.includes("variet")) {
-    const byVariety: Record<string, number> = {};
-    harvests.forEach(h => {
-      const b = beds.find(x => x.id === h.bedId);
-      if (b) byVariety[b.variety] = (byVariety[b.variety] ?? 0) + parseFloat(h.kg.toString());
-    });
-    const sorted = Object.entries(byVariety).sort((a, b) => b[1] - a[1]);
-    return `Highest-yielding variety this season: **${sorted[0]?.[0]}** (${sorted[0]?.[1].toFixed(1)} kg total). Runner-up: ${sorted[1]?.[0]} (${sorted[1]?.[1].toFixed(1)} kg). ${sorted[0]?.[0]} shows 15–20% better per-metre productivity at Entoto altitude conditions. Recommend expanding planting area next cycle.`;
-  }
-
-  // Default
-  return `I analysed current farm data to answer your question. Here's a summary: **${beds.length} active beds** across ${valves.length} valves, **${totalKg.toFixed(0)} kg** harvested this season, **${infectedBeds.length}** infected bed(s) requiring attention, **${customerOrders.filter(o => o.deliveryStatus === "pending").length}** pending deliveries. Ask me about harvest timing, disease risk, revenue, workers, forecasts, or recommendations.`;
+  return `I looked at all the farm data to answer that. Quick summary: **${beds.length} active beds**, **${totalKg.toFixed(0)} kg** harvested this season, **${infected.length}** infected bed(s) need attention, and **${ripe.length}** bed(s) are ripe now. Try asking me about harvest timing, disease risk, water levels, forecasts, or your team.`;
 }
 
-// ── Severity style helpers ────────────────────────────────────────────────────
+// ─── Agent definitions ───────────────────────────────────────────────────────
+const AGENT_DEFS = [
+  {
+    id: "watering",
+    emoji: "💧",
+    name: "Watering Agent",
+    color: "border-blue-500/30 bg-blue-500/6",
+    tagColor: "bg-blue-500/15 text-blue-400",
+    tagline: "Opens and closes water valves so your plants always have the right amount of water.",
+    think(): string {
+      const soil = SOIL_READINGS();
+      const thirsty = soil.filter(r => r.moisturePct < 65);
+      const soaked = soil.filter(r => r.moisturePct > 88);
+      if (thirsty.length === 0 && soaked.length === 0)
+        return "I just checked all 12 beds. Every one of them has a comfortable amount of water. I'll check again in about an hour.";
+      const parts: string[] = [];
+      if (thirsty.length > 0)
+        parts.push(`${thirsty.length} bed(s) are getting dry — ${thirsty.slice(0, 3).map(r => r.bedId).join(", ")}. Their moisture is below 65%. I'd like to open their valves.`);
+      if (soaked.length > 0)
+        parts.push(`${soaked.length} bed(s) have a bit too much water — ${soaked.slice(0, 2).map(r => r.bedId).join(", ")}. I'd reduce their watering to avoid root problems.`);
+      return parts.join(" Also: ");
+    },
+    act(): string {
+      const soil = SOIL_READINGS();
+      const thirsty = soil.filter(r => r.moisturePct < 65);
+      if (thirsty.length === 0) return `All ${soil.length} beds checked — everyone's happy. No valve changes needed.`;
+      return `Opened Valve ${BEDS().find(b => b.id === thirsty[0].bedId)?.valveId?.replace("valve-", "").toUpperCase() ?? "A"} for ${thirsty[0].bedId} (moisture was ${thirsty[0].moisturePct.toFixed(0)}%). Will check results in 30 minutes.`;
+    },
+  },
+  {
+    id: "disease-guard",
+    emoji: "🛡️",
+    name: "Disease Guard",
+    color: "border-red-500/30 bg-red-500/6",
+    tagColor: "bg-red-500/15 text-red-400",
+    tagline: "Watches the cameras and sensors for early signs of plant sickness.",
+    think(): string {
+      const cameras = CAMERA_ALERTS.filter(a => a.status === "new");
+      const diseases = DISEASES().filter(d => d.status !== "resolved");
+      const mold = calcMoldRisk();
+      const parts: string[] = [];
+      if (cameras.length > 0)
+        parts.push(`${cameras.length} camera alert(s) haven't been reviewed yet. The most urgent one is in ${cameras[0].bedId} — it looks like "${cameras[0].label}". Someone should go look.`);
+      if (mold.score > 45)
+        parts.push(`Today's weather worries me a bit — ${mold.humidity}% humidity and the temperature is only ${mold.dewGap}°C above the dew point. Gray mold could start if the nights stay damp.`);
+      if (diseases.length > 0)
+        parts.push(`There are still ${diseases.length} open disease report(s) that aren't fully treated yet.`);
+      if (parts.length === 0)
+        return "Everything looks clean to me right now. No new camera alerts, weather is decent, and all reported diseases are being handled. Keep it up!";
+      return parts.join(" ");
+    },
+    act(): string {
+      const cameras = CAMERA_ALERTS.filter(a => a.status === "new");
+      if (cameras.length > 0)
+        return `Flagged ${cameras[0].bedId} as high priority and sent an alert to the supervisor. Recommended: visual inspection within 2 hours.`;
+      const diseases = DISEASES().filter(d => d.status !== "resolved" && !d.treatmentApplied);
+      if (diseases.length > 0)
+        return `Sent a treatment reminder for ${diseases[0].bedId} to the assigned farmer. This is day ${Math.floor(Math.random() * 3) + 1} without treatment.`;
+      return "Sent daily clear report to manager. No threats detected in any of the 12 beds.";
+    },
+  },
+  {
+    id: "harvest-spotter",
+    emoji: "🍓",
+    name: "Harvest Spotter",
+    color: "border-primary/30 bg-primary/6",
+    tagColor: "bg-primary/15 text-primary",
+    tagline: "Tracks berry ripeness and tells you exactly when and where to send the harvest team.",
+    think(): string {
+      const beds = BEDS();
+      const ripeNow = beds.filter(b => b.stage === "harvest");
+      const ripeSoon = beds.filter(b => b.stage === "ripening");
+      const fruiting = beds.filter(b => b.stage === "fruiting");
+      if (ripeNow.length === 0 && ripeSoon.length === 0)
+        return `No beds are ripe yet. ${fruiting.length} bed(s) are still growing their fruits — I'll let you know the moment they're ready. Usually takes 7–12 more days at Entoto temperatures.`;
+      const parts: string[] = [];
+      if (ripeNow.length > 0)
+        parts.push(`**${ripeNow.map(b => b.id).join(", ")}** should be picked TODAY — they're at peak ripeness.`);
+      if (ripeSoon.length > 0)
+        parts.push(`**${ripeSoon.map(b => b.id).join(", ")}** will be ready in 2–4 days.`);
+      return parts.join(" ") + " I recommend picking in the early morning (before 10am) when berries are firm and it's cool.";
+    },
+    act(): string {
+      const beds = BEDS();
+      const ripe = beds.filter(b => b.stage === "harvest" || b.stage === "ripening");
+      if (ripe.length === 0) return "No harvest ready today. Monitoring all beds and will notify as soon as berries are ripe.";
+      const est = Math.round(ripe[0].lengthM * 0.4 * 10) / 10;
+      return `Created harvest task for ${ripe[0].id}. Estimated yield: ~${est} kg. Best window: 06:00–10:00 AM. Notified supervisor.`;
+    },
+  },
+];
 
-const SEVERITY_STYLES = {
-  critical: { card: "border-red-200 bg-red-50/50",   badge: "bg-red-100 text-red-700", icon: "text-red-500",    dot: "bg-red-500"    },
-  warning:  { card: "border-amber-200 bg-amber-50/50", badge: "bg-amber-100 text-amber-700", icon: "text-amber-500", dot: "bg-amber-500"  },
-  info:     { card: "border-primary/30 bg-primary/5", badge: "bg-primary/15 text-primary", icon: "text-primary", dot: "bg-primary" },
-};
+type AgentLog = { ts: string; type: "thought" | "action"; text: string };
+type AgentState = { enabled: boolean; busy: boolean; log: AgentLog[] };
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AIPage() {
-  const { isAm } = useLang();
-  const t = isAm ? AM : EN;
-  const today = new Date().toISOString().split("T")[0];
+  // Pre-compute data
+  const alerts    = buildAlerts();
+  const mold      = calcMoldRisk();
+  const thirst    = calcThirstForecast();
+  const anomaly   = calcWorkerAnomaly();
+  const forecast  = buildForecast();
+  const bedRisks  = buildBedRisks();
+  const maxFcast  = Math.max(...forecast.map(d => d.kg), 1);
+  const week1     = forecast.slice(0, 7).reduce((s, d) => s + d.kg, 0);
 
-  const [beds, setBeds] = useState<Bed[]>([]);
-  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
-  const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
-  const [valves, setValves] = useState<Valve[]>([]);
-  const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
-  const [fertigationRecords, setFertigationRecords] = useState<FertigationRecord[]>([]);
-  const [workerAssignments, setWorkerAssignments] = useState<WorkerAssignment[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const urgentCount  = alerts.filter(a => a.sev === "urgent").length;
+  const watchCount   = alerts.filter(a => a.sev === "watch").length;
+  const urgentThirst = thirst.filter(t => t.urgency === "urgent").length;
+  const anomalyDays  = anomaly.filter(d => d.anomaly).length;
 
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/beds").then(r => r.json()),
-      fetch("/api/harvest").then(r => r.json()),
-      fetch("/api/diseases").then(r => r.json()),
-      fetch("/api/valves").then(r => r.json()),
-      fetch("/api/farmers").then(r => r.json()),
-      fetch("/api/orders").then(r => r.json()),
-      fetch("/api/fertigation").then(r => r.json()),
-      fetch("/api/assignments").then(r => r.json()),
-    ]).then(([b, h, d, v, f, o, ft, a]) => {
-      setBeds(b);
-      setHarvests(h.map((rec: HarvestRecord & { kg: string | number }) => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
-      setDiseases(d);
-      setValves(v);
-      setFarmers(f);
-      setCustomerOrders(o);
-      setFertigationRecords(ft);
-      setWorkerAssignments(a);
-      setLoaded(true);
-    });
-  }, []);
+  // Agent state
+  const [agents, setAgents] = useState<Record<string, AgentState>>(() =>
+    Object.fromEntries(AGENT_DEFS.map(a => [a.id, { enabled: true, busy: false, log: [
+      { ts: "2 min ago", type: "thought", text: a.think() },
+    ]}]))
+  );
 
-  const alerts   = loaded ? buildAlerts(beds, diseases, valves, customerOrders, fertigationRecords, workerAssignments, today) : [];
-  const forecast = buildForecast(beds, today);
-  const riskScores = buildRiskScores(beds, diseases);
+  function toggleAgent(id: string) {
+    setAgents(prev => ({ ...prev, [id]: { ...prev[id], enabled: !prev[id].enabled } }));
+  }
 
-  const maxForecastKg = Math.max(...forecast.map(d => d.kg));
+  function runAgent(def: typeof AGENT_DEFS[0]) {
+    setAgents(prev => ({ ...prev, [def.id]: { ...prev[def.id], busy: true } }));
+    setTimeout(() => {
+      const thought = def.think();
+      const action  = def.act();
+      const now = "Just now";
+      setAgents(prev => ({
+        ...prev,
+        [def.id]: {
+          ...prev[def.id],
+          busy: false,
+          log: [
+            { ts: now, type: "thought", text: thought },
+            { ts: now, type: "action",  text: action  },
+            ...prev[def.id].log.slice(0, 4),
+          ],
+        },
+      }));
+    }, 900 + Math.random() * 600);
+  }
 
-  const [messages, setMessages] = useState<QAMessage[]>([]);
-
-  useEffect(() => {
-    if (loaded) {
-      setMessages([{
-        role: "ai",
-        text: `Hello! I'm your farm AI assistant. I've analysed all current data across **${beds.length} beds**, **${farmers.length} staff**, and **${customerOrders.length} orders**. Ask me anything — harvest timing, disease risk, revenue forecasts, or worker recommendations.`,
-        ts: "Just now",
-      }]);
-    }
-  }, [loaded]);
-
-  const [input, setInput] = useState("");
+  // Chat
+  type Msg = { role: "user" | "ai"; text: string };
+  const [messages, setMessages] = useState<Msg[]>([{
+    role: "ai",
+    text: `Hi! I'm your farm assistant. I've looked at all your beds, sensors, and camera data. Ask me anything — when to harvest, what's sick, how much rain is coming, or just "what should I do today?"`,
+  }]);
+  const [input, setInput]   = useState("");
   const [typing, setTyping] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
 
-  const QUICK_QUESTIONS = [
-    "Which beds should I harvest today?",
-    "What's the disease risk?",
-    "Forecast next 7 days",
-    "Top revenue risks?",
-    "Best performing variety?",
-    "Recommend actions for today",
-  ];
-
-  function sendMessage(text?: string) {
+  function send(text?: string) {
     const q = (text ?? input).trim();
     if (!q) return;
-    const userMsg: QAMessage = { role: "user", text: q, ts: "Just now" };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { role: "user", text: q }]);
     setInput("");
     setTyping(true);
     setTimeout(() => {
-      const answer = aiAnswer(q, beds, harvests, diseases, valves, farmers, customerOrders, fertigationRecords, workerAssignments, today);
-      setMessages(prev => [...prev, { role: "ai", text: answer, ts: "Just now" }]);
+      setMessages(prev => [...prev, { role: "ai", text: aiAnswer(q) }]);
       setTyping(false);
-    }, 800 + Math.random() * 600);
+    }, 700 + Math.random() * 500);
   }
 
-  const criticalCount = alerts.filter(a => a.severity === "critical").length;
-  const warningCount  = alerts.filter(a => a.severity === "warning").length;
-  const totalKg = harvests.reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
-  const week1Forecast = forecast.slice(0, 7).reduce((s, d) => s + d.kg, 0);
+  const QUICK_Q = [
+    "What should I do today?",
+    "Which beds need harvesting?",
+    "How's the disease situation?",
+    "When will I have most berries?",
+    "Any water problems?",
+    "Is mold a risk today?",
+  ];
+
+  const moldLevel = mold.score > 60 ? "High Risk" : mold.score > 35 ? "Watch Out" : "All Good";
+  const moldColor = mold.score > 60 ? "text-red-400 bg-red-500/10 border-red-500/25"
+    : mold.score > 35 ? "text-amber-400 bg-amber-500/10 border-amber-500/25"
+    : "text-primary bg-primary/10 border-primary/25";
 
   return (
-    <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-[1400px] mx-auto space-y-6">
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
-            <span className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 grid place-items-center shadow-lg">
+            <span className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 grid place-items-center shadow-lg shadow-amber-900/30">
               <Zap className="size-5 text-white" />
             </span>
-            {t.ai.title}
+            AI Alerts & Farm Intelligence
           </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{t.ai.subtitle}</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Your farm's AI brain — watching sensors, spotting problems, and running smart agents 24/7
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {criticalCount > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {urgentCount > 0 && (
             <Badge className="bg-red-100 text-red-700 border border-red-200 gap-1.5">
               <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
-              {criticalCount} critical
+              {urgentCount} urgent
             </Badge>
           )}
-          {warningCount > 0 && (
-            <Badge className="bg-amber-100 text-amber-700 border border-amber-200">
-              {warningCount} warnings
-            </Badge>
+          {watchCount > 0 && (
+            <Badge className="bg-amber-100 text-amber-700 border border-amber-200">{watchCount} watch</Badge>
           )}
           <Badge className="bg-primary/10 text-primary border border-primary/30 gap-1">
             <Activity className="size-3" /> Live
@@ -411,69 +476,81 @@ export default function AIPage() {
         </div>
       </div>
 
-      {/* ── KPI Strip ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 bg-gradient-to-br from-amber-50 to-indigo-50 border-amber-200">
-          <div className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">AI Alerts</div>
-          <div className="text-3xl font-bold text-amber-700 tabular-nums">{alerts.length}</div>
-          <div className="text-[11px] text-amber-500 mt-0.5">{criticalCount} critical · {warningCount} warnings</div>
-        </Card>
-        <Card className="p-4 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/30">
-          <div className="text-xs text-primary font-semibold uppercase tracking-wide mb-1">7-Day Forecast</div>
-          <div className="text-3xl font-bold text-primary tabular-nums">{week1Forecast.toFixed(0)} <span className="text-base font-normal">kg</span></div>
-          <div className="text-[11px] text-primary/70 mt-0.5">↑ projected harvest</div>
-        </Card>
-        <Card className="p-4 bg-gradient-to-br from-rose-50 to-pink-50 border-rose-200">
-          <div className="text-xs text-rose-600 font-semibold uppercase tracking-wide mb-1">Disease Risk Beds</div>
-          <div className="text-3xl font-bold text-rose-700 tabular-nums">{beds.filter(b => b.health !== "healthy").length}</div>
-          <div className="text-[11px] text-rose-500 mt-0.5">{beds.filter(b => b.health === "infected").length} infected · {beds.filter(b => b.health === "warning").length} warning</div>
-        </Card>
-        <Card className="p-4 bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200">
-          <div className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">Harvest Readiness</div>
-          <div className="text-3xl font-bold text-amber-700 tabular-nums">{beds.filter(b => b.stage === "ripening" || b.stage === "harvest").length}</div>
-          <div className="text-[11px] text-amber-500 mt-0.5">beds ready/near-ready</div>
-        </Card>
+      {/* ── 4 Quick Stats ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          {
+            label: "Active Alerts",
+            value: alerts.length,
+            sub: `${urgentCount} urgent · ${watchCount} watch`,
+            icon: AlertTriangle, bg: "from-red-500/10 to-amber-500/5 border-red-500/20", v: "text-red-500",
+          },
+          {
+            label: "Next 7 Days",
+            value: `${week1.toFixed(0)} kg`,
+            sub: "expected harvest",
+            icon: TrendingUp, bg: "from-primary/15 to-primary/5 border-primary/20", v: "text-primary",
+          },
+          {
+            label: "AI Agents",
+            value: Object.values(agents).filter(a => a.enabled).length,
+            sub: "running right now",
+            icon: Cpu, bg: "from-violet-500/10 to-violet-500/5 border-violet-500/20", v: "text-violet-400",
+          },
+          {
+            label: "Beds Needing Water",
+            value: urgentThirst,
+            sub: urgentThirst === 0 ? "all hydrated ✓" : "within 4 hours",
+            icon: Droplets, bg: "from-blue-500/10 to-blue-500/5 border-blue-500/20", v: "text-blue-400",
+          },
+        ].map(s => (
+          <div key={s.label} className={`rounded-xl border bg-gradient-to-br ${s.bg} p-4`}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <s.icon className={cn("size-3.5", s.v)} />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{s.label}</span>
+            </div>
+            <div className={cn("text-3xl font-black tabular-nums leading-tight", s.v)}>{s.value}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{s.sub}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      {/* ── Smart Alerts + Disease Risk ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
-        {/* ── Alert Feed (left 2/3) ──────────────────────────────────────── */}
         <div className="xl:col-span-2 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2">
             <Zap className="size-4 text-amber-500" />
-            <h2 className="font-bold text-foreground">Smart Alerts</h2>
-            <span className="text-xs text-muted-foreground ml-auto">Model v2.1 · Updated just now</span>
+            <h2 className="font-bold text-foreground text-base">What Needs Your Attention Today</h2>
           </div>
-
           {alerts.length === 0 ? (
             <Card className="p-8 text-center border-primary/30 bg-primary/5">
               <CheckCircle2 className="size-10 mx-auto text-primary mb-2" />
-              <div className="font-semibold text-primary">All clear — no active alerts</div>
-              <div className="text-sm text-muted-foreground mt-1">Farm is operating normally. Next model scan in 15 minutes.</div>
+              <div className="font-semibold text-primary">All clear — nothing urgent today</div>
+              <div className="text-sm text-muted-foreground mt-1">Farm is running smoothly. AI is still watching in the background.</div>
             </Card>
           ) : (
             alerts.map(alert => {
-              const s = SEVERITY_STYLES[alert.severity];
+              const s = alert.sev === "urgent"
+                ? { card: "border-red-500/25 bg-red-500/5", dot: "bg-red-500 animate-pulse", badge: "bg-red-100 text-red-700", link: "text-red-500 hover:text-red-700" }
+                : alert.sev === "watch"
+                ? { card: "border-amber-500/25 bg-amber-500/5", dot: "bg-amber-500", badge: "bg-amber-100 text-amber-700", link: "text-amber-600 hover:text-amber-800" }
+                : { card: "border-primary/20 bg-primary/5", dot: "bg-primary", badge: "bg-primary/15 text-primary", link: "text-primary hover:text-primary/70" };
               return (
                 <Card key={alert.id} className={`p-4 border ${s.card}`}>
                   <div className="flex items-start gap-3">
-                    <div className={`size-2 rounded-full mt-1.5 shrink-0 ${s.dot} ${alert.severity === "critical" ? "animate-pulse" : ""}`} />
+                    <span className="text-xl leading-none shrink-0 mt-0.5">{alert.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <Badge className={`text-[10px] ${s.badge}`}>{alert.category}</Badge>
                         <span className="font-semibold text-sm text-foreground">{alert.title}</span>
-                        <span className="ml-auto text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">
-                          <Sparkles className="size-3 inline mr-0.5 text-amber-400" />
-                          {alert.confidence}% confidence
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", s.badge)}>
+                          {alert.sev === "urgent" ? "Act Now" : alert.sev === "watch" ? "Keep An Eye On" : "Good News"}
                         </span>
                       </div>
-                      <p className="text-xs text-foreground/70 leading-relaxed">{alert.detail}</p>
-                      <div className="mt-2">
-                        <a href={alert.href}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-violet-800 transition-colors">
-                          {alert.action} <ChevronRight className="size-3" />
-                        </a>
-                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{alert.detail}</p>
+                      <a href={alert.href} className={cn("inline-flex items-center gap-1 text-xs font-semibold mt-2 transition-colors", s.link)}>
+                        {alert.action} <ChevronRight className="size-3" />
+                      </a>
                     </div>
                   </div>
                 </Card>
@@ -482,92 +559,317 @@ export default function AIPage() {
           )}
         </div>
 
-        {/* ── Disease Risk Scores (right) ──────────────────────────────── */}
+        {/* Disease risk by bed */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Bug className="size-4 text-rose-500" />
-            <h2 className="font-bold text-foreground">Disease Risk Scores</h2>
+          <div className="flex items-center gap-2">
+            <Bug className="size-4 text-red-400" />
+            <h2 className="font-bold text-foreground text-base">Which Beds Are Most At Risk</h2>
           </div>
           <Card className="p-4">
-            <div className="space-y-3">
-              {riskScores.map(({ bed, score }) => {
-                const color = score >= 60 ? "bg-red-500" : score >= 30 ? "bg-amber-500" : score >= 10 ? "bg-yellow-400" : "bg-emerald-500";
-                const textColor = score >= 60 ? "text-red-600" : score >= 30 ? "text-amber-600" : "text-emerald-600";
+            <p className="text-[11px] text-muted-foreground mb-3">Each bar shows how worried the AI is about that bed getting sick. 0 = perfectly healthy, 100 = serious trouble.</p>
+            <div className="space-y-2.5">
+              {bedRisks.map(({ bed, score }) => {
+                const color = score >= 60 ? "bg-red-500" : score >= 30 ? "bg-amber-500" : "bg-primary";
+                const tc = score >= 60 ? "text-red-500" : score >= 30 ? "text-amber-500" : "text-primary";
+                const label = score >= 60 ? "Treat now" : score >= 30 ? "Watch it" : "Healthy";
                 return (
-                  <div key={bed.id} className="flex items-center gap-3">
-                    <div className="font-mono text-xs font-bold text-foreground/80 w-20 shrink-0">{bed.id}</div>
+                  <div key={bed.id} className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-foreground/70 w-16 shrink-0">{bed.id}</span>
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${score}%` }} />
+                      <div className={cn("h-full rounded-full transition-all duration-700", color)} style={{ width: `${score}%` }} />
                     </div>
-                    <div className={`text-xs font-bold tabular-nums w-10 text-right ${textColor}`}>{score}%</div>
+                    <span className={cn("text-[10px] font-semibold w-16 text-right shrink-0", tc)}>{label}</span>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-4 pt-3 border-t border-border flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-500 inline-block" /> Critical ≥60</span>
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-500 inline-block" /> Warning ≥30</span>
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-500 inline-block" /> Healthy &lt;10</span>
+            <div className="mt-4 pt-3 border-t border-border flex gap-3 flex-wrap text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-500 inline-block" /> Treat now</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-500 inline-block" /> Watch it</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-primary inline-block" /> Healthy</span>
             </div>
           </Card>
         </div>
       </div>
 
-      {/* ── Harvest Forecast Chart ────────────────────────────────────────── */}
+      {/* ── AI Health Watchers ──────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="size-4 text-primary" />
-          <h2 className="font-bold text-foreground">14-Day Harvest Forecast</h2>
-          <span className="text-xs text-muted-foreground ml-2">Based on growth stage, health status & historical yield patterns</span>
+          <Shield className="size-4 text-violet-400" />
+          <h2 className="font-bold text-foreground text-base">What the AI Is Watching Right Now</h2>
+          <span className="text-xs text-muted-foreground ml-1">Two things the AI watches automatically, every hour</span>
         </div>
-        <Card className="p-5">
-          <div className="flex items-end gap-1.5 h-40">
-            {forecast.map((day, i) => {
-              const heightPct = maxForecastKg > 0 ? (day.kg / maxForecastKg) * 100 : 0;
-              const isPast = i === 0;
-              const isToday = i === 0;
-              const color = day.confidence >= 85 ? "bg-primary" : day.confidence >= 70 ? "bg-primary/70" : "bg-primary/40";
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    {day.label}: {day.kg} kg<br />{day.confidence}% conf.
-                  </div>
-                  <div className="w-full rounded-t-sm" style={{ height: `${Math.max(heightPct, 2)}%` }}>
-                    <div className={`w-full h-full rounded-t-sm ${color} ${i === 0 ? "opacity-50" : ""}`} />
-                  </div>
-                  <div className={`text-[9px] text-muted-foreground text-center leading-tight ${i % 2 === 0 ? "" : "invisible"}`}>
-                    {day.label.split(" ")[1]}<br /><span className="text-[8px]">{day.label.split(" ")[0]}</span>
-                  </div>
+        <div className="grid md:grid-cols-2 gap-4">
+
+          {/* Mold Warning */}
+          <Card className="p-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="font-bold text-foreground flex items-center gap-2">
+                  <span className="text-lg">🍄</span> Gray Mold Warning
                 </div>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground flex-wrap">
-            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary inline-block" /> High confidence (≥85%)</span>
-            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary/70 inline-block" /> Medium (≥70%)</span>
-            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary/40 inline-block" /> Lower confidence</span>
-            <span className="ml-auto font-semibold text-foreground/80">
-              14-day total: ~{forecast.reduce((s, d) => s + d.kg, 0).toFixed(0)} kg projected
-            </span>
-          </div>
-        </Card>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Like a weather app but for mold. When humidity + temperature + soil moisture all line up badly, your berries are in danger.
+                </p>
+              </div>
+              <Badge className={cn("text-xs font-bold border shrink-0 ml-2", moldColor)}>{moldLevel}</Badge>
+            </div>
+
+            {/* Big score gauge */}
+            <div className="flex items-center gap-5 mb-4">
+              <div className="relative size-24 shrink-0">
+                <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                  <circle cx="60" cy="60" r="48" fill="none" stroke="currentColor" strokeWidth="12" className="text-muted/40" />
+                  <circle cx="60" cy="60" r="48" fill="none"
+                    stroke={mold.score > 60 ? "#ef4444" : mold.score > 35 ? "#f59e0b" : "#c8dc38"}
+                    strokeWidth="12"
+                    strokeDasharray={`${(mold.score / 100) * 301.6} 301.6`}
+                    strokeLinecap="round"
+                    style={{ transition: "stroke-dasharray 1s ease" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-black text-foreground">{mold.score}</span>
+                  <span className="text-[9px] text-muted-foreground">/ 100</span>
+                </div>
+              </div>
+              <div className="space-y-2 text-sm flex-1">
+                {[
+                  { icon: "💧", label: "Humidity", val: `${mold.humidity}%`, bad: mold.humidity > 75 },
+                  { icon: "🌡️", label: "Temp vs Dew Point", val: `${mold.dewGap}°C gap`, bad: mold.dewGap < 4 },
+                  { icon: "🌧️", label: "Rain last 24h", val: `${mold.rainfall} mm`, bad: mold.rainfall > 5 },
+                  { icon: "🌱", label: "Avg soil moisture", val: `${mold.avgMoisture}%`, bad: mold.avgMoisture > 82 },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground flex items-center gap-1.5"><span>{row.icon}</span>{row.label}</span>
+                    <span className={cn("font-semibold", row.bad ? "text-amber-400" : "text-foreground")}>{row.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={cn("rounded-lg px-3 py-2.5 text-xs", mold.score > 60 ? "bg-red-500/10 text-red-400" : mold.score > 35 ? "bg-amber-500/10 text-amber-400" : "bg-primary/10 text-primary")}>
+              {mold.score > 60
+                ? "⚠️ Conditions are risky right now. Try not to wet the leaves when watering, and increase airflow if possible."
+                : mold.score > 35
+                ? "👀 Worth keeping an eye on. If humidity stays above 80% tonight, mold could start forming."
+                : "✅ Today's conditions are fine for your strawberries. No mold risk right now."}
+            </div>
+          </Card>
+
+          {/* Thirst Forecast */}
+          <Card className="p-5">
+            <div className="mb-4">
+              <div className="font-bold text-foreground flex items-center gap-2">
+                <span className="text-lg">🌵</span> When Will Each Bed Get Thirsty?
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Based on current soil moisture, weather, and how fast water evaporates today — this shows when each bed will need watering.
+              </p>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {thirst.slice(0, 12).map(t => {
+                const urgColor = t.urgency === "urgent" ? "text-red-400" : t.urgency === "soon" ? "text-amber-400" : "text-primary";
+                const barColor = t.urgency === "urgent" ? "bg-red-500" : t.urgency === "soon" ? "bg-amber-500" : "bg-primary";
+                const hoursText = t.isWatered ? "Being watered now" : t.hours >= 999 ? "Fine all day" : t.hours === 0 ? "Needs water NOW" : `Thirsty in ~${t.hours}h`;
+                return (
+                  <div key={t.bedId} className="flex items-center gap-2.5">
+                    <span className="font-mono text-xs font-bold text-foreground/70 w-16 shrink-0">{t.bedId}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={cn("text-[10px] font-semibold", t.isWatered ? "text-blue-400" : urgColor)}>{hoursText}</span>
+                        <span className="text-[10px] text-muted-foreground">{t.moisture}%</span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className={cn("h-full rounded-full transition-all", t.isWatered ? "bg-blue-400 animate-pulse" : barColor)}
+                          style={{ width: `${Math.min(100, t.moisture)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {urgentThirst > 0 && (
+              <div className="mt-3 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+                ⚠️ {urgentThirst} bed(s) will run out of water in under 4 hours — check valves now.
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
 
-      {/* ── AI Q&A Chat ───────────────────────────────────────────────────── */}
+      {/* ── Patterns AI Noticed ──────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Bot className="size-4 text-amber-600" />
-          <h2 className="font-bold text-foreground">Farm AI Assistant</h2>
-          <span className="text-xs text-muted-foreground ml-2">Ask anything about your farm data</span>
+          <BarChart3 className="size-4 text-indigo-400" />
+          <h2 className="font-bold text-foreground text-base">Patterns the AI Noticed</h2>
         </div>
+        <div className="grid md:grid-cols-2 gap-4">
 
+          {/* Worker anomaly */}
+          <Card className="p-5">
+            <div className="font-bold text-foreground flex items-center gap-2 mb-1">
+              <span className="text-lg">🕵️</span> Something Doesn't Add Up
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              We compare how many people were working each day vs how many kilos were harvested. When the numbers don't match, the AI flags it — so you can investigate.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-1.5 text-muted-foreground font-semibold text-[10px] uppercase tracking-wide">Day</th>
+                    <th className="text-right py-1.5 text-muted-foreground font-semibold text-[10px] uppercase tracking-wide">Workers</th>
+                    <th className="text-right py-1.5 text-muted-foreground font-semibold text-[10px] uppercase tracking-wide">Harvested</th>
+                    <th className="text-right py-1.5 text-muted-foreground font-semibold text-[10px] uppercase tracking-wide">Per Worker</th>
+                    <th className="text-right py-1.5 text-muted-foreground font-semibold text-[10px] uppercase tracking-wide pr-1"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {anomaly.map(row => (
+                    <tr key={row.date} className={cn("transition-colors", row.anomaly ? "bg-amber-500/8" : "")}>
+                      <td className="py-2 text-foreground/80 font-medium">{row.label}</td>
+                      <td className="py-2 text-right text-muted-foreground">{row.workers}</td>
+                      <td className="py-2 text-right text-muted-foreground">{row.kg} kg</td>
+                      <td className={cn("py-2 text-right font-bold tabular-nums", row.anomaly ? "text-amber-400" : "text-foreground/70")}>
+                        {row.kgPerWorker} kg
+                      </td>
+                      <td className="py-2 pl-2 text-right">
+                        {row.anomaly ? <span title="Something seems off">⚠️</span> : <span className="text-muted-foreground/30">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 text-[10px] text-muted-foreground">
+              Average: <span className="font-semibold text-foreground">{anomaly[0]?.avg ?? 0} kg/worker/day</span>
+              {anomalyDays > 0 && <span className="text-amber-400 ml-2">· ⚠️ {anomalyDays} day(s) below normal</span>}
+            </div>
+          </Card>
+
+          {/* Harvest forecast chart */}
+          <Card className="p-5">
+            <div className="font-bold text-foreground flex items-center gap-2 mb-1">
+              <span className="text-lg">📈</span> When Will Your Berries Be Ready?
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Based on which beds are growing, how healthy they are, and how fast Entoto strawberries usually ripen. Bars get lighter when we're less sure.
+            </p>
+            <div className="flex items-end gap-1 h-28">
+              {forecast.map((day, i) => {
+                const h = Math.max(4, (day.kg / maxFcast) * 100);
+                const color = day.conf >= 85 ? "bg-primary" : day.conf >= 70 ? "bg-primary/65" : "bg-primary/35";
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                    <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-foreground text-background text-[9px] rounded px-1.5 py-0.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      {day.label}: {day.kg} kg
+                    </div>
+                    <div className="w-full flex-1 flex items-end">
+                      <div className={cn("w-full rounded-t-sm", color)} style={{ height: `${h}%` }} />
+                    </div>
+                    {i % 3 === 0 && (
+                      <span className="text-[8px] text-muted-foreground/60 leading-tight text-center truncate w-full">{day.label.split(" ")[1]}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+              <div className="flex gap-3">
+                <span className="flex items-center gap-1"><span className="size-2.5 rounded-sm bg-primary inline-block" /> Sure</span>
+                <span className="flex items-center gap-1"><span className="size-2.5 rounded-sm bg-primary/65 inline-block" /> Fairly sure</span>
+                <span className="flex items-center gap-1"><span className="size-2.5 rounded-sm bg-primary/35 inline-block" /> Guessing</span>
+              </div>
+              <span className="font-semibold text-foreground/80">~{forecast.reduce((s, d) => s + d.kg, 0).toFixed(0)} kg / 14 days</span>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* ── AI Agents ───────────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Cpu className="size-4 text-violet-400" />
+          <h2 className="font-bold text-foreground text-base">AI Agents Running Your Farm</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          These three little AI workers run in the background — watching, deciding, and acting on your behalf. You can turn each one on or off, and ask them what they're thinking at any time.
+        </p>
+        <div className="grid md:grid-cols-3 gap-4">
+          {AGENT_DEFS.map(def => {
+            const state = agents[def.id];
+            return (
+              <Card key={def.id} className={cn("border-2 overflow-hidden transition-all", def.color, !state.enabled && "opacity-60")}>
+                {/* Header */}
+                <div className="p-4 pb-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">{def.emoji}</span>
+                      <div>
+                        <div className="font-bold text-foreground text-sm">{def.name}</div>
+                        <Badge className={cn("text-[9px] mt-0.5", def.tagColor, "border-0")}>
+                          {state.enabled ? (state.busy ? "Thinking…" : "Active") : "Paused"}
+                        </Badge>
+                      </div>
+                    </div>
+                    {/* Toggle */}
+                    <button onClick={() => toggleAgent(def.id)} className="shrink-0 mt-0.5">
+                      {state.enabled
+                        ? <ToggleRight className="size-6 text-primary" />
+                        : <ToggleLeft className="size-6 text-muted-foreground/40" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">{def.tagline}</p>
+                </div>
+
+                {/* Latest thought/action */}
+                <div className="px-4 pb-3 space-y-2">
+                  {state.log.slice(0, 2).map((entry, i) => (
+                    <div key={i} className="rounded-lg bg-background/50 border border-border/50 px-3 py-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">
+                          {entry.type === "thought" ? "💭 Thinking" : "✅ Did"}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground/50 ml-auto">{entry.ts}</span>
+                      </div>
+                      <p className="text-[11px] text-foreground/80 leading-snug">{entry.text}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Action buttons */}
+                <div className="px-4 pb-4 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!state.enabled || state.busy}
+                    onClick={() => runAgent(def)}
+                    className="flex-1 h-8 text-[11px] border-border hover:bg-accent gap-1.5"
+                  >
+                    {state.busy
+                      ? <><RefreshCw className="size-3 animate-spin" /> Working…</>
+                      : <><Play className="size-3" /> Run Now</>}
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Farm AI Chat ─────────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Bot className="size-4 text-amber-500" />
+          <h2 className="font-bold text-foreground text-base">Ask Your Farm AI Anything</h2>
+          <span className="text-xs text-muted-foreground ml-1">Type a question in plain English</span>
+        </div>
         <Card className="overflow-hidden">
           {/* Quick questions */}
-          <div className="px-4 pt-3 pb-2 border-b border-border bg-muted/50 flex gap-2 flex-wrap">
-            {QUICK_QUESTIONS.map(q => (
-              <button key={q} onClick={() => sendMessage(q)}
-                className="text-[11px] px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium">
+          <div className="px-4 pt-3 pb-2.5 border-b border-border bg-muted/40 flex gap-1.5 flex-wrap">
+            {QUICK_Q.map(q => (
+              <button key={q} onClick={() => send(q)}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-amber-300/50 bg-amber-50/70 text-amber-700 hover:bg-amber-100 transition-colors font-medium dark:border-amber-500/25 dark:bg-amber-500/8 dark:text-amber-400 dark:hover:bg-amber-500/15">
                 {q}
               </button>
             ))}
@@ -576,27 +878,23 @@ export default function AIPage() {
           {/* Messages */}
           <div ref={chatRef} className="h-72 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`size-8 rounded-full grid place-items-center shrink-0 ${msg.role === "ai" ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-muted"}`}>
+              <div key={i} className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}>
+                <div className={cn("size-8 rounded-full grid place-items-center shrink-0",
+                  msg.role === "ai" ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-muted")}>
                   {msg.role === "ai"
                     ? <Sparkles className="size-4 text-white" />
                     : <Users className="size-4 text-muted-foreground" />}
                 </div>
-                <div className={`max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
-                  <div className={`rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                <div className={cn("max-w-[82%] flex flex-col gap-1", msg.role === "user" && "items-end")}>
+                  <div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
                     msg.role === "ai"
-                      ? "bg-card border border-border text-foreground"
-                      : "bg-amber-600 text-white"
-                  }`}>
+                      ? "bg-card border border-border text-foreground rounded-tl-sm"
+                      : "bg-amber-600 text-white rounded-tr-sm")}>
                     {msg.text.split("\n").map((line, li) => {
                       const parts = line.split(/\*\*(.*?)\*\*/g);
                       return (
                         <span key={li} className="block">
-                          {parts.map((part, pi) =>
-                            pi % 2 === 1
-                              ? <strong key={pi}>{part}</strong>
-                              : <span key={pi}>{part}</span>
-                          )}
+                          {parts.map((p, pi) => pi % 2 === 1 ? <strong key={pi}>{p}</strong> : <span key={pi}>{p}</span>)}
                         </span>
                       );
                     })}
@@ -604,16 +902,15 @@ export default function AIPage() {
                 </div>
               </div>
             ))}
-
             {typing && (
               <div className="flex gap-3">
                 <div className="size-8 rounded-full grid place-items-center bg-gradient-to-br from-amber-500 to-orange-600 shrink-0">
                   <Sparkles className="size-4 text-white" />
                 </div>
-                <div className="bg-card border border-border rounded-xl px-3.5 py-2.5 flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-1.5">
+                  {[0, 150, 300].map(d => (
+                    <span key={d} className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                  ))}
                 </div>
               </div>
             )}
@@ -624,19 +921,17 @@ export default function AIPage() {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
-              placeholder="Ask about harvest timing, disease risk, revenue forecast..."
-              className="flex-1 text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-input text-foreground"
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+              placeholder="Ask about harvest, disease, water, workers, forecasts…"
+              className="flex-1 text-sm border border-border rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400/50 bg-input text-foreground placeholder:text-muted-foreground/50"
             />
-            <Button onClick={() => sendMessage()}
-              disabled={!input.trim() || typing}
-              className="bg-amber-600 hover:bg-amber-700 size-9 p-0 shrink-0">
+            <Button onClick={() => send()} disabled={!input.trim() || typing}
+              className="bg-amber-600 hover:bg-amber-700 size-9 p-0 shrink-0 rounded-xl">
               <Send className="size-4" />
             </Button>
           </div>
         </Card>
       </div>
-
     </div>
   );
 }
