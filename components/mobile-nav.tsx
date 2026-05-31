@@ -128,7 +128,7 @@ export function MobileNav() {
   return (
     <>
       {/* ── Bottom tab bar ─────────────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-sm border-t border-slate-200">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur-sm border-t border-border">
         <div className="flex items-stretch h-16">
           {PRIMARY_TABS.map(tab => {
             const href = isSupervisor && "supervisorHref" in tab ? tab.supervisorHref : tab.href;
@@ -146,10 +146,10 @@ export function MobileNav() {
                 href={href}
                 className={cn(
                   "flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-colors",
-                  active ? "text-emerald-600" : "text-slate-400"
+                  active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                {active && <span className="absolute top-0 inset-x-3 h-0.5 bg-emerald-500 rounded-b-full" />}
+                {active && <span className="absolute top-0 inset-x-3 h-0.5 bg-primary rounded-b-full" />}
                 <Icon className="size-5" />
                 <span className="text-[10px] font-semibold">{t.tabs[tab.tabKey]}</span>
               </Link>
@@ -161,7 +161,7 @@ export function MobileNav() {
             onClick={() => setDrawerOpen(true)}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors",
-              drawerOpen ? "text-emerald-600" : "text-slate-400"
+              drawerOpen ? "text-primary" : "text-muted-foreground"
             )}
           >
             <MoreHorizontal className="size-5" />
@@ -180,22 +180,22 @@ export function MobileNav() {
           />
 
           {/* Slide-up panel */}
-          <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col">
+          <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-card rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col">
 
             {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1 shrink-0">
-              <div className="w-10 h-1 rounded-full bg-slate-200" />
+              <div className="w-10 h-1 rounded-full bg-muted" />
             </div>
 
             {/* User card + close */}
-            <div className="flex items-center gap-3 px-5 pt-2 pb-4 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-3 px-5 pt-2 pb-4 border-b border-border shrink-0">
               {user && (
                 <>
                   <div className={`size-10 rounded-full ${ROLE_COLORS[role].bg} grid place-items-center shrink-0`}>
                     <span className="text-white font-bold text-sm">{user.avatar}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-slate-900 truncate">{user.name}</div>
+                    <div className="font-semibold text-foreground truncate">{user.name}</div>
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${ROLE_COLORS[role].badge}`}>
                       {user.role}
                     </span>
@@ -204,9 +204,9 @@ export function MobileNav() {
               )}
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="size-8 rounded-full bg-slate-100 grid place-items-center shrink-0 hover:bg-slate-200 transition-colors"
+                className="size-8 rounded-full bg-muted grid place-items-center shrink-0 hover:bg-accent transition-colors"
               >
-                <X className="size-4 text-slate-600" />
+                <X className="size-4 text-muted-foreground" />
               </button>
             </div>
 
@@ -224,7 +224,7 @@ export function MobileNav() {
                   if (visible.length === 0) return null;
                   return (
                     <div key={group.label}>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 mb-1.5">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 mb-1.5">
                         {group.label}
                       </div>
                       <div className="space-y-0.5">
@@ -240,18 +240,18 @@ export function MobileNav() {
                               className={cn(
                                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
                                 active
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "text-slate-700 hover:bg-slate-50 border border-transparent"
+                                  ? "bg-primary/12 text-primary border border-primary/25"
+                                  : "text-foreground/80 hover:bg-accent border border-transparent"
                               )}
                             >
                               {"isValve" in item && item.isValve
                                 ? <ValveIcon size={16} />
                                 : item.icon
-                                ? <item.icon className={cn("size-4 shrink-0", active ? "text-emerald-600" : "text-slate-400")} />
+                                ? <item.icon className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
                                 : null
                               }
                               <span className="flex-1">{item.label}</span>
-                              {active && <ChevronRight className="size-3.5 text-emerald-500" />}
+                              {active && <ChevronRight className="size-3.5 text-primary" />}
                             </Link>
                           );
                         })}
@@ -262,9 +262,9 @@ export function MobileNav() {
               </div>
 
               {/* Account switcher */}
-              <div className="mx-3 mt-2 mb-3 rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t.tabs.switchAccount}</div>
+              <div className="mx-3 mt-2 mb-3 rounded-2xl border border-border overflow-hidden">
+                <div className="px-4 py-2.5 bg-muted border-b border-border">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.tabs.switchAccount}</div>
                 </div>
                 {farmers.filter(f => f.role !== "farmer").map(f => {
                   const isActive = user?.id === f.id;
@@ -274,31 +274,31 @@ export function MobileNav() {
                       key={f.id}
                       onClick={() => handleSwitch(f.id)}
                       className={cn(
-                        "flex items-center gap-3 w-full px-4 py-3 transition-colors border-b border-slate-100 last:border-0",
-                        isActive ? "bg-emerald-50" : "hover:bg-slate-50"
+                        "flex items-center gap-3 w-full px-4 py-3 transition-colors border-b border-border/50 last:border-0",
+                        isActive ? "bg-primary/10" : "hover:bg-accent"
                       )}
                     >
                       <Avatar className="size-9 shrink-0">
                         <AvatarFallback className={cn(
                           "text-xs font-bold",
-                          isActive ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-600"
+                          isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                         )}>
                           {f.avatar}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 text-left min-w-0">
-                        <div className="text-sm font-semibold text-slate-900 truncate">{f.name}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1 capitalize">
+                        <div className="text-sm font-semibold text-foreground truncate">{f.name}</div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 capitalize">
                           <Icon className="size-3" />
                           {f.role}
                           {f.role === "supervisor" && (
-                            <span className="text-slate-400 ml-1">
+                            <span className="text-muted-foreground ml-1">
                               · {f.assignedValves.map(v => v.split("-")[1].toUpperCase()).join(", ")}
                             </span>
                           )}
                         </div>
                       </div>
-                      {isActive && <Check className="size-4 text-emerald-600 shrink-0" />}
+                      {isActive && <Check className="size-4 text-primary shrink-0" />}
                     </button>
                   );
                 })}
@@ -308,12 +308,12 @@ export function MobileNav() {
               <div className="px-3 pb-2">
                 <button
                   onClick={toggle}
-                  className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                  className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-muted border border-border text-sm font-semibold text-foreground/80 hover:bg-accent transition-colors"
                 >
-                  <span className="flex items-center gap-2"><Languages className="size-4 text-slate-400" />{isAm ? "ቋንቋ" : "Language"}</span>
+                  <span className="flex items-center gap-2"><Languages className="size-4 text-muted-foreground" />{isAm ? "ቋንቋ" : "Language"}</span>
                   <div className="flex items-center gap-1 text-xs">
-                    <span className={cn("px-2 py-0.5 rounded font-bold", !isAm ? "bg-emerald-600 text-white" : "text-slate-400")}>EN</span>
-                    <span className={cn("px-2 py-0.5 rounded font-bold", isAm ? "bg-emerald-600 text-white" : "text-slate-400")}>አማ</span>
+                    <span className={cn("px-2 py-0.5 rounded font-bold", !isAm ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>EN</span>
+                    <span className={cn("px-2 py-0.5 rounded font-bold", isAm ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>አማ</span>
                   </div>
                 </button>
               </div>
@@ -322,7 +322,7 @@ export function MobileNav() {
               <div className="px-3 pb-6">
                 <button
                   onClick={handleSignOut}
-                  className="flex items-center gap-2.5 w-full px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 border border-red-100 transition-colors text-sm font-semibold"
+                  className="flex items-center gap-2.5 w-full px-4 py-3 rounded-xl text-destructive hover:bg-destructive/10 border border-destructive/20 transition-colors text-sm font-semibold"
                 >
                   <LogOut className="size-4" />
                   {t.tabs.signOut}
