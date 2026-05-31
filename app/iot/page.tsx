@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RichTooltip, type SensorInfo } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   Cpu, Droplets, Thermometer, Wind, Cloud, Sun, Camera,
@@ -113,6 +114,158 @@ function CircularGauge({ pct, color, label, sublabel }: { pct: number; color: st
       <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fill="white" fillOpacity="0.35">{sublabel}</text>
     </svg>
   );
+}
+
+// ─── Sensor info definitions ─────────────────────────────────────────────────
+
+function soilMoistureInfo(current: number): SensorInfo {
+  return {
+    name: "Soil Moisture", unit: "%",
+    description: "Volumetric water content in the root zone. Strawberries need consistent moisture for berry development.",
+    min: 0, max: 100, optimalLow: 60, optimalHigh: 80, current,
+    lowLabel: "Dry", highLabel: "Saturated",
+    tip: "Below 50% → water stress, smaller berries. Above 90% → root rot risk. Irrigate when dropping below 60%.",
+  };
+}
+
+function soilTempInfo(current: number): SensorInfo {
+  return {
+    name: "Soil Temperature", unit: "°C",
+    description: "Root zone temperature affects nutrient uptake and microbial activity.",
+    min: 5, max: 35, optimalLow: 16, optimalHigh: 22, current,
+    lowLabel: "Cold", highLabel: "Hot",
+    tip: "Below 10°C slows root growth. Above 28°C causes heat stress. Entoto's altitude keeps soil cool — ideal for strawberries.",
+  };
+}
+
+function ecInfo(current: number): SensorInfo {
+  return {
+    name: "Electrical Conductivity (EC)", unit: " mS/cm",
+    description: "Measures dissolved nutrient/salt concentration in the soil solution. High EC means more nutrients but risks salt burn.",
+    min: 0, max: 5, optimalLow: 1.5, optimalHigh: 2.5, current,
+    lowLabel: "Low nutrients", highLabel: "Salt stress",
+    tip: "Above 2.8 → leaf tip burn, reduced water uptake. Below 1.0 → nutrient deficiency. Flush with clean water if EC > 3.0.",
+  };
+}
+
+function phInfo(current: number): SensorInfo {
+  return {
+    name: "Soil pH", unit: "",
+    description: "Acidity/alkalinity of the soil. Controls which nutrients are available to plant roots.",
+    min: 4, max: 9, optimalLow: 5.8, optimalHigh: 6.5, current,
+    lowLabel: "Acidic", highLabel: "Alkaline",
+    tip: "Below 5.5 → phosphorus lockout. Above 7.0 → iron & manganese deficiency (yellowing leaves). Adjust with sulfur (down) or lime (up).",
+  };
+}
+
+function flowRateInfo(current: number): SensorInfo {
+  return {
+    name: "Flow Rate", unit: " L/h",
+    description: "Volume of water delivered through the drip lines per hour when the valve is open.",
+    min: 0, max: 2400, optimalLow: 800, optimalHigh: 2200, current,
+    lowLabel: "Low", highLabel: "Max",
+    tip: "Typical drip irrigation: 800–2,000 L/h per zone. Drop in flow may indicate a clogged emitter or low pressure.",
+  };
+}
+
+function pressureInfo(current: number): SensorInfo {
+  return {
+    name: "Inlet Pressure", unit: " bar",
+    description: "Water pressure at the valve inlet. Required for drip emitters to deliver uniform coverage across the zone.",
+    min: 0, max: 6, optimalLow: 1.5, optimalHigh: 3.5, current,
+    lowLabel: "Too low", highLabel: "Too high",
+    tip: "Below 1.0 bar → poor emitter coverage. Above 4.0 bar → emitter damage and misting. Ideal drip range: 1.5–3.0 bar.",
+  };
+}
+
+function humidityInfo(current: number): SensorInfo {
+  return {
+    name: "Relative Humidity", unit: "%",
+    description: "Amount of moisture in the air relative to its maximum capacity at the current temperature.",
+    min: 0, max: 100, optimalLow: 60, optimalHigh: 75, current,
+    lowLabel: "Dry", highLabel: "Saturated",
+    tip: "Above 85% → gray mold (Botrytis) risk on flowers & fruit. Below 50% → increased plant transpiration stress. Entoto's cool climate raises nighttime humidity.",
+  };
+}
+
+function dewPointInfo(current: number): SensorInfo {
+  return {
+    name: "Dew Point", unit: "°C",
+    description: "Temperature at which air becomes saturated and moisture condenses on surfaces (leaves, fruit).",
+    min: -5, max: 25, optimalLow: 5, optimalHigh: 14, current,
+    lowLabel: "Very dry", highLabel: "High risk",
+    tip: "When dew point approaches air temperature, leaf wetness occurs — prime condition for Botrytis and powdery mildew. Monitor closely at dew point > 14°C.",
+  };
+}
+
+function pressureHpaInfo(current: number): SensorInfo {
+  return {
+    name: "Atmospheric Pressure", unit: " hPa",
+    description: "Barometric pressure. At Entoto's 2,800m altitude, normal pressure is ~730–780 hPa (vs sea-level 1013 hPa).",
+    min: 700, max: 800, optimalLow: 730, optimalHigh: 780, current,
+    lowLabel: "Storm risk", highLabel: "Fair weather",
+    tip: "Falling pressure often precedes rain or storms. Stable/rising pressure indicates clear conditions. Altitude significantly lowers baseline pressure.",
+  };
+}
+
+function uvInfo(current: number): SensorInfo {
+  return {
+    name: "UV Index", unit: "",
+    description: "Ultraviolet radiation intensity from the sun. Higher at altitude — Entoto at 2,800m receives ~40% more UV than sea level.",
+    min: 0, max: 12, optimalLow: 0, optimalHigh: 5, current,
+    lowLabel: "Safe", highLabel: "Extreme",
+    tip: "0–2 Low, 3–5 Moderate, 6–7 High, 8–10 Very High, 11+ Extreme. Workers should use SPF30+ sunscreen above UV 6. Plant sunburn can occur above UV 9.",
+  };
+}
+
+function rainfallInfo(current: number): SensorInfo {
+  return {
+    name: "Rainfall (24h)", unit: " mm",
+    description: "Total precipitation recorded over the past 24 hours by the tipping-bucket rain gauge.",
+    min: 0, max: 30, optimalLow: 0, optimalHigh: 8, current,
+    lowLabel: "Dry", highLabel: "Heavy rain",
+    tip: "0–2 mm → light, supplement with irrigation. 3–8 mm → adequate, reduce irrigation. >10 mm → suspend irrigation, check drainage. >20 mm → disease alert.",
+  };
+}
+
+function solarInfo(current: number): SensorInfo {
+  return {
+    name: "Solar Radiation", unit: " W/m²",
+    description: "Shortwave radiation reaching the crop canopy. Drives photosynthesis and evapotranspiration.",
+    min: 0, max: 900, optimalLow: 300, optimalHigh: 750, current,
+    lowLabel: "Overcast", highLabel: "Intense",
+    tip: "Below 200 W/m² → low photosynthesis, slow ripening. 400–700 W/m² → peak growth. Above 800 W/m² → possible sunscald on exposed berries. Entoto's thin air increases intensity.",
+  };
+}
+
+function windInfo(current: number): SensorInfo {
+  return {
+    name: "Wind Speed", unit: " kph",
+    description: "Average wind speed at the weather station mast (2m height). Affects evapotranspiration and disease spread.",
+    min: 0, max: 60, optimalLow: 0, optimalHigh: 20, current,
+    lowLabel: "Calm", highLabel: "Strong",
+    tip: "Above 25 kph → increases plant water stress and dries soil faster. Above 40 kph → physical crop damage, broken runners. Entoto's ridgeline can experience strong gusts.",
+  };
+}
+
+function tankLevelInfo(pct: number): SensorInfo {
+  return {
+    name: "Tank Level", unit: "%",
+    description: "Current water volume as a percentage of total tank capacity. Measured by ultrasonic distance sensor.",
+    min: 0, max: 100, optimalLow: 30, optimalHigh: 100, current: pct,
+    lowLabel: "Empty", highLabel: "Full",
+    tip: "Below 25% → low alert, schedule refill. Below 10% → critical, irrigation may be interrupted. Refill from borehole pump or municipal supply.",
+  };
+}
+
+function drainRateInfo(lph: number): SensorInfo {
+  return {
+    name: "Net Flow Rate", unit: " L/h",
+    description: "Rate at which the tank is filling (positive) or draining (negative) due to irrigation consumption.",
+    min: -3000, max: 3000, optimalLow: -2500, optimalHigh: 0, current: lph,
+    lowLabel: "Fast drain", highLabel: "Filling",
+    tip: "Negative value = water being consumed by irrigation. Positive = tank refilling. Zero = no irrigation active. Compare with flow meters on valve tabs.",
+  };
 }
 
 // ─── Flow Meter Bar ───────────────────────────────────────────────────────────
@@ -387,18 +540,26 @@ export default function IoTPage() {
                     {/* Readings */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white/4 rounded-lg p-3">
-                        <div className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">Flow Rate</div>
-                        <div className={cn("text-base font-bold font-mono", isOpen ? "text-emerald-300" : "text-slate-600")}>
-                          {isOpen ? `${vs.flowRateLph.toLocaleString()}` : "—"}
-                          {isOpen && <span className="text-[10px] text-slate-500 font-normal ml-0.5">L/h</span>}
-                        </div>
+                        <RichTooltip info={flowRateInfo(vs.flowRateLph)} side="top">
+                          <div className="w-full">
+                            <div className="text-[9px] text-slate-600 uppercase tracking-wider mb-1 underline decoration-dotted decoration-slate-600 cursor-help">Flow Rate</div>
+                            <div className={cn("text-base font-bold font-mono", isOpen ? "text-emerald-300" : "text-slate-600")}>
+                              {isOpen ? `${vs.flowRateLph.toLocaleString()}` : "—"}
+                              {isOpen && <span className="text-[10px] text-slate-500 font-normal ml-0.5">L/h</span>}
+                            </div>
+                          </div>
+                        </RichTooltip>
                       </div>
                       <div className="bg-white/4 rounded-lg p-3">
-                        <div className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">Pressure</div>
-                        <div className="text-base font-bold font-mono text-slate-300">
-                          {vs.pressureBar.toFixed(1)}
-                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">bar</span>
-                        </div>
+                        <RichTooltip info={pressureInfo(vs.pressureBar)} side="top">
+                          <div className="w-full">
+                            <div className="text-[9px] text-slate-600 uppercase tracking-wider mb-1 underline decoration-dotted decoration-slate-600 cursor-help">Pressure</div>
+                            <div className="text-base font-bold font-mono text-slate-300">
+                              {vs.pressureBar.toFixed(1)}
+                              <span className="text-[10px] text-slate-500 font-normal ml-0.5">bar</span>
+                            </div>
+                          </div>
+                        </RichTooltip>
                       </div>
                     </div>
 
@@ -543,41 +704,49 @@ export default function IoTPage() {
                           )}
                           <div className="grid grid-cols-2 gap-2">
                             {/* Moisture */}
-                            <div>
-                              <div className="flex items-center gap-1 mb-1">
-                                <Droplets className="size-2.5 text-blue-400" />
-                                <span className="text-[8px] text-slate-600">Moisture</span>
+                            <RichTooltip info={soilMoistureInfo(r.moisturePct)} side="bottom">
+                              <div className="w-full">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Droplets className="size-2.5 text-blue-400" />
+                                  <span className="text-[8px] text-slate-600 underline decoration-dotted cursor-help">Moisture</span>
+                                </div>
+                                <div className="text-sm font-bold text-blue-300 font-mono">{r.moisturePct.toFixed(0)}%</div>
+                                <div className="h-1 bg-white/8 rounded-full mt-1 overflow-hidden">
+                                  <div className="h-full bg-blue-400 rounded-full" style={{ width: `${r.moisturePct}%`, transition: "width 0.5s" }} />
+                                </div>
                               </div>
-                              <div className="text-sm font-bold text-blue-300 font-mono">{r.moisturePct.toFixed(0)}%</div>
-                              <div className="h-1 bg-white/8 rounded-full mt-1 overflow-hidden">
-                                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${r.moisturePct}%`, transition: "width 0.5s" }} />
-                              </div>
-                            </div>
+                            </RichTooltip>
                             {/* Temperature */}
-                            <div>
-                              <div className="flex items-center gap-1 mb-1">
-                                <Thermometer className="size-2.5 text-orange-400" />
-                                <span className="text-[8px] text-slate-600">Soil Temp</span>
+                            <RichTooltip info={soilTempInfo(r.tempC)} side="bottom">
+                              <div className="w-full">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Thermometer className="size-2.5 text-orange-400" />
+                                  <span className="text-[8px] text-slate-600 underline decoration-dotted cursor-help">Soil Temp</span>
+                                </div>
+                                <div className="text-sm font-bold text-orange-300 font-mono">{r.tempC.toFixed(1)}°</div>
                               </div>
-                              <div className="text-sm font-bold text-orange-300 font-mono">{r.tempC.toFixed(1)}°</div>
-                            </div>
+                            </RichTooltip>
                             {/* EC */}
-                            <div>
-                              <div className="flex items-center gap-1 mb-1">
-                                <Zap className="size-2.5 text-purple-400" />
-                                <span className="text-[8px] text-slate-600">EC</span>
+                            <RichTooltip info={ecInfo(r.ecMsCm)} side="top">
+                              <div className="w-full">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Zap className="size-2.5 text-purple-400" />
+                                  <span className="text-[8px] text-slate-600 underline decoration-dotted cursor-help">EC</span>
+                                </div>
+                                <div className={cn("text-sm font-bold font-mono", r.ecMsCm > 2.5 ? "text-amber-300" : "text-purple-300")}>{r.ecMsCm.toFixed(1)}</div>
+                                <div className="text-[8px] text-slate-700">mS/cm</div>
                               </div>
-                              <div className={cn("text-sm font-bold font-mono", r.ecMsCm > 2.5 ? "text-amber-300" : "text-purple-300")}>{r.ecMsCm.toFixed(1)}</div>
-                              <div className="text-[8px] text-slate-700">mS/cm</div>
-                            </div>
+                            </RichTooltip>
                             {/* pH */}
-                            <div>
-                              <div className="flex items-center gap-1 mb-1">
-                                <Activity className="size-2.5 text-green-400" />
-                                <span className="text-[8px] text-slate-600">pH</span>
+                            <RichTooltip info={phInfo(r.ph)} side="top">
+                              <div className="w-full">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Activity className="size-2.5 text-green-400" />
+                                  <span className="text-[8px] text-slate-600 underline decoration-dotted cursor-help">pH</span>
+                                </div>
+                                <div className={cn("text-sm font-bold font-mono", r.ph < 5.8 ? "text-amber-300" : "text-green-300")}>{r.ph.toFixed(1)}</div>
                               </div>
-                              <div className={cn("text-sm font-bold font-mono", r.ph < 5.8 ? "text-amber-300" : "text-green-300")}>{r.ph.toFixed(1)}</div>
-                            </div>
+                            </RichTooltip>
                           </div>
                         </div>
                       );
@@ -615,14 +784,16 @@ export default function IoTPage() {
 
                     <div className="flex items-center gap-8">
                       {/* Circular gauge */}
-                      <div className="w-36 h-36 shrink-0">
-                        <CircularGauge
-                          pct={pct}
-                          color={color}
-                          label="Full"
-                          sublabel={fmtL(tank.currentL)}
-                        />
-                      </div>
+                      <RichTooltip info={tankLevelInfo(pct)} side="right">
+                        <div className="w-36 h-36 shrink-0 cursor-help">
+                          <CircularGauge
+                            pct={pct}
+                            color={color}
+                            label="Full"
+                            sublabel={fmtL(tank.currentL)}
+                          />
+                        </div>
+                      </RichTooltip>
 
                       {/* Stats */}
                       <div className="flex-1 space-y-4">
@@ -631,16 +802,20 @@ export default function IoTPage() {
                           <div className="text-2xl font-bold text-white font-mono">{fmtL(tank.currentL)}</div>
                         </div>
                         <div>
-                          <div className="text-[10px] text-slate-600 uppercase tracking-wider mb-1">Flow Rate</div>
-                          <div className={cn("flex items-center gap-1.5 text-base font-bold font-mono",
-                            isDraining ? "text-red-300" : isFilling ? "text-emerald-300" : "text-slate-500")}>
-                            {isDraining && <ArrowDown className="size-4" />}
-                            {isFilling && <ArrowUp className="size-4" />}
-                            {tank.fillRateLph !== 0 ? `${Math.abs(tank.fillRateLph).toLocaleString()} L/h` : "Static"}
-                          </div>
-                          <div className="text-[10px] text-slate-600">
-                            {isDraining ? "Draining (irrigation active)" : isFilling ? "Refilling" : "No flow"}
-                          </div>
+                          <RichTooltip info={drainRateInfo(tank.fillRateLph)} side="top">
+                            <div className="cursor-help">
+                              <div className="text-[10px] text-slate-600 uppercase tracking-wider mb-1 underline decoration-dotted decoration-slate-600">Flow Rate</div>
+                              <div className={cn("flex items-center gap-1.5 text-base font-bold font-mono",
+                                isDraining ? "text-red-300" : isFilling ? "text-emerald-300" : "text-slate-500")}>
+                                {isDraining && <ArrowDown className="size-4" />}
+                                {isFilling && <ArrowUp className="size-4" />}
+                                {tank.fillRateLph !== 0 ? `${Math.abs(tank.fillRateLph).toLocaleString()} L/h` : "Static"}
+                              </div>
+                              <div className="text-[10px] text-slate-600">
+                                {isDraining ? "Draining (irrigation active)" : isFilling ? "Refilling" : "No flow"}
+                              </div>
+                            </div>
+                          </RichTooltip>
                         </div>
                         <div>
                           <div className="text-[10px] text-slate-600 uppercase tracking-wider mb-1">Empty in</div>
@@ -887,8 +1062,12 @@ export default function IoTPage() {
                     <Wind className="size-3" /> Wind
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-bold text-white">{weather.windKph} <span className="text-sm text-slate-500">kph</span></div>
-                    <div className="text-[10px] text-slate-500">{windDir(weather.windDeg)} · {weather.windDeg}°</div>
+                    <RichTooltip info={windInfo(weather.windKph)} side="top">
+                    <div className="text-right cursor-help">
+                      <div className="text-xl font-bold text-white">{weather.windKph} <span className="text-sm text-slate-500">kph</span></div>
+                      <div className="text-[10px] text-slate-500 underline decoration-dotted">{windDir(weather.windDeg)} · {weather.windDeg}°</div>
+                    </div>
+                  </RichTooltip>
                   </div>
                 </div>
                 <div className="h-32">
@@ -907,7 +1086,9 @@ export default function IoTPage() {
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-1">
-                      <span className="text-[10px] text-slate-600 flex items-center gap-1"><Sun className="size-2.5" /> Solar Radiation</span>
+                      <RichTooltip info={solarInfo(weather.solarWm2)} side="left">
+                        <span className="text-[10px] text-slate-600 flex items-center gap-1 cursor-help underline decoration-dotted decoration-slate-600"><Sun className="size-2.5" /> Solar Radiation</span>
+                      </RichTooltip>
                       <span className="text-sm font-bold text-amber-300">{weather.solarWm2} W/m²</span>
                     </div>
                     <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
@@ -919,7 +1100,9 @@ export default function IoTPage() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-1">
-                      <span className="text-[10px] text-slate-600 flex items-center gap-1"><Droplets className="size-2.5" /> Humidity</span>
+                      <RichTooltip info={humidityInfo(weather.humidityPct)} side="left">
+                        <span className="text-[10px] text-slate-600 flex items-center gap-1 cursor-help underline decoration-dotted decoration-slate-600"><Droplets className="size-2.5" /> Humidity</span>
+                      </RichTooltip>
                       <span className="text-sm font-bold text-blue-300">{weather.humidityPct}%</span>
                     </div>
                     <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
@@ -936,20 +1119,22 @@ export default function IoTPage() {
             {/* Stats grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { label: "Humidity",   value: `${weather.humidityPct}%`,          icon: Droplets,   color: "text-blue-400" },
-                { label: "Dew Point",  value: `${weather.dewPointC.toFixed(1)}°C`, icon: Thermometer, color: "text-cyan-400" },
-                { label: "Pressure",   value: `${weather.pressureHpa} hPa`,        icon: Gauge,       color: "text-indigo-400" },
-                { label: "UV Index",   value: `${weather.uvIndex}`,                icon: Sun,         color: "text-amber-400" },
-                { label: "Rainfall 24h", value: `${weather.rainfallMm24h} mm`,    icon: CloudRain,   color: "text-blue-400" },
-                { label: "Solar",      value: `${weather.solarWm2} W/m²`,          icon: Zap,         color: "text-yellow-400" },
+                { label: "Humidity",     value: `${weather.humidityPct}%`,           icon: Droplets,    color: "text-blue-400",   info: humidityInfo(weather.humidityPct) },
+                { label: "Dew Point",    value: `${weather.dewPointC.toFixed(1)}°C`,  icon: Thermometer, color: "text-cyan-400",   info: dewPointInfo(weather.dewPointC) },
+                { label: "Pressure",     value: `${weather.pressureHpa} hPa`,         icon: Gauge,       color: "text-indigo-400", info: pressureHpaInfo(weather.pressureHpa) },
+                { label: "UV Index",     value: `${weather.uvIndex}`,                 icon: Sun,         color: "text-amber-400",  info: uvInfo(weather.uvIndex) },
+                { label: "Rainfall 24h", value: `${weather.rainfallMm24h} mm`,        icon: CloudRain,   color: "text-blue-400",   info: rainfallInfo(weather.rainfallMm24h) },
+                { label: "Solar",        value: `${weather.solarWm2} W/m²`,           icon: Zap,         color: "text-yellow-400", info: solarInfo(weather.solarWm2) },
               ].map(s => (
-                <div key={s.label} className="bg-[#12161d] border border-white/8 rounded-xl p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <s.icon className={cn("size-3", s.color)} />
-                    <span className="text-[9px] text-slate-600 uppercase tracking-wider">{s.label}</span>
+                <RichTooltip key={s.label} info={s.info} side="top">
+                  <div className="bg-[#12161d] border border-white/8 rounded-xl p-4 w-full cursor-help hover:border-white/15 transition-colors">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <s.icon className={cn("size-3", s.color)} />
+                      <span className="text-[9px] text-slate-600 uppercase tracking-wider underline decoration-dotted">{s.label}</span>
+                    </div>
+                    <div className={cn("text-base font-bold font-mono", s.color)}>{s.value}</div>
                   </div>
-                  <div className={cn("text-base font-bold font-mono", s.color)}>{s.value}</div>
-                </div>
+                </RichTooltip>
               ))}
             </div>
 
