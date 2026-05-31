@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import {
   Users, Wheat, AlertTriangle, TrendingUp, Activity, Leaf,
   ArrowRight, Bug, ShieldCheck, CalendarCheck, ListChecks, ChevronRight,
@@ -22,10 +23,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   FARM, VALVES, BEDS, FARMERS, HARVESTS, DISEASES, NOTIFICATIONS, TASKS, ATTENDANCE,
   plantsInBed, todayKg, totalKgValve, getFarmer,
+  VALVE_STATES, SOIL_READINGS, TANK_LEVELS, CAMERA_ALERTS, WEATHER_CURRENT,
 } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
+import type { ValveState, SoilReading, TankLevel, CameraAlert, WeatherCurrent } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { isAm } = useLang();
@@ -75,6 +79,37 @@ export default function DashboardPage() {
 
   const totalHarvestAllTime = harvests.reduce((s, h) => s + h.kg, 0);
 
+  const [liveValves, setLiveValves]   = useState(VALVE_STATES.map(v => ({...v})));
+  const [liveWeather, setLiveWeather] = useState(WEATHER_CURRENT);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLiveValves(prev => prev.map(v => ({
+        ...v,
+        flowRateLph: v.isOpen ? Math.round((v.flowRateLph + (Math.random()-0.5)*40)) : 0,
+        totalLitersToday: v.isOpen ? v.totalLitersToday + Math.round(v.flowRateLph/1200) : v.totalLitersToday,
+      })));
+      setLiveWeather(prev => ({
+        ...prev,
+        tempC: Math.round((prev.tempC + (Math.random()-0.5)*0.2)*10)/10,
+        windKph: Math.round(Math.max(0, prev.windKph + (Math.random()-0.5)*2)),
+      }));
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  const soilReadings  = SOIL_READINGS();
+  const cameraAlerts  = CAMERA_ALERTS;
+  const tanks         = TANK_LEVELS;
+  const openValves    = liveValves.filter(v => v.isOpen).length;
+  const totalFlowLph  = liveValves.reduce((s,v) => s + v.flowRateLph, 0);
+  const totalWaterToday = liveValves.reduce((s,v) => s + v.totalLitersToday, 0);
+  const mainTankPct   = Math.round((tanks[0].currentL / tanks[0].capacityL) * 100);
+  const newCamAlerts  = cameraAlerts.filter(a => a.status === "new").length;
+  const soilOptimal   = soilReadings.filter(r => r.status === "optimal").length;
+  const soilWarning   = soilReadings.filter(r => r.status === "warning").length;
+  const soilCritical  = soilReadings.filter(r => r.status === "critical").length;
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
 
@@ -114,6 +149,47 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── IoT Status Bar ───────────────────────────────────────────────── */}
+      <div className="rounded-xl bg-[#0d1117] border border-white/8 px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
+          <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          IoT Live
+        </div>
+        <div className="h-4 w-px bg-white/10 hidden sm:block" />
+        {/* Valve states */}
+        {liveValves.map(vs => {
+          const valve = VALVES.find(v => v.id === vs.valveId);
+          return (
+            <div key={vs.valveId} className="flex items-center gap-1.5 text-[11px]">
+              <span className={cn("size-2 rounded-full", vs.isOpen ? "bg-emerald-400 animate-pulse" : "bg-slate-600")} />
+              <span className="text-slate-400">{valve?.name}</span>
+              <span className={cn("font-mono font-semibold", vs.isOpen ? "text-emerald-300" : "text-slate-600")}>
+                {vs.isOpen ? `${vs.flowRateLph.toLocaleString()} L/h` : "IDLE"}
+              </span>
+            </div>
+          );
+        })}
+        <div className="h-4 w-px bg-white/10 hidden sm:block" />
+        {/* Total flow */}
+        <div className="text-[11px] text-slate-400">
+          Total: <span className="text-blue-300 font-mono font-semibold">{totalFlowLph.toLocaleString()} L/h</span>
+        </div>
+        {/* Tank level */}
+        <div className="text-[11px] text-slate-400">
+          Tank: <span className={cn("font-semibold", mainTankPct < 25 ? "text-red-400" : mainTankPct < 50 ? "text-amber-400" : "text-emerald-300")}>{mainTankPct}%</span>
+        </div>
+        {/* Camera alerts */}
+        {newCamAlerts > 0 && (
+          <div className="flex items-center gap-1 text-[11px] text-red-400 font-semibold">
+            <span className="size-1.5 rounded-full bg-red-400 animate-ping" />
+            {newCamAlerts} camera alert{newCamAlerts !== 1 ? "s" : ""}
+          </div>
+        )}
+        <div className="ml-auto text-[11px] text-slate-500 hidden md:block">
+          {liveWeather.tempC}°C · {liveWeather.condition} · Wind {liveWeather.windKph} kph
+        </div>
+      </div>
+
       {/* ── AI Alert Banner ─────────────────────────────────────────────── */}
       {openDiseases > 0 && (
         <Link href="/ai" className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg shadow-amber-200">
@@ -135,10 +211,38 @@ export default function DashboardPage() {
 
       {/* ── Secondary stat strip ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Irrigation Zones" value={VALVES.length}     hint="Active"                    icon={ValveIcon}      tone="blue"    />
-        <StatCard label="Healthy Beds"      value={`${healthyBeds}/${beds.length}`} hint={`${beds.filter(b=>b.health==="infected").length} infected`} icon={Sprout} tone="emerald" />
-        <StatCard label="Total Plants"      value={totalPlants.toLocaleString()} hint="8 plants/m"     icon={Leaf}           tone="emerald" />
-        <StatCard label="Field Staff"       value={FARMERS.filter(f => f.role !== "manager").length} hint={`${FARMERS.filter(f=>f.role==="supervisor").length} supervisors`} icon={Users} tone="slate" />
+        <StatCard label="Irrigation Zones" value={`${openValves}/${VALVES.length} open`} hint={`${totalFlowLph.toLocaleString()} L/h`} icon={ValveIcon} tone="blue" />
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Sprout className="size-3 text-emerald-500" /> Soil Health
+          </div>
+          <div className="flex items-end gap-2 mb-2">
+            <span className="text-2xl font-extrabold text-emerald-700">{soilOptimal}</span>
+            <span className="text-xs text-slate-400 mb-0.5">optimal</span>
+          </div>
+          <div className="flex gap-1">
+            <div className="h-1.5 rounded-full bg-emerald-400" style={{width:`${(soilOptimal/soilReadings.length)*100}%`, flex:1, minWidth:0}} />
+            <div className="h-1.5 rounded-full bg-amber-400" style={{width:`${(soilWarning/soilReadings.length)*100}%`, flex: soilWarning > 0 ? 1 : 0, minWidth:0}} />
+            <div className="h-1.5 rounded-full bg-red-400"   style={{width:`${(soilCritical/soilReadings.length)*100}%`, flex: soilCritical > 0 ? 1 : 0, minWidth:0}} />
+          </div>
+          <div className="text-[10px] text-slate-400 mt-1">{soilWarning} warn · {soilCritical} critical</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Activity className="size-3 text-blue-500" /> Water Today
+          </div>
+          <div className="flex items-end gap-2 mb-2">
+            <span className="text-2xl font-extrabold text-blue-700">
+              {totalWaterToday >= 1000 ? `${(totalWaterToday/1000).toFixed(1)}` : Math.round(totalWaterToday)}
+            </span>
+            <span className="text-xs text-slate-400 mb-0.5">{totalWaterToday >= 1000 ? "m³" : "L"}</span>
+          </div>
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-400 rounded-full" style={{width:`${Math.min(100,(mainTankPct))}%`}} />
+          </div>
+          <div className="text-[10px] text-slate-400 mt-1">Tank: {mainTankPct}% remaining</div>
+        </div>
+        <StatCard label="Field Staff" value={FARMERS.filter(f => f.role !== "manager").length} hint={`${FARMERS.filter(f=>f.role==="supervisor").length} supervisors`} icon={Users} tone="slate" />
       </div>
 
       {/* ── Weather + Weekly Report (side by side on md+) ─────────────── */}
@@ -165,26 +269,42 @@ export default function DashboardPage() {
           <HarvestChart data={chartData} />
         </Card>
 
-        <Card className="border border-slate-200 shadow-sm p-4 md:p-5 flex flex-col">
+        <div className="col-span-1 border border-slate-200 shadow-sm bg-white rounded-xl p-4 md:p-5 flex flex-col">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-bold text-slate-900">Notifications</div>
-            <Badge variant="outline" className="text-[10px]">{NOTIFICATIONS.filter(n => !n.read).length} new</Badge>
+            <div className="font-bold text-slate-900">Alert Feed</div>
+            <Badge variant="outline" className="text-[10px]">
+              {openDiseases + newCamAlerts} active
+            </Badge>
           </div>
-          <div className="space-y-2 flex-1">
-            {NOTIFICATIONS.slice(0, 6).map(n => (
-              <Link key={n.id} href={n.link ?? "#"} className="flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors">
-                <span className={`size-2 rounded-full mt-1.5 shrink-0 ${n.read ? "bg-slate-300" : "bg-emerald-500"}`} />
+          <div className="space-y-2 flex-1 overflow-y-auto max-h-72">
+            {/* Camera alerts */}
+            {cameraAlerts.filter(a => a.status === "new").slice(0,3).map(a => (
+              <Link key={a.id} href="/iot" className="flex items-start gap-2.5 p-2.5 rounded-lg border border-red-100 bg-red-50 hover:bg-red-100 transition-colors">
+                <span className="size-2 rounded-full bg-red-500 mt-1.5 shrink-0 animate-pulse" />
                 <div className="min-w-0">
-                  <div className="text-xs text-slate-700 leading-snug">{n.message}</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
-                    <Badge variant="outline" className="text-[9px] px-1 h-4 capitalize">{n.channel}</Badge>
-                    {new Date(n.timestamp).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                  </div>
+                  <div className="text-xs font-semibold text-red-800 truncate">📷 {a.label} — {a.bedId}</div>
+                  <div className="text-[10px] text-red-600 mt-0.5">{Math.round(a.confidence*100)}% confidence · {a.alertType}</div>
                 </div>
               </Link>
             ))}
+            {/* Disease alerts */}
+            {diseases.filter(d => d.status !== "resolved").slice(0,4).map(d => (
+              <Link key={d.id} href="/diseases" className="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-100 bg-amber-50 hover:bg-amber-100 transition-colors">
+                <span className="size-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-amber-800 truncate">🌿 {DISEASE_LABELS[d.type]} — {d.bedId}</div>
+                  <div className="text-[10px] text-amber-600 mt-0.5">Severity {d.severity}% · {d.status}</div>
+                </div>
+              </Link>
+            ))}
+            {openDiseases === 0 && newCamAlerts === 0 && (
+              <div className="text-center text-slate-400 text-xs py-6">All clear — no active alerts</div>
+            )}
           </div>
-        </Card>
+          <Link href="/iot" className="mt-3 text-[11px] text-emerald-600 hover:underline font-semibold text-center block">
+            View IoT Control Center →
+          </Link>
+        </div>
       </div>
 
       {/* ── Valve leaderboard + Top farmers ─────────────────────────────── */}

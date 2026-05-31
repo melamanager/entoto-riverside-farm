@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import type { Bed, Valve } from "@/lib/types";
+import type { Bed, Valve, ValveState, SoilReading, CameraAlert } from "@/lib/types";
 import { plantsInBed } from "@/lib/data";
 
-type ViewMode = "health" | "yield" | "stage";
+type ViewMode = "health" | "yield" | "stage" | "moisture";
 
 interface Props {
   valves: Valve[];
   beds: Bed[];
   harvestKgByBed: Record<string, number>;
   highlightValves?: string[];
+  valveStates?: ValveState[];
+  soilReadings?: SoilReading[];
+  cameraAlerts?: CameraAlert[];
 }
 
 // ─── Oblique projection constants ────────────────────────────────────────
@@ -59,7 +62,7 @@ function pts(ps: { x: number; y: number }[]) {
   return ps.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
 }
 
-export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props) {
+export function FarmMap({ valves, beds, harvestKgByBed, highlightValves, valveStates, soilReadings, cameraAlerts }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("health");
 
@@ -81,6 +84,16 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
   }, [valves, beds]);
 
   const paintOrder = useMemo(() => [...bedLayout].reverse(), [bedLayout]);
+
+  function moistureColor(bedId: string): string {
+    const r = soilReadings?.find(s => s.bedId === bedId);
+    if (!r) return "#4ade80";
+    if (r.moisturePct < 40) return "#ef4444";
+    if (r.moisturePct < 55) return "#f59e0b";
+    if (r.moisturePct < 65) return "#22d3ee";
+    if (r.moisturePct <= 80) return "#3b82f6";
+    return "#1d4ed8";
+  }
 
   const zoneStarts = useMemo(() => {
     const out: Array<{ valve: Valve; vi: number; rowStart: number }> = [];
@@ -128,6 +141,7 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
       const r = (harvestKgByBed[bed.id] ?? 0) / maxYield;
       return r > 0.75 ? "#14532d" : r > 0.45 ? "#16a34a" : r > 0.1 ? "#4ade80" : "#bbf7d0";
     }
+    if (viewMode === "moisture") return moistureColor(bed.id);
     return HEALTH_COLOR[bed.health] ?? "#22c55e";
   }
 
@@ -136,14 +150,14 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
 
       {/* View mode controls */}
       <div className="flex items-center gap-2 flex-wrap">
-        {(["health", "yield", "stage"] as ViewMode[]).map(m => (
+        {(["health", "yield", "stage", "moisture"] as ViewMode[]).map(m => (
           <button key={m} onClick={() => setViewMode(m)}
             className={`text-[11px] px-3.5 py-1.5 rounded-full font-semibold transition-all shadow-sm ${
               viewMode === m
                 ? "bg-stone-800 text-white shadow-stone-900/30"
                 : "bg-white text-stone-600 border border-stone-200 hover:border-stone-400 hover:shadow"
             }`}>
-            {m === "health" ? "🌿 Health" : m === "yield" ? "🌾 Yield" : "🌸 Stage"}
+            {m === "health" ? "🌿 Health" : m === "yield" ? "🌾 Yield" : m === "stage" ? "🌸 Stage" : "💧 Moisture"}
           </button>
         ))}
         <span className="ml-auto text-[10px] text-stone-400 hidden sm:block">Tap any bed for details</span>
@@ -196,6 +210,8 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
                 .fmberry { animation: fmberry 2.4s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
                 @keyframes fmwarn { 0%,100%{opacity:1} 50%{opacity:.62} }
                 .fmwarn { animation: fmwarn 1.1s ease-in-out infinite; }
+                @keyframes fmflow { 0%{stroke-dashoffset:0} 100%{stroke-dashoffset:-28} }
+                .fmflow { animation: fmflow 0.8s linear infinite; }
               `}</style>
             </defs>
 
@@ -280,6 +296,9 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
             {/* ── Lateral supply lines ─────────────────────────────────────── */}
             {zoneStarts.map(({ vi, rowStart }) => {
               const zc    = VALVE_COLORS[vi % 3];
+              const valve = valves[vi];
+              const vs    = valveStates?.find(s => s.valveId === valve?.id);
+              const isOpen = vs?.isOpen ?? false;
               const left  = iso(-0.4, rowStart, 0);
               const right = iso(maxLen + 0.3, rowStart, 0);
               return (
@@ -287,7 +306,13 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
                   <line x1={left.x} y1={left.y + 2} x2={right.x} y2={right.y + 2}
                     stroke="#280e04" strokeWidth="4.2" opacity="0.72" />
                   <line x1={left.x} y1={left.y + 2} x2={right.x} y2={right.y + 2}
-                    stroke={zc} strokeWidth="1.5" opacity="0.6" />
+                    stroke={zc} strokeWidth="1.5" opacity={isOpen ? 0.9 : 0.3} />
+                  {isOpen && (
+                    <line x1={left.x} y1={left.y + 2} x2={right.x} y2={right.y + 2}
+                      stroke="white" strokeWidth="1.5" opacity="0.7"
+                      strokeDasharray="8,6"
+                      className="fmflow" />
+                  )}
                 </g>
               );
             })}
@@ -472,6 +497,19 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
                     );
                   })()}
 
+                  {/* Camera alert pin */}
+                  {cameraAlerts?.some(a => a.bedId === bed.id && a.status === "new") && (() => {
+                    const bp = iso(L * 0.15, rowStart + BED_DEPTH * 0.28, BED_HEIGHT + 0.7);
+                    return (
+                      <g className="fmwarn">
+                        <circle cx={bp.x} cy={bp.y} r="8" fill="#dc2626" opacity="0.95" />
+                        <circle cx={bp.x} cy={bp.y} r="8" fill="white" opacity="0.12" />
+                        <text x={bp.x} y={bp.y + 3.5}
+                          textAnchor="middle" fontSize="8" fill="white">📷</text>
+                      </g>
+                    );
+                  })()}
+
                   {/* Selection outline */}
                   {isSel && (
                     <>
@@ -546,6 +584,14 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
               <span className="size-2.5 rounded-full inline-block" style={{ background: c }} />{l}
             </span>
           ))}
+          {viewMode === "moisture" && [
+            ["#1d4ed8","Saturated (>80%)"],["#3b82f6","Optimal (65–80%)"],["#22d3ee","Good (55–65%)"],
+            ["#f59e0b","Dry (<55%)"],["#ef4444","Very dry (<40%)"],
+          ].map(([c,l]) => (
+            <span key={l} className="flex items-center gap-1.5 text-white/75 font-semibold">
+              <span className="size-2.5 rounded-full inline-block" style={{ background: c }} />{l}
+            </span>
+          ))}
           <span className="ml-auto text-white/32 text-[9px]">
             Colour strip = zone · Length = bed size
           </span>
@@ -593,6 +639,32 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
                   </div>
                 ))}
               </div>
+
+              {/* Live sensor readings */}
+              {soilReadings && (() => {
+                const r = soilReadings.find(s => s.bedId === selectedBed.id);
+                if (!r) return null;
+                return (
+                  <div className="grid grid-cols-4 gap-2 mb-3 p-3 rounded-xl bg-slate-900 border border-white/8">
+                    <div className="text-center">
+                      <div className="text-[8px] text-slate-500 uppercase mb-1">Moisture</div>
+                      <div className={`text-sm font-bold font-mono ${r.moisturePct < 55 ? "text-amber-400" : "text-blue-300"}`}>{r.moisturePct.toFixed(0)}%</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[8px] text-slate-500 uppercase mb-1">Soil °C</div>
+                      <div className="text-sm font-bold font-mono text-orange-300">{r.tempC.toFixed(1)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[8px] text-slate-500 uppercase mb-1">EC</div>
+                      <div className={`text-sm font-bold font-mono ${r.ecMsCm > 2.5 ? "text-amber-400" : "text-purple-300"}`}>{r.ecMsCm.toFixed(1)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[8px] text-slate-500 uppercase mb-1">pH</div>
+                      <div className={`text-sm font-bold font-mono ${r.ph < 5.8 ? "text-amber-400" : "text-green-300"}`}>{r.ph.toFixed(1)}</div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border"
