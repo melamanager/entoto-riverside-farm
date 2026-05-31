@@ -1,46 +1,70 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getBed, getValve, DISEASES } from "@/lib/data";
 import { Wheat, Bug, ClipboardList, Sprout, ArrowRight, Scan } from "lucide-react";
+import type { Bed, Valve, DiseaseReport } from "@/lib/types";
 
 export default function ScanPage({ params }: { params: Promise<{ bedId: string }> }) {
   const { bedId } = use(params);
-  const bed = getBed(bedId);
-  const valve = bed ? getValve(bed.valveId) : null;
-  const activeDiseases = DISEASES().filter(d => d.bedId === bedId && d.status !== "resolved");
+  const [bed, setBed] = useState<Bed | null | undefined>(undefined);
+  const [valve, setValve] = useState<Valve | null>(null);
+  const [activeDiseases, setActiveDiseases] = useState<DiseaseReport[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/beds/${bedId}`).then(r => r.ok ? r.json() : null),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/diseases").then(r => r.json()),
+    ]).then(([b, valves, diseases]: [Bed | null, Valve[], DiseaseReport[]]) => {
+      setBed(b);
+      if (b) {
+        const v = valves.find((vl: Valve) => vl.id === b.valveId) ?? null;
+        setValve(v);
+        setActiveDiseases(diseases.filter((d: DiseaseReport) => d.bedId === bedId && d.status !== "resolved"));
+      }
+    });
+  }, [bedId]);
+
+  if (bed === undefined) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+        <Scan className="size-12 text-muted-foreground/40 mb-4" />
+        <p className="text-muted-foreground text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   if (!bed) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-        <Scan className="size-12 text-slate-300 mb-4" />
-        <h1 className="text-xl font-bold text-slate-700 mb-2">Bed Not Found</h1>
-        <p className="text-slate-500 text-sm mb-4">No bed with ID <span className="font-mono font-bold">{bedId}</span> was found.</p>
-        <Link href="/beds" className="text-emerald-600 hover:underline text-sm">← Back to all beds</Link>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+        <Scan className="size-12 text-muted-foreground/40 mb-4" />
+        <h1 className="text-xl font-bold text-foreground mb-2">Bed Not Found</h1>
+        <p className="text-muted-foreground text-sm mb-4">No bed with ID <span className="font-mono font-bold">{bedId}</span> was found.</p>
+        <Link href="/beds" className="text-primary hover:underline text-sm">← Back to all beds</Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto">
+    <div className="min-h-screen bg-background p-4 max-w-md mx-auto">
       {/* Bed header */}
       <div className="mt-8 mb-6 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-200 text-slate-600 text-xs font-semibold mb-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs font-semibold mb-3">
           <Scan className="size-3" /> QR Scan
         </div>
-        <h1 className="text-3xl font-black text-slate-900 font-mono">{bed.id}</h1>
-        <div className="text-slate-500 text-sm mt-1">{bed.variety}</div>
+        <h1 className="text-3xl font-black text-foreground font-mono">{bed.id}</h1>
+        <div className="text-muted-foreground text-sm mt-1">{bed.variety}</div>
         <div className="flex items-center justify-center gap-2 mt-2">
           <span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name}</span>
-          <span className="text-slate-300">·</span>
-          <span className={`text-xs font-semibold capitalize ${bed.health === "healthy" ? "text-emerald-600" : bed.health === "warning" ? "text-amber-600" : "text-red-600"}`}>
+          <span className="text-muted-foreground/40">·</span>
+          <span className={`text-xs font-semibold capitalize ${bed.health === "healthy" ? "text-primary" : bed.health === "warning" ? "text-amber-600" : "text-red-600"}`}>
             {bed.health}
           </span>
-          <span className="text-slate-300">·</span>
-          <span className="text-xs text-slate-500 capitalize">{bed.stage}</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="text-xs text-muted-foreground capitalize">{bed.stage}</span>
         </div>
         {activeDiseases.length > 0 && (
           <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
@@ -51,19 +75,19 @@ export default function ScanPage({ params }: { params: Promise<{ bedId: string }
 
       {/* Quick actions */}
       <div className="space-y-3">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">Quick Actions</div>
+        <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">Quick Actions</div>
 
         <Link href={`/harvest?bedId=${bed.id}`}>
-          <Card className="p-4 border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer">
+          <Card className="p-4 border-2 border-primary/30 bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer">
             <div className="flex items-center gap-4">
-              <div className="size-12 rounded-xl bg-emerald-600 grid place-items-center">
-                <Wheat className="size-6 text-white" />
+              <div className="size-12 rounded-xl bg-primary grid place-items-center">
+                <Wheat className="size-6 text-background" />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-emerald-900">Log Harvest</div>
-                <div className="text-xs text-emerald-700 mt-0.5">Record today's berry collection for this bed</div>
+                <div className="font-bold text-primary">Log Harvest</div>
+                <div className="text-xs text-primary/70 mt-0.5">Record today's berry collection for this bed</div>
               </div>
-              <ArrowRight className="size-5 text-emerald-600" />
+              <ArrowRight className="size-5 text-primary" />
             </div>
           </Card>
         </Link>
@@ -103,42 +127,42 @@ export default function ScanPage({ params }: { params: Promise<{ bedId: string }
         </Link>
 
         <Link href={`/beds/${bed.id}`}>
-          <Card className="p-4 border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+          <Card className="p-4 border border-border hover:bg-accent transition-colors cursor-pointer">
             <div className="flex items-center gap-4">
-              <div className="size-12 rounded-xl bg-slate-200 grid place-items-center">
-                <Sprout className="size-6 text-slate-600" />
+              <div className="size-12 rounded-xl bg-muted grid place-items-center">
+                <Sprout className="size-6 text-muted-foreground" />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-slate-900">View Bed Details</div>
-                <div className="text-xs text-slate-500 mt-0.5">Full history, harvest records & disease reports</div>
+                <div className="font-bold text-foreground">View Bed Details</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Full history, harvest records & disease reports</div>
               </div>
-              <ArrowRight className="size-5 text-slate-400" />
+              <ArrowRight className="size-5 text-muted-foreground" />
             </div>
           </Card>
         </Link>
       </div>
 
       {/* Bed stats */}
-      <Card className="mt-4 p-4 border border-slate-200">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Bed Info</div>
+      <Card className="mt-4 p-4 border border-border">
+        <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Bed Info</div>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <div className="text-lg font-bold text-slate-800">{bed.lengthM}m</div>
-            <div className="text-[10px] text-slate-500">Length</div>
+            <div className="text-lg font-bold text-foreground">{bed.lengthM}m</div>
+            <div className="text-[10px] text-muted-foreground">Length</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-slate-800">{bed.lengthM * bed.plantsPerMeter}</div>
-            <div className="text-[10px] text-slate-500">Plants</div>
+            <div className="text-lg font-bold text-foreground">{bed.lengthM * bed.plantsPerMeter}</div>
+            <div className="text-[10px] text-muted-foreground">Plants</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-slate-800 capitalize">{bed.stage}</div>
-            <div className="text-[10px] text-slate-500">Stage</div>
+            <div className="text-lg font-bold text-foreground capitalize">{bed.stage}</div>
+            <div className="text-[10px] text-muted-foreground">Stage</div>
           </div>
         </div>
       </Card>
 
       <div className="mt-6 text-center">
-        <Link href="/" className="text-xs text-slate-400 hover:text-slate-600">← Back to Dashboard</Link>
+        <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">← Back to Dashboard</Link>
       </div>
     </div>
   );

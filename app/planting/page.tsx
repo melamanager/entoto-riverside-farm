@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,28 +9,24 @@ import {
   Plus, Pencil, LayoutList, CalendarRange, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PLANTING_RECORDS } from "@/lib/erp-data";
-import { BEDS, VALVES, FARMERS, getBed } from "@/lib/data";
 import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
-import type { GrowthStage } from "@/lib/types";
+import type { Bed, Valve, Farmer } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
-const TODAY = "2026-05-20";
+const TODAY = new Date().toISOString().split("T")[0];
 // Timeline range — covers all planting/harvest windows
 const TLINE_START = "2026-01-01";
 const TLINE_END   = "2026-08-01";
 
 const STATUS_STYLE: Record<PlantingStatus, { badge: string; dot: string; bar: string }> = {
-  planned:   { badge: "bg-slate-100 text-slate-600 border-slate-200",       dot: "bg-slate-400",   bar: "bg-slate-300"   },
+  planned:   { badge: "bg-muted text-muted-foreground border-border",       dot: "bg-muted-foreground/50",   bar: "bg-muted-foreground/30"   },
   planted:   { badge: "bg-blue-100 text-blue-700 border-blue-200",          dot: "bg-blue-500",    bar: "bg-blue-400"    },
-  growing:   { badge: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", bar: "bg-emerald-500" },
+  growing:   { badge: "bg-primary/15 text-primary border-primary/30", dot: "bg-primary", bar: "bg-primary" },
   harvested: { badge: "bg-amber-100 text-amber-700 border-amber-200",       dot: "bg-amber-500",   bar: "bg-amber-400"   },
   failed:    { badge: "bg-red-100 text-red-700 border-red-200",             dot: "bg-red-500",     bar: "bg-red-400"     },
 };
-const STATUSES: PlantingStatus[] = ["planned", "planted", "growing", "harvested", "failed"];
-const SEED_SOURCES = ["Nakuru Horticulture KE", "Ethiopian Horticulture", "Holland Horticulture", "Local Nursery"];
-
 const EMPTY_FORM = {
   bedId: "", valveId: "", variety: "Festival",
   plannedDate: TODAY, actualDate: "",
@@ -67,14 +63,23 @@ const TLINE_MONTHS = (() => {
 export default function PlantingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [plantings, setPlantings]       = useState<PlantingRecord[]>(PLANTING_RECORDS);
+  const options = useOptions();
+  const [plantings, setPlantings]       = useState<PlantingRecord[]>([]);
+  const [beds, setBeds]                 = useState<Bed[]>([]);
+  const [valves, setValves]             = useState<Valve[]>([]);
+  const [farmers, setFarmers]           = useState<Farmer[]>([]);
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<PlantingRecord | null>(null);
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [viewMode, setViewMode]         = useState<"table" | "timeline">("table");
   const [overdueOpen, setOverdueOpen]   = useState(false);
 
-  const beds = BEDS();
+  useEffect(() => {
+    fetch("/api/planting").then(r => r.json()).then(setPlantings);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+  }, []);
 
   // ── Overdue detection ────────────────────────────────────────────────────
   const overdueUnplanted = plantings.filter(p => p.status === "planned" && p.plannedDate < TODAY);
@@ -101,8 +106,8 @@ export default function PlantingPage() {
     setForm({
       ...EMPTY_FORM,
       bedId:     beds[0]?.id ?? "",
-      valveId:   VALVES[0]?.id ?? "",
-      createdBy: FARMERS.find(f => f.role === "manager")?.id ?? "",
+      valveId:   valves[0]?.id ?? "",
+      createdBy: farmers.find(f => f.role === "manager")?.id ?? "",
     });
     setCreateOpen(true);
   }
@@ -118,52 +123,46 @@ export default function PlantingPage() {
     setEditTarget(r);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.bedId)               { toast.error("Please select a bed"); return; }
     if (!form.expectedHarvestDate) { toast.error("Expected harvest date is required"); return; }
-    const id     = `pl-${Date.now()}`;
-    const newRec: PlantingRecord = {
-      id, bedId: form.bedId, valveId: form.valveId, variety: form.variety,
+    const body = {
+      bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
       expectedHarvestDate: form.expectedHarvestDate, ageInDays: form.ageInDays,
       seedsPerMeter: form.seedsPerMeter, seedSource: form.seedSource,
       status: form.status, notes: form.notes || undefined, createdBy: form.createdBy,
     };
-    PLANTING_RECORDS.push(newRec);
-    setPlantings([...PLANTING_RECORDS]);
+    const res = await fetch("/api/planting", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { toast.error("Failed to create planting record"); return; }
+    const newRec = await res.json() as PlantingRecord;
+    setPlantings(prev => [...prev, newRec]);
     toast.success(`Planting record for ${form.bedId} created`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
-    const idx = PLANTING_RECORDS.findIndex(r => r.id === editTarget.id);
-    if (idx < 0) return;
-    const prevStatus = editTarget.status;
-    Object.assign(PLANTING_RECORDS[idx], {
+    const body = {
       bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
       expectedHarvestDate: form.expectedHarvestDate, ageInDays: form.ageInDays,
       seedsPerMeter: form.seedsPerMeter, seedSource: form.seedSource,
       status: form.status, notes: form.notes || undefined,
+    };
+    const res = await fetch(`/api/planting/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-
-    if (prevStatus !== form.status && form.bedId) {
-      const stageMap: Partial<Record<PlantingStatus, GrowthStage>> = {
-        planted: "vegetative", growing: "flowering", harvested: "harvest",
-      };
-      const newStage = stageMap[form.status as PlantingStatus];
-      const bed = getBed(form.bedId);
-      if (bed && newStage) {
-        bed.stage = newStage;
-        toast.success("Planting record updated", { description: `Bed ${form.bedId} stage synced → ${newStage}` });
-      } else {
-        toast.success("Planting record updated");
-      }
-    } else {
-      toast.success("Planting record updated");
-    }
-    setPlantings([...PLANTING_RECORDS]);
+    if (!res.ok) { toast.error("Failed to update planting record"); return; }
+    const updated = await res.json() as PlantingRecord;
+    setPlantings(prev => prev.map(r => r.id === editTarget.id ? updated : r));
+    toast.success("Planting record updated");
     setEditTarget(null);
   }
 
@@ -173,21 +172,21 @@ export default function PlantingPage() {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Valve</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Valve</label>
             <select value={form.valveId}
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
-              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
               Bed <span className="text-red-500">*</span>
             </label>
             <select value={form.bedId}
               onChange={e => setForm(p => ({ ...p, bedId: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
               disabled={!form.valveId}>
               <option value="">— Select —</option>
               {valveBeds(form.valveId).map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
@@ -195,64 +194,64 @@ export default function PlantingPage() {
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Variety</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Variety</label>
           <input value={form.variety}
             onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
             placeholder="e.g. Festival"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Planned Date</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Planned Date</label>
             <input type="date" value={form.plannedDate}
               onChange={e => setForm(p => ({ ...p, plannedDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Actual Date (if planted)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Actual Date (if planted)</label>
             <input type="date" value={form.actualDate}
               onChange={e => setForm(p => ({ ...p, actualDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">
             Expected Harvest Date <span className="text-red-500">*</span>
           </label>
           <input type="date" value={form.expectedHarvestDate}
             onChange={e => setForm(p => ({ ...p, expectedHarvestDate: e.target.value }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Seeds / metre</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Seeds / metre</label>
             <input type="number" min={1} max={20} value={form.seedsPerMeter}
               onChange={e => setForm(p => ({ ...p, seedsPerMeter: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Seed Source</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Seed Source</label>
             <select value={form.seedSource}
               onChange={e => setForm(p => ({ ...p, seedSource: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {SEED_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              {options.seedSources.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Status</label>
           <select value={form.status}
             onChange={e => setForm(p => ({ ...p, status: e.target.value as PlantingStatus }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-            {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
+            {options.plantingStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Notes</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Notes</label>
           <input value={form.notes}
             onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
             placeholder="Optional observation…"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
         </div>
       </div>
     );
@@ -265,12 +264,12 @@ export default function PlantingPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <CalendarDays className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.planting.title}</h1>
+            <CalendarDays className="size-5 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">{t.planting.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.planting.subtitle}</p>
+          <p className="text-muted-foreground text-sm">{t.planting.subtitle}</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
           <Plus className="size-4" /> {t.planting.schedulePlanting}
         </Button>
       </div>
@@ -287,7 +286,7 @@ export default function PlantingPage() {
                 {totalOverdue} overdue planting{totalOverdue !== 1 ? "s" : ""} need attention
               </span>
               {overdueUnplanted.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-foreground">
                   {overdueUnplanted.length} not yet planted
                 </span>
               )}
@@ -306,14 +305,14 @@ export default function PlantingPage() {
             <div className="border-t border-red-200 px-4 py-3 space-y-3">
               {overdueUnplanted.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-slate-700 mb-1.5">
+                  <p className="text-xs font-bold text-foreground mb-1.5">
                     Planned but not yet planted — planting date has passed
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {overdueUnplanted.map(p => (
                       <button key={p.id} onClick={() => openEdit(p)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-red-400 transition-colors">
-                        <span className="size-1.5 rounded-full bg-slate-400 shrink-0" />
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border text-xs font-semibold text-foreground hover:border-red-400 transition-colors">
+                        <span className="size-1.5 rounded-full bg-muted-foreground shrink-0" />
                         {p.bedId} · {p.variety}
                         <span className="text-red-500 font-bold ml-1">
                           {daysBetween(p.plannedDate, TODAY)}d late
@@ -325,14 +324,14 @@ export default function PlantingPage() {
               )}
               {overdueHarvest.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-slate-700 mb-1.5">
+                  <p className="text-xs font-bold text-foreground mb-1.5">
                     Past expected harvest date — still growing
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {overdueHarvest.map(p => (
                       <button key={p.id} onClick={() => openEdit(p)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-red-400 transition-colors">
-                        <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border text-xs font-semibold text-foreground hover:border-red-400 transition-colors">
+                        <span className="size-1.5 rounded-full bg-primary shrink-0" />
                         {p.bedId} · {p.variety}
                         <span className="text-red-500 font-bold ml-1">
                           {daysBetween(p.expectedHarvestDate, TODAY)}d overdue
@@ -349,13 +348,13 @@ export default function PlantingPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 bg-emerald-50 border-emerald-200">
+        <Card className="p-4 bg-primary/10 border-primary/30">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-emerald-700 tabular-nums">{growing}</div>
-              <div className="text-xs text-emerald-600 font-medium">{t.planting.growing}</div>
+              <div className="text-2xl font-bold text-primary tabular-nums">{growing}</div>
+              <div className="text-xs text-primary font-medium">{t.planting.growing}</div>
             </div>
-            <Sprout className="size-7 text-emerald-400" />
+            <Sprout className="size-7 text-primary/60" />
           </div>
         </Card>
         <Card className="p-4 bg-blue-50 border-blue-200">
@@ -390,17 +389,17 @@ export default function PlantingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Variety breakdown */}
         <Card className="p-5 lg:col-span-1">
-          <h3 className="font-semibold text-slate-900 mb-4">{t.planting.varietyBreakdown}</h3>
+          <h3 className="font-semibold text-foreground mb-4">{t.planting.varietyBreakdown}</h3>
           <div className="space-y-3">
             {Object.entries(byVariety).map(([variety, count]) => (
               <div key={variety} className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">{variety}</span>
+                <span className="text-sm text-foreground">{variety}</span>
                 <div className="flex items-center gap-2">
-                  <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full"
+                  <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full"
                       style={{ width: `${(count / plantings.length) * 100}%` }} />
                   </div>
-                  <span className="text-xs font-bold text-slate-600 tabular-nums w-4">{count}</span>
+                  <span className="text-xs font-bold text-muted-foreground tabular-nums w-4">{count}</span>
                 </div>
               </div>
             ))}
@@ -414,24 +413,24 @@ export default function PlantingPage() {
             <button onClick={() => setViewMode("table")}
               className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold transition-all border ${
                 viewMode === "table"
-                  ? "bg-emerald-700 text-white border-emerald-700"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-card text-muted-foreground border-border hover:border-muted-foreground"
               }`}>
               <LayoutList className="size-3" /> Table
             </button>
             <button onClick={() => setViewMode("timeline")}
               className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold transition-all border ${
                 viewMode === "timeline"
-                  ? "bg-emerald-700 text-white border-emerald-700"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-card text-muted-foreground border-border hover:border-muted-foreground"
               }`}>
               <CalendarRange className="size-3" /> Timeline
             </button>
           </div>
 
           {viewMode === "table" ? (
-            <Card className="border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-slate-100 font-semibold text-slate-900">
+            <Card className="border border-border shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-border font-semibold text-foreground">
                 {t.planting.allRecords}
               </div>
               <div className="overflow-x-auto">
@@ -445,36 +444,36 @@ export default function PlantingPage() {
                   </thead>
                   <tbody>
                     {plantings.map(rec => {
-                      const valve = VALVES.find(v => v.id === rec.valveId);
+                      const valve = valves.find(v => v.id === rec.valveId);
                       const s     = STATUS_STYLE[rec.status];
                       const isOverdueHarv = (rec.status === "growing" || rec.status === "planted") && rec.expectedHarvestDate < TODAY;
                       const isOverduePlnt = rec.status === "planned" && rec.plannedDate < TODAY;
                       return (
                         <tr key={rec.id} className={`group ${isOverdueHarv || isOverduePlnt ? "bg-red-50/60" : ""}`}>
-                          <td className="font-mono font-semibold text-slate-800">{rec.bedId}</td>
+                          <td className="font-mono font-semibold text-foreground">{rec.bedId}</td>
                           <td><span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name ?? rec.valveId}</span></td>
                           <td className="font-medium">{rec.variety}</td>
-                          <td className="tabular-nums text-slate-500 text-xs">
+                          <td className="tabular-nums text-muted-foreground text-xs">
                             {rec.actualDate
                               ? new Date(rec.actualDate).toLocaleDateString("en", { month: "short", day: "numeric" })
-                              : <span className="text-slate-400 italic">Pending</span>}
+                              : <span className="text-muted-foreground/60 italic">Pending</span>}
                           </td>
                           <td className={`tabular-nums text-xs ${isOverdueHarv ? "text-red-600 font-bold" : ""}`}>
                             {new Date(rec.expectedHarvestDate).toLocaleDateString("en", { month: "short", day: "numeric", year: "2-digit" })}
                             {isOverdueHarv && <span className="ml-1 text-[9px] text-red-500">overdue</span>}
                           </td>
-                          <td className="tabular-nums font-semibold text-slate-700">{rec.ageInDays}d</td>
+                          <td className="tabular-nums font-semibold text-foreground">{rec.ageInDays}d</td>
                           <td>
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.badge}`}>
                               <span className={`size-1.5 rounded-full ${s.dot}`} />
                               {rec.status}
                             </span>
                           </td>
-                          <td className="text-xs text-slate-500 max-w-[160px] truncate">{rec.notes ?? "—"}</td>
+                          <td className="text-xs text-muted-foreground max-w-[160px] truncate">{rec.notes ?? "—"}</td>
                           <td>
                             <button onClick={() => openEdit(rec)}
-                              className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Pencil className="size-3 text-slate-600" />
+                              className="size-6 rounded bg-muted hover:bg-accent grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Pencil className="size-3 text-muted-foreground" />
                             </button>
                           </td>
                         </tr>
@@ -486,10 +485,10 @@ export default function PlantingPage() {
             </Card>
           ) : (
             /* ── Timeline / Gantt view ─────────────────────────────────────── */
-            <Card className="border border-slate-200 shadow-sm overflow-hidden p-5">
+            <Card className="border border-border shadow-sm overflow-hidden p-5">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">Planting Timeline</h3>
-                <span className="text-[10px] text-slate-400 italic">Jan – Jul 2026 · vertical line = today</span>
+                <h3 className="font-semibold text-foreground">Planting Timeline</h3>
+                <span className="text-[10px] text-muted-foreground/60 italic">Jan – Jul 2026 · vertical line = today</span>
               </div>
               <div className="overflow-x-auto">
                 <div className="min-w-[640px]">
@@ -498,7 +497,7 @@ export default function PlantingPage() {
                     {TLINE_MONTHS.map(({ label, pct }) => (
                       <div key={label} className="absolute flex flex-col items-center"
                         style={{ left: `${pct}%`, transform: "translateX(-50%)" }}>
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">{label}</span>
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">{label}</span>
                       </div>
                     ))}
                   </div>
@@ -517,14 +516,14 @@ export default function PlantingPage() {
                         <div key={rec.id} className="flex items-center gap-2 group">
                           {/* Label */}
                           <div className="w-28 shrink-0 text-right pr-2">
-                            <div className="text-[11px] font-bold text-slate-700 truncate">{rec.bedId}</div>
-                            <div className="text-[9px] text-slate-400 truncate">{rec.variety}</div>
+                            <div className="text-[11px] font-bold text-foreground truncate">{rec.bedId}</div>
+                            <div className="text-[9px] text-muted-foreground truncate">{rec.variety}</div>
                           </div>
                           {/* Bar track */}
-                          <div className="flex-1 relative h-7 rounded-md bg-slate-50 border border-slate-100">
+                          <div className="flex-1 relative h-7 rounded-md bg-muted border border-border">
                             {/* Month grid lines */}
                             {TLINE_MONTHS.map(({ label, pct }) => (
-                              <div key={label} className="absolute top-0 bottom-0 w-px bg-slate-200"
+                              <div key={label} className="absolute top-0 bottom-0 w-px bg-border"
                                 style={{ left: `${pct}%` }} />
                             ))}
                             {/* Planting bar */}
@@ -541,8 +540,8 @@ export default function PlantingPage() {
                           </div>
                           {/* Edit button */}
                           <button onClick={() => openEdit(rec)}
-                            className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <Pencil className="size-3 text-slate-600" />
+                            className="size-6 rounded bg-muted hover:bg-accent grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <Pencil className="size-3 text-muted-foreground" />
                           </button>
                         </div>
                       );
@@ -550,7 +549,7 @@ export default function PlantingPage() {
                   </div>
 
                   {/* Legend */}
-                  <div className="ml-28 mt-4 flex items-center gap-4 flex-wrap text-[10px] text-slate-500">
+                  <div className="ml-28 mt-4 flex items-center gap-4 flex-wrap text-[10px] text-muted-foreground">
                     {(Object.entries(STATUS_STYLE) as [PlantingStatus, (typeof STATUS_STYLE)[PlantingStatus]][]).map(([k, v]) => (
                       <span key={k} className="flex items-center gap-1 capitalize">
                         <span className={`inline-block w-5 h-2 rounded-sm ${v.bar}`} />{k}
@@ -560,7 +559,7 @@ export default function PlantingPage() {
                       <span className="inline-block w-0.5 h-3 bg-red-400" />Today
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="inline-block w-5 h-2 rounded-sm bg-emerald-500 ring-2 ring-red-500 ring-inset" />
+                      <span className="inline-block w-5 h-2 rounded-sm bg-primary ring-2 ring-red-500 ring-inset" />
                       Overdue harvest
                     </span>
                   </div>
@@ -576,13 +575,13 @@ export default function PlantingPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-emerald-600" /> Schedule New Planting
+              <Plus className="size-4 text-primary" /> Schedule New Planting
             </DialogTitle>
           </DialogHeader>
           <PlantingForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Record</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Create Record</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -592,13 +591,13 @@ export default function PlantingPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit Planting — {editTarget?.bedId}
+              <Pencil className="size-4 text-muted-foreground" /> Edit Planting — {editTarget?.bedId}
             </DialogTitle>
           </DialogHeader>
           <PlantingForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>Save Changes</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>

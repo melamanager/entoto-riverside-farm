@@ -62,9 +62,9 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
       value: `${weekKg.toFixed(1)} kg`,
       delta: kgDelta,
       icon: Wheat,
-      color: "text-emerald-700",
-      bg: "bg-emerald-50",
-      iconColor: "text-emerald-600",
+      color: "text-primary",
+      bg: "bg-primary/10",
+      iconColor: "text-primary",
     },
     {
       label: "Est. Revenue",
@@ -80,28 +80,28 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
       value: String(weekDiseases),
       delta: null,
       icon: Bug,
-      color: weekDiseases > 2 ? "text-red-700" : "text-emerald-700",
-      bg: weekDiseases > 2 ? "bg-red-50" : "bg-emerald-50",
-      iconColor: weekDiseases > 2 ? "text-red-600" : "text-emerald-600",
+      color: weekDiseases > 2 ? "text-red-700" : "text-primary",
+      bg: weekDiseases > 2 ? "bg-red-50" : "bg-primary/10",
+      iconColor: weekDiseases > 2 ? "text-red-600" : "text-primary",
     },
     {
       label: "Attendance Rate",
       value: `${attRate}%`,
       delta: null,
       icon: Users,
-      color: attRate > 85 ? "text-emerald-700" : "text-amber-700",
-      bg: attRate > 85 ? "bg-emerald-50" : "bg-amber-50",
-      iconColor: attRate > 85 ? "text-emerald-600" : "text-amber-600",
+      color: attRate > 85 ? "text-primary" : "text-amber-700",
+      bg: attRate > 85 ? "bg-primary/10" : "bg-amber-50",
+      iconColor: attRate > 85 ? "text-primary" : "text-amber-600",
     },
   ];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <div>
-          <div className="font-semibold text-slate-900">Weekly Report</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">
+          <div className="font-semibold text-foreground">Weekly Report</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
             {new Date(weekDates[0]).toLocaleDateString("en", { month: "short", day: "numeric" })} –{" "}
             {new Date(weekDates[6]).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
           </div>
@@ -112,20 +112,20 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-px bg-slate-100">
+      <div className="grid grid-cols-2 gap-px bg-border">
         {stats.map(s => {
           const Icon = s.icon;
           return (
-            <div key={s.label} className="bg-white px-4 py-3.5">
+            <div key={s.label} className="bg-card px-4 py-3.5">
               <div className="flex items-center gap-2 mb-1">
                 <div className={`size-6 rounded-md ${s.bg} grid place-items-center`}>
                   <Icon className={`size-3.5 ${s.iconColor}`} />
                 </div>
-                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{s.label}</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</span>
               </div>
               <div className={`text-xl font-bold tabular-nums ${s.color}`}>{s.value}</div>
               {s.delta !== null && (
-                <div className={`flex items-center gap-1 text-[10px] font-semibold mt-0.5 ${s.delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                <div className={`flex items-center gap-1 text-[10px] font-semibold mt-0.5 ${s.delta >= 0 ? "text-primary" : "text-red-600"}`}>
                   {s.delta >= 0 ? <TrendingUp className="size-2.5" /> : <TrendingDown className="size-2.5" />}
                   {Math.abs(s.delta).toFixed(1)}% vs last week
                 </div>
@@ -137,14 +137,14 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
 
       {/* Best bed */}
       {bestBedId !== "—" && (
-        <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-3">
+        <div className="px-5 py-3 border-t border-border flex items-center gap-3">
           <div className="size-7 rounded-full bg-amber-100 grid place-items-center shrink-0">
             <Award className="size-3.5 text-amber-600" />
           </div>
-          <div className="text-xs text-slate-700">
+          <div className="text-xs text-foreground">
             <span className="font-semibold">Top bed this week:</span>{" "}
-            <span className="font-mono font-bold text-slate-900">{bestBedId}</span>
-            <span className="text-slate-400"> · {bestBedKg.toFixed(1)} kg</span>
+            <span className="font-mono font-bold text-foreground">{bestBedId}</span>
+            <span className="text-muted-foreground"> · {bestBedKg.toFixed(1)} kg</span>
           </div>
         </div>
       )}

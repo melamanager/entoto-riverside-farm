@@ -7,7 +7,7 @@ import {
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   DollarSign, Beaker,
-  BarChart3, CalendarDays, Zap, Warehouse, Languages, Cpu,
+  BarChart3, CalendarDays, Zap, Warehouse, Languages, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -49,7 +49,6 @@ const NAV_GROUPS: NavGroup[] = [
     groupKey: "operations",
     items: [
       { href: "/valves",      labelKey: "irrigationZones",  isValve: true,    roles: ["manager"] },
-      { href: "/iot",         labelKey: "iotControl",        icon: Cpu,        roles: ["manager", "supervisor"] },
       { href: "/fertigation", labelKey: "nutrientFeeding",  icon: Beaker,     roles: ["manager", "supervisor"] },
       { href: "/diseases",    labelKey: "diseaseMgmt",      icon: Bug,        roles: ["manager", "supervisor"] },
       { href: "/tasks",  labelKey: "dailyTasks", icon: ListChecks, roles: ["manager", "supervisor"] },
@@ -84,7 +83,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupKey: "intelligence",
     items: [
-      { href: "/ai", labelKey: "aiAlerts", icon: Zap, roles: ["manager", "supervisor"] },
+      { href: "/ai",       labelKey: "aiAlerts", icon: Zap,      roles: ["manager", "supervisor"] },
+      { href: "/settings", labelKey: "settings", icon: Settings, roles: ["manager"] },
     ],
   },
 ];
@@ -99,25 +99,25 @@ export function Sidebar() {
   if (pathname === "/login") return null;
 
   return (
-    <aside className="hidden md:flex w-[220px] shrink-0 flex-col h-screen sticky top-0 bg-[#0d1117] text-white border-r border-white/5">
+    <aside className="hidden md:flex w-[220px] shrink-0 flex-col h-screen sticky top-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       {/* Logo */}
-      <div className="px-4 pt-5 pb-4 border-b border-white/5">
+      <div className="px-4 pt-5 pb-4 border-b border-sidebar-border">
         <Link href={role === "supervisor" ? "/supervisor" : "/"} className="flex items-center gap-3">
           <div className="size-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 grid place-items-center shadow-lg shadow-emerald-900/50">
             <Leaf className="size-4 text-white" />
           </div>
           <div>
-            <div className="text-[13px] font-bold tracking-tight text-white">ENTOTO</div>
-            <div className="text-[9px] text-slate-400 tracking-wide uppercase">Farm ERP · v2.0</div>
+            <div className="text-[13px] font-bold tracking-tight text-sidebar-foreground">ENTOTO</div>
+            <div className="text-[9px] text-sidebar-foreground/50 tracking-wide uppercase">Farm ERP · v2.0</div>
           </div>
         </Link>
       </div>
 
       {/* Role badge */}
       {user && (
-        <div className="mx-3 mt-3 px-2 py-1.5 rounded-md bg-white/4 border border-white/6 flex items-center gap-1.5">
+        <div className="mx-3 mt-3 px-2 py-1.5 rounded-md bg-sidebar-accent border border-sidebar-border flex items-center gap-1.5">
           <span className={`size-1.5 rounded-full ${role === "manager" ? "bg-amber-400" : role === "supervisor" ? "bg-blue-400" : "bg-emerald-400"}`} />
-          <span className="text-[11px] text-slate-400 capitalize">
+          <span className="text-[11px] text-sidebar-foreground/60 capitalize">
             {role === "manager" ? t.common.managerAccess : t.common.supervisorAccess}
           </span>
         </div>
@@ -130,7 +130,7 @@ export function Sidebar() {
           if (visibleItems.length === 0) return null;
           return (
             <div key={group.groupKey}>
-              <div className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+              <div className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-sidebar-foreground/40">
                 {t.nav[group.groupKey]}
               </div>
               <div className="space-y-0.5">
@@ -146,18 +146,18 @@ export function Sidebar() {
                       className={cn(
                         "group flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-all",
                         active
-                          ? "bg-emerald-600/20 text-emerald-400 border border-emerald-600/25"
-                          : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                          ? "bg-primary/15 text-primary border border-primary/25"
+                          : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent border border-transparent"
                       )}
                     >
                       {item.isValve
                         ? <ValveIcon size={14} className="shrink-0" />
                         : item.icon
-                        ? <item.icon className={cn("size-3.5 shrink-0", active ? "text-emerald-400" : "text-slate-500 group-hover:text-slate-300")} />
+                        ? <item.icon className={cn("size-3.5 shrink-0", active ? "text-primary" : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/80")} />
                         : null
                       }
                       <span className="truncate">{label}</span>
-                      {active && <ChevronRight className="size-3 ml-auto text-emerald-500" />}
+                      {active && <ChevronRight className="size-3 ml-auto text-primary" />}
                     </Link>
                   );
                 })}
@@ -168,17 +168,17 @@ export function Sidebar() {
       </nav>
 
       {/* Footer: account + language */}
-      <div className="px-2 pb-3 pt-2 border-t border-white/5 space-y-2">
+      <div className="px-2 pb-3 pt-2 border-t border-sidebar-border space-y-2">
         {user ? (
           <AccountSwitcher />
         ) : (
-          <Link href="/login" className="flex items-center gap-2 px-3 py-2 rounded-md text-slate-400 hover:text-white hover:bg-white/5 text-sm">
+          <Link href="/login" className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm">
             <LogIn className="size-4" /> {isAm ? "ግባ" : "Sign in"}
           </Link>
         )}
-        <div className="flex items-center justify-between px-2 text-[10px] text-slate-600">
+        <div className="flex items-center justify-between px-2 text-[10px] text-sidebar-foreground/40">
           <span className="flex items-center gap-1">
-            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="size-1.5 rounded-full bg-primary animate-pulse" />
             {t.common.liveErp}
           </span>
           <span>{t.common.addisAbaba}</span>
@@ -187,15 +187,15 @@ export function Sidebar() {
         {/* Language toggle */}
         <button
           onClick={toggle}
-          className="w-full flex items-center justify-between px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/8 transition-colors"
+          className="w-full flex items-center justify-between px-3 py-1.5 rounded-md bg-sidebar-accent hover:bg-sidebar-accent/80 border border-sidebar-border transition-colors"
         >
-          <span className="flex items-center gap-2 text-[11px] text-slate-400">
-            <Languages className="size-3 text-slate-500" />
+          <span className="flex items-center gap-2 text-[11px] text-sidebar-foreground/60">
+            <Languages className="size-3 text-sidebar-foreground/60" />
             {isAm ? "ቋንቋ" : "Language"}
           </span>
           <div className="flex items-center gap-0.5 text-[10px]">
-            <span className={cn("px-1.5 py-0.5 rounded font-bold transition-colors", !isAm ? "bg-emerald-600 text-white" : "text-slate-600")}>EN</span>
-            <span className={cn("px-1.5 py-0.5 rounded font-bold transition-colors", isAm ? "bg-emerald-600 text-white" : "text-slate-600")}>አማ</span>
+            <span className={cn("px-1.5 py-0.5 rounded font-bold transition-colors", !isAm ? "bg-primary text-primary-foreground" : "text-sidebar-foreground/40")}>EN</span>
+            <span className={cn("px-1.5 py-0.5 rounded font-bold transition-colors", isAm ? "bg-primary text-primary-foreground" : "text-sidebar-foreground/40")}>አማ</span>
           </div>
         </button>
       </div>

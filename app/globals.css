@@ -48,39 +48,63 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ── Olive-green farm theme ─────────────────────────────────────────────── */
 :root {
-  --background: oklch(0.98 0.003 240);
-  --foreground: oklch(0.13 0.015 240);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.13 0.015 240);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.13 0.015 240);
-  --primary: oklch(0.28 0.06 150);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.95 0.005 240);
-  --secondary-foreground: oklch(0.28 0.015 240);
-  --muted: oklch(0.96 0.004 240);
-  --muted-foreground: oklch(0.52 0.018 240);
-  --accent: oklch(0.95 0.008 150);
-  --accent-foreground: oklch(0.25 0.06 150);
-  --destructive: oklch(0.54 0.22 27);
-  --border: oklch(0.91 0.006 240);
-  --input: oklch(0.91 0.006 240);
-  --ring: oklch(0.46 0.14 150);
-  --chart-1: oklch(0.46 0.16 150);
-  --chart-2: oklch(0.52 0.18 200);
-  --chart-3: oklch(0.62 0.20 270);
-  --chart-4: oklch(0.58 0.18 35);
-  --chart-5: oklch(0.54 0.20 0);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.11 0.018 240);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.46 0.16 150);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.18 0.018 240);
-  --sidebar-accent-foreground: oklch(0.90 0 0);
-  --sidebar-border: oklch(0.22 0.015 240);
-  --sidebar-ring: oklch(0.46 0.14 150);
+  /* Page canvas — deep olive */
+  --background:          oklch(0.20 0.065 130);
+  --foreground:          oklch(0.96 0.022 110);
+
+  /* Card surfaces — medium olive */
+  --card:                oklch(0.26 0.068 130);
+  --card-foreground:     oklch(0.96 0.022 110);
+
+  /* Popover / dropdown */
+  --popover:             oklch(0.23 0.068 130);
+  --popover-foreground:  oklch(0.96 0.022 110);
+
+  /* Primary = chartreuse yellow-green */
+  --primary:             oklch(0.88 0.198 112);
+  --primary-foreground:  oklch(0.18 0.075 130);
+
+  /* Secondary = slightly lighter olive */
+  --secondary:           oklch(0.31 0.068 130);
+  --secondary-foreground:oklch(0.92 0.022 110);
+
+  /* Muted — for table headers, alternate rows */
+  --muted:               oklch(0.30 0.065 130);
+  --muted-foreground:    oklch(0.63 0.085 128);
+
+  /* Accent — hover tints */
+  --accent:              oklch(0.30 0.065 130);
+  --accent-foreground:   oklch(0.88 0.198 112);
+
+  /* Destructive stays red */
+  --destructive:         oklch(0.58 0.22 27);
+
+  /* Borders and inputs */
+  --border:              oklch(0.33 0.068 130);
+  --input:               oklch(0.28 0.065 130);
+  --ring:                oklch(0.88 0.198 112);
+
+  /* Charts */
+  --chart-1:             oklch(0.88 0.198 112);  /* chartreuse */
+  --chart-2:             oklch(0.72 0.16  150);  /* emerald    */
+  --chart-3:             oklch(0.62 0.20  270);  /* violet     */
+  --chart-4:             oklch(0.75 0.18   65);  /* amber      */
+  --chart-5:             oklch(0.65 0.22   27);  /* red        */
+
+  /* More rounded, per the reference design */
+  --radius: 0.75rem;
+
+  /* Sidebar — darkest olive */
+  --sidebar:                     oklch(0.16 0.07  130);
+  --sidebar-foreground:          oklch(0.92 0.022 110);
+  --sidebar-primary:             oklch(0.88 0.198 112);
+  --sidebar-primary-foreground:  oklch(0.18 0.075 130);
+  --sidebar-accent:              oklch(0.22 0.068 130);
+  --sidebar-accent-foreground:   oklch(0.90 0.022 110);
+  --sidebar-border:              oklch(0.24 0.068 130);
+  --sidebar-ring:                oklch(0.88 0.198 112);
 }
 
 @layer base {
@@ -96,31 +120,66 @@
   }
 }
 
-/* Professional scrollbar */
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.82 0 0); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: oklch(0.65 0 0); }
+::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.07 130);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: oklch(0.45 0.08 130); }
 
-/* Status badge utilities */
-.status-healthy { @apply bg-emerald-50 text-emerald-700 border-emerald-200; }
-.status-warning { @apply bg-amber-50 text-amber-700 border-amber-200; }
-.status-infected { @apply bg-red-50 text-red-700 border-red-200; }
+/* ── Status badge utilities ─────────────────────────────────────────────── */
+.status-healthy {
+  background: oklch(0.35 0.12 150 / 0.25);
+  color: oklch(0.80 0.15 150);
+  border: 1px solid oklch(0.45 0.12 150 / 0.35);
+}
+.status-warning {
+  background: oklch(0.55 0.18 75 / 0.25);
+  color: oklch(0.88 0.16 80);
+  border: 1px solid oklch(0.60 0.18 75 / 0.35);
+}
+.status-infected {
+  background: oklch(0.48 0.22 27 / 0.25);
+  color: oklch(0.78 0.18 27);
+  border: 1px solid oklch(0.52 0.22 27 / 0.35);
+}
 
-/* Pro table */
-.pro-table thead tr { @apply bg-slate-50 border-b border-slate-200; }
-.pro-table thead th { @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500 py-2.5 px-4; }
-.pro-table tbody tr { @apply border-b border-slate-100 hover:bg-slate-50/70 transition-colors; }
-.pro-table tbody td { @apply py-3 px-4 text-sm text-slate-700; }
+/* ── Pro table — dark olive theme ──────────────────────────────────────── */
+.pro-table thead tr {
+  background: oklch(0.28 0.068 130);
+  border-bottom: 1px solid oklch(0.35 0.068 130);
+}
+.pro-table thead th {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: oklch(0.63 0.085 128);
+  padding: 10px 16px;
+}
+.pro-table tbody tr {
+  border-bottom: 1px solid oklch(0.30 0.065 130 / 0.6);
+  transition: background 120ms;
+}
+.pro-table tbody tr:hover {
+  background: oklch(0.29 0.068 130);
+}
+.pro-table tbody td {
+  padding: 11px 16px;
+  font-size: 13.5px;
+  color: oklch(0.90 0.022 110);
+}
 
-/* Priority indicators */
-.priority-high { @apply bg-red-500; }
-.priority-medium { @apply bg-amber-500; }
-.priority-low { @apply bg-slate-400; }
+/* ── Priority indicators ────────────────────────────────────────────────── */
+.priority-high   { background: oklch(0.58 0.22 27); }
+.priority-medium { background: oklch(0.75 0.18 65); }
+.priority-low    { background: oklch(0.55 0.07 128); }
 
-/* Print styles for QR */
+/* ── Print ─────────────────────────────────────────────────────────────── */
 @media print {
-  .no-print { display: none !important; }
+  .no-print  { display: none !important; }
   .print-only { display: block !important; }
   body { background: white; }
   .qr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }

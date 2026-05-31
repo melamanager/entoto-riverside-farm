@@ -55,12 +55,12 @@ export function HarvestChart({ data }: Props) {
     >
       <defs>
         <linearGradient id="hcFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#dc2626" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#dc2626" stopOpacity="0.01" />
+          <stop offset="0%"   stopColor="#c8dc38" stopOpacity="0.30" />
+          <stop offset="100%" stopColor="#c8dc38" stopOpacity="0.02" />
         </linearGradient>
         <linearGradient id="hcLine" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#f87171" />
-          <stop offset="100%" stopColor="#b91c1c" />
+          <stop offset="0%"   stopColor="#d4e860" />
+          <stop offset="100%" stopColor="#a0b820" />
         </linearGradient>
       </defs>
 
@@ -68,7 +68,7 @@ export function HarvestChart({ data }: Props) {
       {yTicks.map(t => (
         <g key={t.y}>
           <line x1={PAD.left} y1={t.y} x2={W - PAD.right} y2={t.y}
-            stroke="#f1f5f9" strokeWidth="1" />
+            stroke="#f1f5f9" strokeWidth="1" opacity="0.15" />
           <text x={PAD.left - 6} y={t.y + 3.5}
             textAnchor="end" fontSize="9.5" fill="#94a3b8" fontFamily="system-ui">
             {t.label}
@@ -95,10 +95,10 @@ export function HarvestChart({ data }: Props) {
       <path d={line} fill="none" stroke="url(#hcLine)" strokeWidth="2.2"
         strokeLinejoin="round" strokeLinecap="round" />
 
-      {/* Zero-day dots (days with harvest > 0 as subtle circles) */}
+      {/* Dots on data points */}
       {pts.map((p, i) => p.kg > 0 && (
         <circle key={i} cx={p.x} cy={p.y} r="2.2"
-          fill="#dc2626" opacity={hoverIdx === i ? 0 : 0.45} />
+          fill="#c8dc38" opacity={hoverIdx === i ? 0 : 0.45} />
       ))}
 
       {/* Hover interaction strips */}
@@ -117,9 +117,9 @@ export function HarvestChart({ data }: Props) {
       {hov && (
         <>
           <line x1={hov.x} y1={PAD.top} x2={hov.x} y2={PAD.top + CH}
-            stroke="#dc2626" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-          <circle cx={hov.x} cy={hov.y} r="6" fill="#dc2626" opacity="0.15" />
-          <circle cx={hov.x} cy={hov.y} r="4" fill="#dc2626" />
+            stroke="#c8dc38" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+          <circle cx={hov.x} cy={hov.y} r="6" fill="#c8dc38" opacity="0.15" />
+          <circle cx={hov.x} cy={hov.y} r="4" fill="#c8dc38" />
           <circle cx={hov.x} cy={hov.y} r="2" fill="white" />
 
           {/* Tooltip box */}

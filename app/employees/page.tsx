@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,16 +12,14 @@ import {
   UserCog, ShieldCheck, Shield,
 } from "lucide-react";
 import { toast } from "sonner";
-import { FARMERS, VALVES, TASKS } from "@/lib/data";
-import { WORKER_ASSIGNMENTS } from "@/lib/erp-data";
-import type { Farmer } from "@/lib/types";
-import { useLang } from "@/lib/lang";
-import { EN, AM } from "@/lib/translations";
+import type { Farmer, Valve, Task } from "@/lib/types";
+import type { WorkerAssignment } from "@/lib/erp-types";
+import { useOptions } from "@/lib/use-options";
 
 const ROLE_STYLE = {
   manager:    { badge: "bg-amber-100 text-amber-800 border-amber-200",    dot: "bg-amber-400"   },
   supervisor: { badge: "bg-blue-100 text-blue-800 border-blue-200",       dot: "bg-blue-400"    },
-  farmer:     { badge: "bg-emerald-100 text-emerald-800 border-emerald-200", dot: "bg-emerald-400" },
+  farmer:     { badge: "bg-primary/15 text-primary border-primary/30", dot: "bg-primary" },
 };
 
 const EMPTY_FORM = {
@@ -36,13 +34,37 @@ function initials(name: string) {
 }
 
 export default function EmployeesPage() {
-  const { isAm } = useLang();
-  const t = isAm ? AM : EN;
-  const [farmers, setFarmers] = useState<Farmer[]>(FARMERS);
+  const options = useOptions();
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [assignments, setAssignments] = useState<WorkerAssignment[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<Farmer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Farmer | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  async function fetchFarmers() {
+    const data: Farmer[] = await fetch("/api/farmers").then(r => r.json());
+    setFarmers(data);
+  }
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+      fetch("/api/tasks").then(r => r.json()),
+      fetch("/api/assignments").then(r => r.json()),
+    ]).then(([farmData, valveData, taskData, assignData]) => {
+      setFarmers(farmData as Farmer[]);
+      setValves(valveData as Valve[]);
+      setTasks(taskData as Task[]);
+      setAssignments(assignData as WorkerAssignment[]);
+      setLoading(false);
+    });
+  }, []);
 
   const managers    = farmers.filter(f => f.role === "manager");
   const supervisors = farmers.filter(f => f.role === "supervisor");
@@ -64,12 +86,12 @@ export default function EmployeesPage() {
     setEditTarget(f);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.name.trim()) { toast.error("Name is required"); return; }
     if (!form.phone.trim()) { toast.error("Phone number is required"); return; }
-    const id = `f-${String(Date.now()).slice(-4)}`;
-    const newFarmer: Farmer = {
-      id, name: form.name.trim(), phone: form.phone.trim(),
+    const payload = {
+      name: form.name.trim(),
+      phone: form.phone.trim(),
       avatar: initials(form.name),
       role: form.role,
       performanceScore: 80,
@@ -79,17 +101,25 @@ export default function EmployeesPage() {
       nationalId: form.nationalId || undefined,
       emergencyContact: form.emergencyContact || undefined,
     };
-    setFarmers(prev => [...prev, newFarmer]);
-    FARMERS.push(newFarmer);
-    toast.success(`${newFarmer.name} added to staff`);
+    const res = await fetch("/api/farmers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to add staff member");
+      return;
+    }
+    await fetchFarmers();
+    toast.success(`${form.name.trim()} added to staff`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
     if (!form.name.trim()) { toast.error("Name is required"); return; }
-    const updated: Farmer = {
-      ...editTarget,
+    const payload = {
       name: form.name.trim(),
       phone: form.phone.trim(),
       role: form.role,
@@ -99,20 +129,33 @@ export default function EmployeesPage() {
       assignedValves: form.assignedValves,
       joinedDate: form.joinedDate,
     };
-    setFarmers(prev => prev.map(f => f.id === editTarget.id ? updated : f));
-    const idx = FARMERS.findIndex(f => f.id === editTarget.id);
-    if (idx >= 0) Object.assign(FARMERS[idx], updated);
-    toast.success(`${updated.name} updated`);
+    const res = await fetch(`/api/farmers/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to update staff member");
+      return;
+    }
+    await fetchFarmers();
+    toast.success(`${form.name.trim()} updated`);
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
-    setFarmers(prev => prev.filter(f => f.id !== deleteTarget.id));
-    const idx = FARMERS.findIndex(f => f.id === deleteTarget.id);
-    if (idx >= 0) FARMERS.splice(idx, 1);
+    const res = await fetch(`/api/farmers/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to delete staff member");
+      setDeleteTarget(null);
+      return;
+    }
     toast.success(`${deleteTarget.name} removed from staff`);
     setDeleteTarget(null);
+    await fetchFarmers();
   }
 
   function toggleValve(valveId: string) {
@@ -129,67 +172,67 @@ export default function EmployeesPage() {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Full Name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Full Name <span className="text-red-500">*</span></label>
             <input
               value={form.name}
               onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="e.g. Hiwot Tesfaye"
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Phone <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Phone <span className="text-red-500">*</span></label>
             <input
               value={form.phone}
               onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
               placeholder="+251-91-..."
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Role</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Role</label>
             <select
               value={form.role}
               onChange={e => setForm(p => ({ ...p, role: e.target.value as Farmer["role"] }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
             >
-              <option value="farmer">Field Worker</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="manager">Manager</option>
+              {options.farmerRoles.map(role => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">National ID</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">National ID</label>
             <input
               value={form.nationalId}
               onChange={e => setForm(p => ({ ...p, nationalId: e.target.value }))}
               placeholder="ETH-XXXX-X"
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Join Date</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Join Date</label>
             <input
               type="date"
               value={form.joinedDate}
               onChange={e => setForm(p => ({ ...p, joinedDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm"
             />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Emergency Contact</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Emergency Contact</label>
             <input
               value={form.emergencyContact}
               onChange={e => setForm(p => ({ ...p, emergencyContact: e.target.value }))}
               placeholder="+251-91-..."
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Assigned Valves</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Assigned Valves</label>
           <div className="flex gap-2 flex-wrap">
-            {VALVES.map(v => (
+            {valves.map(v => (
               <button
                 key={v.id}
                 type="button"
@@ -197,7 +240,7 @@ export default function EmployeesPage() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${
                   form.assignedValves.includes(v.id)
                     ? "border-current text-white"
-                    : "border-slate-200 text-slate-600 bg-white"
+                    : "border-border text-muted-foreground bg-card"
                 }`}
                 style={form.assignedValves.includes(v.id) ? { background: v.color, borderColor: v.color } : {}}
               >
@@ -214,17 +257,17 @@ export default function EmployeesPage() {
     return (
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Icon className="size-4 text-slate-500" />
-          <h2 className="font-semibold text-slate-700">{title}</h2>
+          <Icon className="size-4 text-muted-foreground" />
+          <h2 className="font-semibold text-foreground">{title}</h2>
           <Badge variant="outline" className="text-[10px]">{people.length}</Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {people.map(f => {
             const style = ROLE_STYLE[f.role];
-            const valves = VALVES.filter(v => f.assignedValves.includes(v.id));
-            const tasks = TASKS.filter(task => task.assignedTo === f.id);
-            const assignments = WORKER_ASSIGNMENTS.filter(a => a.farmerId === f.id);
-            const completedJobs = assignments.filter(a => a.status === "completed").length;
+            const farmerValves = valves.filter(v => f.assignedValves.includes(v.id));
+            const farmerTasks = tasks.filter(t => t.assignedTo === f.id);
+            const farmerAssignments = assignments.filter(a => a.farmerId === f.id);
+            const completedJobs = farmerAssignments.filter(a => a.status === "completed").length;
 
             return (
               <Card key={f.id} className="p-5 hover:shadow-md transition-shadow relative">
@@ -232,33 +275,33 @@ export default function EmployeesPage() {
                 <div className="absolute top-3 right-3 flex gap-1">
                   <button
                     onClick={() => openEdit(f)}
-                    className="size-7 rounded-md bg-slate-100 hover:bg-slate-200 grid place-items-center"
+                    className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center"
                     title="Edit"
                   >
-                    <Pencil className="size-3 text-slate-600" />
+                    <Pencil className="size-3 text-muted-foreground" />
                   </button>
                   {f.role !== "manager" && (
                     <button
                       onClick={() => setDeleteTarget(f)}
-                      className="size-7 rounded-md bg-slate-100 hover:bg-red-100 grid place-items-center"
+                      className="size-7 rounded-md bg-muted hover:bg-red-100 grid place-items-center"
                       title="Remove"
                     >
-                      <Trash2 className="size-3 text-slate-500" />
+                      <Trash2 className="size-3 text-muted-foreground" />
                     </button>
                   )}
                 </div>
 
                 <div className="flex items-start gap-3 mb-4 pr-16">
-                  <Avatar className="size-12 ring-2 ring-slate-100">
+                  <Avatar className="size-12 ring-2 ring-border">
                     <AvatarFallback className={`font-bold text-sm ${
                       f.role === "manager" ? "bg-amber-100 text-amber-700" :
                       f.role === "supervisor" ? "bg-blue-100 text-blue-700" :
-                      "bg-emerald-100 text-emerald-700"
+                      "bg-primary/15 text-primary"
                     }`}>{f.avatar}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-slate-900 truncate">{f.name}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{f.nationalId ?? "—"}</div>
+                    <div className="font-bold text-foreground truncate">{f.name}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{f.nationalId ?? "—"}</div>
                     <Badge className={`text-[10px] capitalize mt-1 ${style.badge}`}>{f.role}</Badge>
                   </div>
                 </div>
@@ -266,14 +309,14 @@ export default function EmployeesPage() {
                 <div className="space-y-2 mb-3">
                   <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500">Attendance</span>
+                      <span className="text-muted-foreground">Attendance</span>
                       <span className="font-semibold">{f.attendanceRate}%</span>
                     </div>
                     <Progress value={f.attendanceRate} className="h-1.5" />
                   </div>
                   <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500">Performance</span>
+                      <span className="text-muted-foreground">Performance</span>
                       <span className="font-semibold">{f.performanceScore}</span>
                     </div>
                     <Progress value={f.performanceScore} className="h-1.5" />
@@ -281,33 +324,33 @@ export default function EmployeesPage() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mb-3 text-center">
-                  <div className="bg-slate-50 rounded-lg py-2">
-                    <div className="text-sm font-bold text-slate-800">{completedJobs}</div>
-                    <div className="text-[10px] text-slate-400">Jobs done</div>
+                  <div className="bg-muted rounded-lg py-2">
+                    <div className="text-sm font-bold text-foreground">{completedJobs}</div>
+                    <div className="text-[10px] text-muted-foreground">Jobs done</div>
                   </div>
-                  <div className="bg-slate-50 rounded-lg py-2">
-                    <div className="text-sm font-bold text-slate-800">{tasks.filter(task => task.status === "done").length}</div>
-                    <div className="text-[10px] text-slate-400">Tasks done</div>
+                  <div className="bg-muted rounded-lg py-2">
+                    <div className="text-sm font-bold text-foreground">{farmerTasks.filter(t => t.status === "done").length}</div>
+                    <div className="text-[10px] text-muted-foreground">Tasks done</div>
                   </div>
-                  <div className="bg-slate-50 rounded-lg py-2">
-                    <div className="text-sm font-bold text-slate-800">{valves.length}</div>
-                    <div className="text-[10px] text-slate-400">Valves</div>
+                  <div className="bg-muted rounded-lg py-2">
+                    <div className="text-sm font-bold text-foreground">{farmerValves.length}</div>
+                    <div className="text-[10px] text-muted-foreground">Valves</div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center gap-2 text-slate-500">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="size-3 shrink-0" /><span>{f.phone}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-500">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="size-3 shrink-0" />
                     <span>Joined {new Date(f.joinedDate).toLocaleDateString("en", { month: "long", year: "numeric" })}</span>
                   </div>
                 </div>
 
-                {valves.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-slate-100">
-                    {valves.map(v => (
+                {farmerValves.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-border">
+                    {farmerValves.map(v => (
                       <span
                         key={v.id}
                         className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
@@ -325,7 +368,7 @@ export default function EmployeesPage() {
           {/* Add new card placeholder */}
           <button
             onClick={openCreate}
-            className="border-2 border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all text-slate-400 hover:text-emerald-600 min-h-[180px]"
+            className="border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-primary/40 hover:bg-primary/10 transition-all text-muted-foreground hover:text-primary min-h-[180px]"
           >
             <Plus className="size-7" />
             <span className="text-sm font-semibold">Add Staff Member</span>
@@ -335,19 +378,23 @@ export default function EmployeesPage() {
     );
   }
 
+  if (loading) {
+    return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Users className="size-5 text-blue-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.employees.title}</h1>
+            <Users className="size-5 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">Employees</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.employees.subtitle}</p>
+          <p className="text-muted-foreground text-sm">Manage all farm staff — add, edit, or remove workers and supervisors</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-          <Plus className="size-4" /> {t.common.new}
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
+          <Plus className="size-4" /> Add Staff Member
         </Button>
       </div>
 
@@ -361,9 +408,9 @@ export default function EmployeesPage() {
           <div className="text-2xl font-bold text-blue-700">{supervisors.length}</div>
           <div className="text-xs text-blue-600 font-medium mt-0.5">Supervisors</div>
         </Card>
-        <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="text-2xl font-bold text-emerald-700">{fieldWorkers.length}</div>
-          <div className="text-xs text-emerald-600 font-medium mt-0.5">Field Workers</div>
+        <Card className="p-4 bg-primary/10 border-primary/30">
+          <div className="text-2xl font-bold text-primary">{fieldWorkers.length}</div>
+          <div className="text-xs text-primary font-medium mt-0.5">Field Workers</div>
         </Card>
       </div>
 
@@ -376,13 +423,13 @@ export default function EmployeesPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-emerald-600" /> Add Staff Member
+              <Plus className="size-4 text-primary" /> Add Staff Member
             </DialogTitle>
           </DialogHeader>
           <StaffForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>{t.common.create}</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Add to Staff</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -392,13 +439,13 @@ export default function EmployeesPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit {editTarget?.name}
+              <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.name}
             </DialogTitle>
           </DialogHeader>
           <StaffForm />
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>{t.common.save}</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -411,12 +458,12 @@ export default function EmployeesPage() {
               <Trash2 className="size-4" /> Remove {deleteTarget?.name}?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             This will remove <strong>{deleteTarget?.name}</strong> from the farm staff roster. Their historical records will be preserved.
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>{t.common.delete}</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>Remove Staff</Button>
           </div>
         </DialogContent>
       </Dialog>

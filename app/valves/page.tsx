@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,27 +9,45 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Sprout, Users, Wheat, AlertTriangle, Plus, Pencil, Trash2, X } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { toast } from "sonner";
-import { VALVES, BEDS, FARMERS, plantsInBed, totalKgValve, getFarmer } from "@/lib/data";
-import type { Valve } from "@/lib/types";
-
-const COLORS = [
-  "#10b981", "#3b82f6", "#a855f7", "#f59e0b",
-  "#ef4444", "#ec4899", "#14b8a6", "#f97316",
-];
+import type { Valve, Bed, Farmer, HarvestRecord } from "@/lib/types";
+import { useOptions } from "@/lib/use-options";
 
 const EMPTY_FORM = {
   name: "", color: "#10b981", irrigationSchedule: "", supervisorId: "",
 };
 
-export default function ValvesIndex() {
-  const beds = BEDS();
-  const supervisors = FARMERS.filter(f => f.role === "supervisor" || f.role === "manager");
+function plantsInBed(bed: Bed): number { return bed.lengthM * bed.plantsPerMeter; }
 
-  const [valves, setValves] = useState<Valve[]>(VALVES);
-  const [createOpen, setCreateOpen]   = useState(false);
-  const [editTarget, setEditTarget]   = useState<Valve | null>(null);
+export default function ValvesIndex() {
+  const options = useOptions();
+  const [valves, setValves]     = useState<Valve[]>([]);
+  const [beds, setBeds]         = useState<Bed[]>([]);
+  const [farmers, setFarmers]   = useState<Farmer[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [createOpen, setCreateOpen]     = useState(false);
+  const [editTarget, setEditTarget]     = useState<Valve | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Valve | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  useEffect(() => {
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/harvest").then(r => r.json()).then(setHarvests);
+  }, []);
+
+  const supervisors = farmers.filter(f => f.role === "supervisor" || f.role === "manager");
+
+  function totalKgValve(valveId: string): number {
+    const vBedIds = beds.filter(b => b.valveId === valveId).map(b => b.id);
+    return harvests
+      .filter(h => vBedIds.includes(h.bedId))
+      .reduce((s, h) => s + Number(h.kg), 0);
+  }
+
+  function getFarmer(id: string) {
+    return farmers.find(f => f.id === id);
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function openCreate() {
@@ -47,7 +65,7 @@ export default function ValvesIndex() {
     setEditTarget(v);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.name.trim()) { toast.error("Valve name is required"); return; }
     if (!form.supervisorId) { toast.error("Please assign a supervisor"); return; }
     const id = `valve-${form.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
@@ -57,29 +75,50 @@ export default function ValvesIndex() {
       supervisorId: form.supervisorId,
       x: 40 + valves.length * 140, y: 60, width: 260, height: 180,
     };
-    setValves(prev => [...prev, newValve]);
-    // Keep shared array in sync for other pages this session
-    VALVES.push(newValve);
-    toast.success(`${newValve.name} created`);
+    const res = await fetch("/api/valves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newValve),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to create valve");
+      return;
+    }
+    const created = await res.json();
+    setValves(prev => [...prev, created]);
+    toast.success(`${created.name} created`);
     setCreateOpen(false);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!editTarget) return;
     if (!form.name.trim()) { toast.error("Valve name is required"); return; }
+    const body = {
+      name: form.name.trim(),
+      color: form.color,
+      irrigationSchedule: form.irrigationSchedule,
+      supervisorId: form.supervisorId,
+    };
+    const res = await fetch(`/api/valves/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to update valve");
+      return;
+    }
+    const updated = await res.json();
     setValves(prev => prev.map(v =>
-      v.id === editTarget.id
-        ? { ...v, name: form.name.trim(), color: form.color, irrigationSchedule: form.irrigationSchedule, supervisorId: form.supervisorId }
-        : v
+      v.id === editTarget.id ? updated : v
     ));
-    // Sync shared array
-    const idx = VALVES.findIndex(v => v.id === editTarget.id);
-    if (idx >= 0) Object.assign(VALVES[idx], { name: form.name.trim(), color: form.color, irrigationSchedule: form.irrigationSchedule, supervisorId: form.supervisorId });
-    toast.success(`${form.name} updated`);
+    toast.success(`${updated.name} updated`);
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
     const hasBeds = beds.some(b => b.valveId === deleteTarget.id);
     if (hasBeds) {
@@ -87,9 +126,14 @@ export default function ValvesIndex() {
       setDeleteTarget(null);
       return;
     }
+    const res = await fetch(`/api/valves/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast.error(error?.error ?? "Failed to delete valve");
+      setDeleteTarget(null);
+      return;
+    }
     setValves(prev => prev.filter(v => v.id !== deleteTarget.id));
-    const idx = VALVES.findIndex(v => v.id === deleteTarget.id);
-    if (idx >= 0) VALVES.splice(idx, 1);
     toast.success(`${deleteTarget.name} deleted`);
     setDeleteTarget(null);
   }
@@ -99,43 +143,43 @@ export default function ValvesIndex() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Valve Name <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Valve Name <span className="text-red-500">*</span></label>
           <input
             value={form.name}
             onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
             placeholder="e.g. Valve D"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Zone Color</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Zone Color</label>
           <div className="flex gap-2 flex-wrap">
-            {COLORS.map(c => (
+            {options.valveColors.map(({ value: c }) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setForm(p => ({ ...p, color: c }))}
-                className={`size-8 rounded-full border-2 transition-all ${form.color === c ? "border-slate-800 scale-110" : "border-transparent"}`}
+                className={`size-8 rounded-full border-2 transition-all ${form.color === c ? "border-foreground scale-110" : "border-transparent"}`}
                 style={{ background: c }}
               />
             ))}
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Irrigation Schedule</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Irrigation Schedule</label>
           <input
             value={form.irrigationSchedule}
             onChange={e => setForm(p => ({ ...p, irrigationSchedule: e.target.value }))}
             placeholder="e.g. 06:00 & 17:00 — 25 min"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Supervisor <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Supervisor <span className="text-red-500">*</span></label>
           <select
             value={form.supervisorId}
             onChange={e => setForm(p => ({ ...p, supervisorId: e.target.value }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
           >
             <option value="">— Select supervisor —</option>
             {supervisors.map(s => (
@@ -152,12 +196,12 @@ export default function ValvesIndex() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
             <ValveIcon size={28} /> Irrigation Valves
           </h1>
-          <p className="text-stone-500 text-sm">Manage irrigation zones — each valve controls its own beds, farmers and water schedule.</p>
+          <p className="text-muted-foreground text-sm">Manage irrigation zones — each valve controls its own beds, farmers and water schedule.</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
           <Plus className="size-4" /> Add Valve
         </Button>
       </div>
@@ -170,7 +214,7 @@ export default function ValvesIndex() {
           const kg = totalKgValve(v.id);
           const infected = vBeds.filter(b => b.health === "infected").length;
           const supervisor = getFarmer(v.supervisorId);
-          const farmers = FARMERS.filter(f => f.assignedValves.includes(v.id) && f.role === "farmer");
+          const valveFarmers = farmers.filter(f => f.assignedValves.includes(v.id) && f.role === "farmer");
 
           return (
             <Card key={v.id} className="p-5 relative overflow-hidden hover:shadow-lg transition-shadow">
@@ -180,17 +224,17 @@ export default function ValvesIndex() {
               <div className="absolute top-3 right-3 flex gap-1">
                 <button
                   onClick={() => openEdit(v)}
-                  className="size-7 rounded-md bg-slate-100 hover:bg-slate-200 grid place-items-center transition-colors"
+                  className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors"
                   title="Edit valve"
                 >
-                  <Pencil className="size-3.5 text-slate-600" />
+                  <Pencil className="size-3.5 text-muted-foreground" />
                 </button>
                 <button
                   onClick={() => setDeleteTarget(v)}
-                  className="size-7 rounded-md bg-slate-100 hover:bg-red-100 grid place-items-center transition-colors"
+                  className="size-7 rounded-md bg-muted hover:bg-red-100 grid place-items-center transition-colors"
                   title="Delete valve"
                 >
-                  <Trash2 className="size-3.5 text-slate-600 hover:text-red-600" />
+                  <Trash2 className="size-3.5 text-muted-foreground hover:text-red-600" />
                 </button>
               </div>
 
@@ -201,7 +245,7 @@ export default function ValvesIndex() {
                   </div>
                   <div>
                     <div className="font-bold">{v.name}</div>
-                    <div className="text-[11px] text-stone-500">{v.irrigationSchedule}</div>
+                    <div className="text-[11px] text-muted-foreground">{v.irrigationSchedule}</div>
                   </div>
                   {infected > 0 && (
                     <Badge variant="destructive" className="text-[10px] ml-auto">
@@ -211,29 +255,29 @@ export default function ValvesIndex() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                  <div className="rounded-lg bg-stone-50 p-2">
+                  <div className="rounded-lg bg-muted p-2">
                     <Sprout className="size-4 mx-auto text-emerald-600 mb-0.5" />
                     <div className="text-base font-bold tabular-nums">{vBeds.length}</div>
-                    <div className="text-[10px] text-stone-500">beds</div>
+                    <div className="text-[10px] text-muted-foreground">beds</div>
                   </div>
-                  <div className="rounded-lg bg-stone-50 p-2">
+                  <div className="rounded-lg bg-muted p-2">
                     <ValveIcon size={16} className="mx-auto mb-0.5" />
                     <div className="text-base font-bold tabular-nums">{plants.toLocaleString()}</div>
-                    <div className="text-[10px] text-stone-500">plants</div>
+                    <div className="text-[10px] text-muted-foreground">plants</div>
                   </div>
-                  <div className="rounded-lg bg-stone-50 p-2">
+                  <div className="rounded-lg bg-muted p-2">
                     <Wheat className="size-4 mx-auto text-rose-600 mb-0.5" />
                     <div className="text-base font-bold tabular-nums">{kg.toFixed(0)}</div>
-                    <div className="text-[10px] text-stone-500">kg total</div>
+                    <div className="text-[10px] text-muted-foreground">kg total</div>
                   </div>
                 </div>
 
-                <div className="text-xs text-stone-600 border-t pt-3 flex items-center gap-2">
+                <div className="text-xs text-foreground/80 border-t border-border pt-3 flex items-center gap-2">
                   <Users className="size-3.5" />
                   <span><strong>Supervisor:</strong> {supervisor?.name ?? "—"}</span>
                 </div>
-                <div className="text-xs text-stone-500 mt-1 truncate">
-                  Farmers: {farmers.map(f => f.name.split(" ")[0]).join(", ") || "None assigned"}
+                <div className="text-xs text-muted-foreground mt-1 truncate">
+                  Farmers: {valveFarmers.map(f => f.name.split(" ")[0]).join(", ") || "None assigned"}
                 </div>
               </Link>
             </Card>
@@ -243,7 +287,7 @@ export default function ValvesIndex() {
         {/* Add placeholder */}
         <button
           onClick={openCreate}
-          className="border-2 border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center gap-3 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all text-slate-400 hover:text-emerald-600 min-h-[200px]"
+          className="border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center justify-center gap-3 hover:border-primary/40 hover:bg-primary/10 transition-all text-muted-foreground hover:text-primary min-h-[200px]"
         >
           <Plus className="size-8" />
           <span className="text-sm font-semibold">Add New Valve</span>
@@ -255,13 +299,13 @@ export default function ValvesIndex() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-emerald-600" /> Add Irrigation Valve
+              <Plus className="size-4 text-primary" /> Add Irrigation Valve
             </DialogTitle>
           </DialogHeader>
           <ValveForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Valve</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Create Valve</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -271,13 +315,13 @@ export default function ValvesIndex() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit {editTarget?.name}
+              <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.name}
             </DialogTitle>
           </DialogHeader>
           <ValveForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>Save Changes</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -290,7 +334,7 @@ export default function ValvesIndex() {
               <Trash2 className="size-4" /> Delete {deleteTarget?.name}?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             This will permanently remove <strong>{deleteTarget?.name}</strong>. Any beds assigned to this valve must be reassigned first.
           </p>
           <div className="flex gap-2 mt-2">

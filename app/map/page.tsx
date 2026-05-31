@@ -68,11 +68,11 @@ export default function MapPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap text-[11px] font-semibold">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
-            <span className="size-2 rounded-full bg-stone-400 inline-block" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground border border-border">
+            <span className="size-2 rounded-full bg-muted-foreground/50 inline-block" />
             {beds.length} beds
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/30">
             <ValveIcon size={11} />
             {totalPlants.toLocaleString()} plants
           </span>
@@ -95,9 +95,9 @@ export default function MapPage() {
           const valve = VALVES.find(v => v.id === vs.valveId);
           return (
             <div key={vs.valveId} className="flex items-center gap-1.5 text-[11px]">
-              <span className={cn("size-2 rounded-full", vs.isOpen ? "bg-emerald-400 animate-pulse" : "bg-slate-600")} />
-              <span className="text-slate-400">{valve?.name}</span>
-              <span className={cn("font-mono font-semibold", vs.isOpen ? "text-emerald-300" : "text-slate-600")}>
+              <span className={cn("size-2 rounded-full", vs.isOpen ? "bg-primary animate-pulse" : "bg-muted-foreground/30")} />
+              <span className="text-muted-foreground">{valve?.name}</span>
+              <span className={cn("font-mono font-semibold", vs.isOpen ? "text-primary" : "text-muted-foreground/40")}>
                 {vs.isOpen ? `${vs.flowRateLph.toLocaleString()} L/h` : "IDLE"}
               </span>
             </div>
@@ -105,8 +105,8 @@ export default function MapPage() {
         })}
         <div className="h-4 w-px bg-white/10 hidden sm:block" />
         <div className="text-[11px]">
-          <span className="text-slate-500">Tank: </span>
-          <span className={cn("font-semibold", mainTankPct < 25 ? "text-red-400" : mainTankPct < 50 ? "text-amber-400" : "text-emerald-300")}>{mainTankPct}%</span>
+          <span className="text-muted-foreground">Tank: </span>
+          <span className={cn("font-semibold", mainTankPct < 25 ? "text-red-400" : mainTankPct < 50 ? "text-amber-400" : "text-primary")}>{mainTankPct}%</span>
         </div>
         {newCamAlerts > 0 && (
           <div className="flex items-center gap-1 text-[11px] text-red-400 font-semibold">
@@ -114,7 +114,7 @@ export default function MapPage() {
             {newCamAlerts} camera alert{newCamAlerts !== 1 ? "s" : ""}
           </div>
         )}
-        <div className="ml-auto flex items-center gap-3 text-[11px] text-slate-500">
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
           <span>{liveWeather.tempC}°C</span>
           <span>{liveWeather.humidityPct}% RH</span>
           <span>{liveWeather.windKph} kph</span>
@@ -133,46 +133,46 @@ export default function MapPage() {
       {/* Status + IoT cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {[
-          { icon: "🌿", label: "Healthy",   count: healthyCount,  color: "#22c55e", bg: "bg-emerald-50", border: "border-emerald-200", desc: "Routine inspection only" },
-          { icon: "⚠️", label: "Warning",   count: warningCount,  color: "#f59e0b", bg: "bg-amber-50",   border: "border-amber-200",   desc: "Monitor closely this week" },
-          { icon: "🚨", label: "Infected",  count: infectedCount, color: "#ef4444", bg: "bg-red-50",     border: "border-red-200",     desc: "Immediate treatment needed" },
-          { icon: "🍓", label: "Ready",     count: readyCount,    color: "#a855f7", bg: "bg-violet-50",  border: "border-violet-200",  desc: "Peak ripeness — harvest now" },
+          { icon: "🌿", label: "Healthy",   count: healthyCount,  color: "#c8dc38", bg: "bg-primary/8",      border: "border-primary/25",       desc: "Routine inspection only" },
+          { icon: "⚠️", label: "Warning",   count: warningCount,  color: "#f59e0b", bg: "bg-amber-500/8",   border: "border-amber-500/25",     desc: "Monitor closely this week" },
+          { icon: "🚨", label: "Infected",  count: infectedCount, color: "#ef4444", bg: "bg-red-500/8",     border: "border-red-500/25",       desc: "Immediate treatment needed" },
+          { icon: "🍓", label: "Ready",     count: readyCount,    color: "#a855f7", bg: "bg-violet-500/8",  border: "border-violet-500/25",    desc: "Peak ripeness — harvest now" },
         ].map(({ icon, label, count, color, bg, border, desc }) => (
           <div key={label} className={`col-span-1 rounded-xl border-2 ${border} ${bg} p-3.5 flex items-center gap-3`}>
             <div className="text-2xl leading-none shrink-0">{icon}</div>
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-2xl font-black leading-none" style={{ color }}>{count}</span>
-                <span className="text-xs font-semibold text-stone-500">beds</span>
+                <span className="text-xs font-semibold text-muted-foreground">beds</span>
               </div>
-              <div className="text-xs font-bold text-stone-700 mt-0.5">{label}</div>
-              <div className="text-[10px] text-stone-400 mt-0.5 leading-tight">{desc}</div>
+              <div className="text-xs font-bold text-foreground mt-0.5">{label}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{desc}</div>
             </div>
           </div>
         ))}
 
         {/* Water tank card */}
-        <div className="col-span-1 rounded-xl border-2 border-blue-200 bg-blue-50 p-3.5">
+        <div className="col-span-1 rounded-xl border-2 border-blue-500/25 bg-blue-500/8 p-3.5">
           <div className="flex items-center gap-1.5 mb-2">
-            <Waves className="size-3.5 text-blue-600" />
-            <span className="text-xs font-bold text-blue-800">Main Tank</span>
+            <Waves className="size-3.5 text-blue-400" />
+            <span className="text-xs font-bold text-blue-300">Main Tank</span>
           </div>
-          <div className="text-2xl font-black text-blue-700 leading-none mb-1">{mainTankPct}%</div>
-          <div className="h-1.5 bg-blue-200 rounded-full overflow-hidden mb-1">
-            <div className="h-full bg-blue-500 rounded-full transition-all" style={{width:`${mainTankPct}%`}} />
+          <div className="text-2xl font-black text-blue-300 leading-none mb-1">{mainTankPct}%</div>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-1">
+            <div className="h-full bg-blue-400 rounded-full transition-all" style={{width:`${mainTankPct}%`}} />
           </div>
-          <div className="text-[10px] text-blue-600">{Math.round(mainTank.currentL / 1000).toFixed(1)} m³ · {totalFlowLph.toLocaleString()} L/h out</div>
+          <div className="text-[10px] text-blue-400/80">{Math.round(mainTank.currentL / 1000).toFixed(1)} m³ · {totalFlowLph.toLocaleString()} L/h out</div>
         </div>
 
         {/* Weather card */}
-        <div className="col-span-1 rounded-xl border-2 border-sky-200 bg-sky-50 p-3.5">
+        <div className="col-span-1 rounded-xl border-2 border-sky-500/25 bg-sky-500/8 p-3.5">
           <div className="flex items-center gap-1.5 mb-2">
-            <Thermometer className="size-3.5 text-sky-600" />
-            <span className="text-xs font-bold text-sky-800">Weather</span>
+            <Thermometer className="size-3.5 text-sky-400" />
+            <span className="text-xs font-bold text-sky-300">Weather</span>
           </div>
-          <div className="text-2xl font-black text-sky-700 leading-none mb-1">{liveWeather.tempC}°C</div>
-          <div className="text-[10px] text-sky-600">{liveWeather.humidityPct}% RH · Wind {liveWeather.windKph} kph</div>
-          <div className="text-[10px] text-sky-500 mt-0.5">{liveWeather.condition}</div>
+          <div className="text-2xl font-black text-sky-300 leading-none mb-1">{liveWeather.tempC}°C</div>
+          <div className="text-[10px] text-sky-400/80">{liveWeather.humidityPct}% RH · Wind {liveWeather.windKph} kph</div>
+          <div className="text-[10px] text-sky-400/60 mt-0.5">{liveWeather.condition}</div>
         </div>
       </div>
     </div>

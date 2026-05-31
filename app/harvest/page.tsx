@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,21 +10,52 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Wheat, Plus, Package, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { BEDS, FARMERS, HARVESTS, getBed, getValve, getFarmer } from "@/lib/data";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import type { Bed, Farmer, HarvestRecord, Valve } from "@/lib/types";
 
 type PackPrompt = { bedId: string; kg: number; grade: "A" | "B" | "C" };
 
 export default function HarvestPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const [bedId, setBedId] = useState("A-BED-01");
+  const [bedId, setBedId] = useState("");
   const [kg, setKg] = useState("");
-  const [farmerId, setFarmerId] = useState("f-001");
+  const [farmerId, setFarmerId] = useState("");
   const [grade, setGrade] = useState<"A"|"B"|"C">("A");
-  const [refresh, setRefresh] = useState(0);
   const [packPrompt, setPackPrompt] = useState<PackPrompt | null>(null);
+
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
+
+  function loadHarvests() {
+    fetch("/api/harvest").then(r => r.json()).then((h: Array<HarvestRecord & { kg: string | number }>) => {
+      const sorted = [...h]
+        .map(rec => ({ ...rec, kg: parseFloat(rec.kg.toString()) }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 30);
+      setHarvests(sorted);
+    });
+  }
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/beds").then(r => r.json()),
+      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/valves").then(r => r.json()),
+    ]).then(([b, f, v]) => {
+      setBeds(b);
+      setFarmers(f);
+      setValves(v);
+      if (b.length > 0) setBedId(b[0].id);
+      const farmers = f as Farmer[];
+      const firstFarmer = farmers.find(fm => fm.role === "farmer");
+      if (firstFarmer) setFarmerId(firstFarmer.id);
+    });
+    loadHarvests();
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,31 +76,33 @@ export default function HarvestPage() {
       // Flow 4: prompt to create packaging batch
       setPackPrompt({ bedId, kg: +kg, grade });
       setKg("");
-      setRefresh(r => r + 1);
+      loadHarvests();
     } else {
       toast.error("Failed to log harvest");
     }
   }
 
-  const beds = BEDS();
-  const recent = [...HARVESTS()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 30);
-  void refresh;
+  const recent = harvests;
+
+  function getBed(id: string) { return beds.find(b => b.id === id) ?? null; }
+  function getValve(id: string) { return valves.find(v => v.id === id) ?? null; }
+  function getFarmer(id: string) { return farmers.find(f => f.id === id) ?? null; }
 
   return (
     <>
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Wheat className="size-6 text-rose-600" /> {t.harvest.title}</h1>
-        <p className="text-stone-500 text-sm">{t.harvest.subtitle}</p>
+        <p className="text-muted-foreground text-sm">{t.harvest.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-5 lg:col-span-1">
-          <h3 className="font-bold mb-3 flex items-center gap-2"><Plus className="size-4 text-emerald-600" /> {t.harvest.recordHarvest}</h3>
+          <h3 className="font-bold mb-3 flex items-center gap-2"><Plus className="size-4 text-primary" /> {t.harvest.recordHarvest}</h3>
           <form onSubmit={submit} className="space-y-3">
             <div>
               <Label className="text-xs">Bed</Label>
-              <select value={bedId} onChange={e=>setBedId(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm bg-white">
+              <select value={bedId} onChange={e=>setBedId(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                 {beds.map(b => <option key={b.id} value={b.id}>{b.id} — {b.variety}</option>)}
               </select>
             </div>
@@ -79,15 +112,15 @@ export default function HarvestPage() {
             </div>
             <div>
               <Label className="text-xs">Farmer</Label>
-              <select value={farmerId} onChange={e=>setFarmerId(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm bg-white">
-                {FARMERS.filter(f=>f.role==="farmer").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              <select value={farmerId} onChange={e=>setFarmerId(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+                {farmers.filter(f=>f.role==="farmer").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div>
               <Label className="text-xs">{t.harvest.qualityGrade}</Label>
               <div className="grid grid-cols-3 gap-2">
                 {(["A","B","C"] as const).map(g => (
-                  <button key={g} type="button" onClick={()=>setGrade(g)} className={`py-2 rounded-md text-sm font-semibold border ${grade===g?"bg-emerald-600 text-white border-emerald-600":"bg-white text-stone-700"}`}>{g}</button>
+                  <button key={g} type="button" onClick={()=>setGrade(g)} className={`py-2 rounded-md text-sm font-semibold border ${grade===g?"bg-primary text-white border-primary":"bg-card text-foreground border-border"}`}>{g}</button>
                 ))}
               </div>
             </div>
@@ -99,7 +132,7 @@ export default function HarvestPage() {
           <h3 className="font-bold mb-3">{t.harvest.recentHarvests}</h3>
           <div className="overflow-x-auto -mx-5">
             <table className="w-full text-sm">
-              <thead className="text-[11px] uppercase tracking-wider text-stone-500 border-b">
+              <thead className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
                   <th className="text-left py-2 px-5">Date</th>
                   <th className="text-left py-2">Valve</th>
@@ -115,13 +148,13 @@ export default function HarvestPage() {
                   const v = b ? getValve(b.valveId) : null;
                   const f = getFarmer(h.farmerId);
                   return (
-                    <tr key={h.id} className="border-b last:border-0 hover:bg-stone-50">
-                      <td className="py-2.5 px-5 text-stone-500 text-xs">{new Date(h.date).toLocaleDateString("en",{month:"short",day:"numeric"})}</td>
+                    <tr key={h.id} className="border-b border-border last:border-0 hover:bg-accent">
+                      <td className="py-2.5 px-5 text-muted-foreground text-xs">{new Date(h.date).toLocaleDateString("en",{month:"short",day:"numeric"})}</td>
                       <td className="py-2.5"><span className="text-xs font-medium" style={{color:v?.color}}>{v?.name}</span></td>
-                      <td className="py-2.5"><Link href={`/beds/${h.bedId}`} className="font-mono font-semibold hover:text-emerald-700">{h.bedId}</Link></td>
-                      <td className="py-2.5 text-stone-600 text-xs">{f?.name}</td>
+                      <td className="py-2.5"><Link href={`/beds/${h.bedId}`} className="font-mono font-semibold hover:text-primary">{h.bedId}</Link></td>
+                      <td className="py-2.5 text-muted-foreground text-xs">{f?.name}</td>
                       <td className="py-2.5"><Badge variant="outline" className="text-[10px]">Grade {h.qualityGrade}</Badge></td>
-                      <td className="py-2.5 px-5 text-right font-semibold tabular-nums">{h.kg.toFixed(1)}</td>
+                      <td className="py-2.5 px-5 text-right font-semibold tabular-nums">{parseFloat(h.kg.toString()).toFixed(1)}</td>
                     </tr>
                   );
                 })}
@@ -141,11 +174,11 @@ export default function HarvestPage() {
         </DialogHeader>
         {packPrompt && (
           <div className="space-y-4">
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-              <div className="font-semibold text-slate-800">{packPrompt.kg} kg from {packPrompt.bedId}</div>
-              <div className="text-slate-500 text-xs mt-0.5">Grade {packPrompt.grade} · Logged just now</div>
+            <div className="bg-muted border border-border rounded-lg p-3 text-sm">
+              <div className="font-semibold text-foreground">{packPrompt.kg} kg from {packPrompt.bedId}</div>
+              <div className="text-muted-foreground text-xs mt-0.5">Grade {packPrompt.grade} · Logged just now</div>
             </div>
-            <p className="text-sm text-slate-600">{t.harvest.packPromptBody}</p>
+            <p className="text-sm text-muted-foreground">{t.harvest.packPromptBody}</p>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setPackPrompt(null)}>
                 {t.harvest.later}

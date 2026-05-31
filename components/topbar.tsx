@@ -6,10 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
-import { NOTIFICATIONS, FARMERS, BEDS, VALVES } from "@/lib/data";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import type { Notification } from "@/lib/types";
+import type { Notification, Bed, Farmer, Valve } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -35,21 +34,21 @@ type SearchResult = {
   type: "bed" | "farmer" | "valve";
 };
 
-function buildIndex(): SearchResult[] {
+function buildIndex(beds: Bed[], farmers: Farmer[], valves: Valve[]): SearchResult[] {
   const results: SearchResult[] = [];
-  BEDS().forEach(b => results.push({
+  beds.forEach(b => results.push({
     href: `/beds/${b.id}`,
     label: b.id,
     sub: `${b.variety} · ${b.lengthM}m`,
     type: "bed",
   }));
-  FARMERS.forEach(f => results.push({
+  farmers.forEach(f => results.push({
     href: `/employees`,
     label: f.name,
     sub: `${f.role} · ${f.phone}`,
     type: "farmer",
   }));
-  VALVES.forEach(v => results.push({
+  valves.forEach(v => results.push({
     href: `/valves/${v.id}`,
     label: v.name,
     sub: v.irrigationSchedule,
@@ -59,7 +58,7 @@ function buildIndex(): SearchResult[] {
 }
 
 const TYPE_BADGE: Record<SearchResult["type"], string> = {
-  bed:    "bg-emerald-100 text-emerald-700",
+  bed:    "bg-primary/15 text-primary",
   farmer: "bg-blue-100 text-blue-700",
   valve:  "bg-amber-100 text-amber-700",
 };
@@ -72,7 +71,10 @@ export function Topbar() {
   const router = useRouter();
 
   const [notifOpen, setNotifOpen]     = useState(false);
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [beds, setBeds]               = useState<Bed[]>([]);
+  const [farmers, setFarmers]         = useState<Farmer[]>([]);
+  const [valves, setValves]           = useState<Valve[]>([]);
   const [query, setQuery]             = useState("");
   const [searchOpen, setSearchOpen]   = useState(false);
   const [focused, setFocused]         = useState(0);
@@ -83,9 +85,16 @@ export function Topbar() {
   const unread = notifications.filter(n => !n.read).length;
   const role = user?.role ?? "manager";
 
-  // Build search index once
+  useEffect(() => {
+    fetch("/api/notifications").then(r => r.json()).then(setNotifications);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+  }, []);
+
+  // Rebuild search index when data changes
   const index = useRef<SearchResult[]>([]);
-  useEffect(() => { index.current = buildIndex(); }, []);
+  useEffect(() => { index.current = buildIndex(beds, farmers, valves); }, [beds, farmers, valves]);
 
   const results = query.trim().length >= 1
     ? index.current.filter(r =>
@@ -130,17 +139,18 @@ export function Topbar() {
 
   function markAllRead() {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    fetch("/api/notifications/mark-all-read", { method: "PATCH" }).catch(() => {});
   }
 
   if (pathname === "/login") return null;
 
   return (
-    <header className="h-14 border-b border-slate-200 bg-white sticky top-0 z-30 flex items-center px-6 gap-4">
+    <header className="h-14 border-b border-border bg-card sticky top-0 z-30 flex items-center px-6 gap-4">
 
       {/* ── Search ─────────────────────────────────────────────────────── */}
       <div className="hidden md:block flex-1 max-w-sm" ref={searchBoxRef}>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
           <input
             ref={searchRef}
             value={query}
@@ -148,15 +158,15 @@ export function Topbar() {
             onFocus={() => setSearchOpen(true)}
             onKeyDown={handleKey}
             placeholder={`${t.common.search} beds, farmers, valves…`}
-            className="w-full pl-9 pr-16 h-8 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/30 transition-all placeholder:text-slate-400"
+            className="w-full pl-9 pr-16 h-8 text-sm text-foreground bg-muted border border-border rounded-lg focus:bg-card focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all placeholder:text-muted-foreground"
           />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-mono hidden lg:block">
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono hidden lg:block">
             ⌘K
           </kbd>
 
           {/* Results dropdown */}
           {searchOpen && results.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50">
               {results.map((r, i) => (
                 <Link
                   key={`${r.href}-${r.label}`}
@@ -164,15 +174,15 @@ export function Topbar() {
                   onClick={() => { setQuery(""); setSearchOpen(false); }}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 text-sm transition-colors",
-                    i === focused ? "bg-emerald-50" : "hover:bg-slate-50"
+                    i === focused ? "bg-primary/10" : "hover:bg-primary/10"
                   )}
                 >
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${TYPE_BADGE[r.type]}`}>
                     {r.type}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-slate-800 truncate">{r.label}</div>
-                    <div className="text-[11px] text-slate-400 truncate">{r.sub}</div>
+                    <div className="font-semibold text-foreground truncate">{r.label}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{r.sub}</div>
                   </div>
                 </Link>
               ))}
@@ -181,8 +191,8 @@ export function Topbar() {
 
           {/* No results */}
           {searchOpen && query.trim().length >= 1 && results.length === 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg px-4 py-3 text-sm text-slate-400 z-50">
-              No results for <strong className="text-slate-600">"{query}"</strong>
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-lg px-4 py-3 text-sm text-muted-foreground z-50">
+              No results for <strong className="text-foreground">"{query}"</strong>
             </div>
           )}
         </div>
@@ -190,57 +200,57 @@ export function Topbar() {
 
       {/* Mobile brand + search trigger */}
       <div className="flex items-center gap-2 flex-1 md:hidden">
-        <span className="text-sm font-bold text-slate-900">ENTOTO Riverside</span>
+        <span className="text-sm font-bold text-foreground">ENTOTO Riverside</span>
         <button
           onClick={() => { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 50); }}
-          className="ml-auto p-2 rounded-md hover:bg-slate-100 transition-colors"
+          className="ml-auto p-2 rounded-md hover:bg-accent transition-colors"
           aria-label="Search"
         >
-          <Search className="size-4 text-slate-500" />
+          <Search className="size-4 text-muted-foreground" />
         </button>
       </div>
 
       {/* Mobile search overlay */}
       {searchOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col">
-          <div className="flex items-center gap-3 px-4 h-14 border-b border-slate-200">
-            <Search className="size-4 text-slate-400 shrink-0" />
+        <div className="md:hidden fixed inset-0 z-50 bg-card flex flex-col">
+          <div className="flex items-center gap-3 px-4 h-14 border-b border-border">
+            <Search className="size-4 text-muted-foreground shrink-0" />
             <input
               autoFocus
               value={query}
               onChange={e => { setQuery(e.target.value); setFocused(0); }}
               onKeyDown={handleKey}
               placeholder={`${t.common.search} beds, farmers, valves…`}
-              className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400"
+              className="flex-1 text-sm outline-none text-foreground placeholder:text-muted-foreground"
             />
             <button onClick={() => { setQuery(""); setSearchOpen(false); }} className="p-1">
-              <X className="size-4 text-slate-500" />
+              <X className="size-4 text-muted-foreground" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
             {results.map((r, i) => (
               <Link
                 key={`${r.href}-${r.label}-mob`}
                 href={r.href}
                 onClick={() => { setQuery(""); setSearchOpen(false); }}
-                className={cn("flex items-center gap-3 px-4 py-3", i === focused && "bg-emerald-50")}
+                className={cn("flex items-center gap-3 px-4 py-3", i === focused && "bg-primary/10")}
               >
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${TYPE_BADGE[r.type]}`}>
                   {r.type}
                 </span>
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-800 text-sm truncate">{r.label}</div>
-                  <div className="text-[11px] text-slate-400 truncate">{r.sub}</div>
+                  <div className="font-semibold text-foreground text-sm truncate">{r.label}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{r.sub}</div>
                 </div>
               </Link>
             ))}
             {query.trim().length >= 1 && results.length === 0 && (
-              <div className="px-4 py-6 text-sm text-slate-400 text-center">
-                No results for <strong className="text-slate-600">"{query}"</strong>
+              <div className="px-4 py-6 text-sm text-muted-foreground text-center">
+                No results for <strong className="text-foreground">"{query}"</strong>
               </div>
             )}
             {query.trim().length === 0 && (
-              <div className="px-4 py-6 text-sm text-slate-400 text-center">
+              <div className="px-4 py-6 text-sm text-muted-foreground text-center">
                 Type to search beds, farmers or valves
               </div>
             )}
@@ -251,25 +261,25 @@ export function Topbar() {
       <div className="flex items-center gap-2 ml-auto">
         {/* Role pill */}
         {user && (
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-600">
-            <span className={`size-1.5 rounded-full ${role === "manager" ? "bg-amber-500" : role === "supervisor" ? "bg-blue-500" : "bg-emerald-500"}`} />
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary border border-border text-[11px] font-medium text-foreground/80">
+            <span className={`size-1.5 rounded-full ${role === "manager" ? "bg-amber-500" : role === "supervisor" ? "bg-blue-500" : "bg-primary"}`} />
             <span className="capitalize">{role}</span>
           </div>
         )}
 
         {/* Date */}
-        <div className="hidden lg:block text-xs text-slate-400 px-2 border-r border-slate-200">
-          {new Date("2026-05-17").toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}
+        <div className="hidden lg:block text-xs text-muted-foreground px-2 border-r border-border">
+          {new Date().toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}
         </div>
 
         {/* ── Notifications bell ────────────────────────────────────────── */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen(o => !o)}
-            className="relative p-2 rounded-md hover:bg-slate-100 transition-colors"
+            className="relative p-2 rounded-md hover:bg-accent transition-colors"
             aria-label="Notifications"
           >
-            <Bell className="size-4 text-slate-500" />
+            <Bell className="size-4 text-muted-foreground" />
             {unread > 0 && (
               <span className="absolute top-1 right-1 size-4 rounded-full bg-red-500 text-white text-[9px] font-bold grid place-items-center">
                 {unread}
@@ -279,11 +289,11 @@ export function Topbar() {
 
           {/* Notification panel */}
           {notifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-[360px] bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
+            <div className="absolute right-0 top-full mt-2 w-[360px] bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-900 text-sm">Notifications</span>
+                  <span className="font-semibold text-foreground text-sm">Notifications</span>
                   {unread > 0 && (
                     <span className="size-5 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center">{unread}</span>
                   )}
@@ -292,24 +302,24 @@ export function Topbar() {
                   {unread > 0 && (
                     <button
                       onClick={markAllRead}
-                      className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold"
+                      className="text-[11px] text-primary hover:text-primary/80 font-semibold"
                     >
                       Mark all read
                     </button>
                   )}
                   <button
                     onClick={() => setNotifOpen(false)}
-                    className="size-6 rounded-md hover:bg-slate-100 grid place-items-center"
+                    className="size-6 rounded-md hover:bg-accent grid place-items-center"
                   >
-                    <X className="size-3.5 text-slate-500" />
+                    <X className="size-3.5 text-muted-foreground" />
                   </button>
                 </div>
               </div>
 
               {/* Items */}
-              <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-50">
+              <div className="max-h-[420px] overflow-y-auto divide-y divide-border/30">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-slate-400">
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                     <Bell className="size-8 mx-auto mb-2 opacity-20" />
                     <p>No notifications</p>
                   </div>
@@ -317,19 +327,19 @@ export function Topbar() {
                   notifications.map(n => (
                     <div
                       key={n.id}
-                      className={cn("px-4 py-3 flex gap-3 hover:bg-slate-50 transition-colors", !n.read && "bg-blue-50/40")}
+                      className={cn("px-4 py-3 flex gap-3 hover:bg-accent transition-colors", !n.read && "bg-primary/5")}
                     >
-                      <div className="size-7 rounded-full bg-slate-100 grid place-items-center shrink-0 mt-0.5">
+                      <div className="size-7 rounded-full bg-muted grid place-items-center shrink-0 mt-0.5">
                         {NOTIF_ICONS[n.type]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-700 leading-snug">{n.message}</p>
+                        <p className="text-xs text-foreground/90 leading-snug">{n.message}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-slate-400">{timeAgo(n.timestamp)}</span>
+                          <span className="text-[10px] text-muted-foreground">{timeAgo(n.timestamp)}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
                             n.channel === "telegram" ? "bg-blue-100 text-blue-700" :
                             n.channel === "sms"      ? "bg-amber-100 text-amber-700" :
-                            "bg-slate-100 text-slate-600"
+                            "bg-muted text-muted-foreground"
                           }`}>
                             {n.channel}
                           </span>
@@ -342,7 +352,7 @@ export function Topbar() {
                               setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
                               setNotifOpen(false);
                             }}
-                            className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold mt-1 inline-block"
+                            className="text-[11px] text-primary hover:text-primary/80 font-semibold mt-1 inline-block"
                           >
                             View →
                           </Link>
@@ -358,19 +368,19 @@ export function Topbar() {
 
         {/* User */}
         {user ? (
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div className="flex items-center gap-2 pl-2 border-l border-border">
             <Avatar className="size-7">
               <AvatarFallback className={`text-[11px] font-bold ${role === "manager" ? "bg-amber-600" : role === "supervisor" ? "bg-blue-600" : "bg-emerald-700"} text-white`}>
                 {user.avatar}
               </AvatarFallback>
             </Avatar>
             <div className="hidden lg:block text-left">
-              <div className="text-xs font-semibold text-slate-800">{user.name.split(" ")[0]}</div>
-              <div className="text-[10px] text-slate-400 capitalize">{user.role}</div>
+              <div className="text-xs font-semibold text-foreground">{user.name.split(" ")[0]}</div>
+              <div className="text-[10px] text-muted-foreground capitalize">{user.role}</div>
             </div>
           </div>
         ) : (
-          <Link href="/login" className="flex items-center gap-1.5 pl-2 border-l border-slate-200 text-xs font-medium text-slate-600 hover:text-emerald-700">
+          <Link href="/login" className="flex items-center gap-1.5 pl-2 border-l border-border text-xs font-medium text-muted-foreground hover:text-primary">
             <LogIn className="size-3.5" /> Sign in
           </Link>
         )}

@@ -9,9 +9,9 @@ const ACTIONS = [
     label: "Log Harvest",
     sub: "Record today's yield",
     icon: Wheat,
-    bg: "bg-emerald-600 hover:bg-emerald-700",
-    iconBg: "bg-emerald-500",
-    text: "text-white",
+    bg: "bg-primary hover:bg-primary/90",
+    iconBg: "bg-primary/80",
+    text: "text-background",
   },
   {
     href: "/diseases",
@@ -45,7 +45,7 @@ const ACTIONS = [
 export function QuickActions() {
   return (
     <div>
-      <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">Quick Actions</div>
+      <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">Quick Actions</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {ACTIONS.map(a => {
           const Icon = a.icon;

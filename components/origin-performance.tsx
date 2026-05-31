@@ -1,10 +1,11 @@
 import type { Bed, HarvestRecord, DiseaseReport, GrowthStage } from "@/lib/types";
-import { PACKAGING_RECORDS } from "@/lib/erp-data";
+import type { PackagingRecord } from "@/lib/erp-types";
 
 interface Props {
   beds: Bed[];
   harvests: HarvestRecord[];
   diseases: DiseaseReport[];
+  packagingRecords: PackagingRecord[];
 }
 
 const FLAG: Record<string, string> = {
@@ -16,8 +17,8 @@ const FLAG: Record<string, string> = {
 const PALETTE = [
   {
     bar: "#10b981", glow: "rgba(16,185,129,0.12)",
-    text: "#065f46", muted: "#d1fae5",
-    badge: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    text: "#4d7c0f", muted: "#d1fae5",
+    badge: "bg-primary/15 text-primary border-primary/30",
     rank: "from-emerald-500 to-teal-600",
     stage: "#10b981",
   },
@@ -75,7 +76,7 @@ function scoreTier(score: number): { label: string; color: string } {
   return               { label: "Weak",     color: "#dc2626" };
 }
 
-export function OriginPerformance({ beds, harvests, diseases }: Props) {
+export function OriginPerformance({ beds, harvests, diseases, packagingRecords }: Props) {
 
   // ── Aggregate ────────────────────────────────────────────────────────────
   const map: Record<string, {
@@ -131,7 +132,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
     else                         { o.activeDiseases++; o.totalSeverity += d.severity; }
   });
 
-  PACKAGING_RECORDS.forEach(pk => {
+  packagingRecords.forEach(pk => {
     const bed = beds.find(b => b.valveId === pk.valveId && b.variety === pk.variety);
     if (!bed || !map[bed.origin]) return;
     map[bed.origin].cartons += pk.cartonCount;
@@ -183,7 +184,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
             <div className="text-white font-bold text-base flex items-center gap-2">
               🌍 Seed Origin Intelligence
             </div>
-            <div className="text-slate-400 text-xs mt-0.5">
+            <div className="text-slate-300 text-xs mt-0.5">
               {rows.length} source regions · {totalBeds} beds · season performance snapshot
             </div>
           </div>
@@ -197,15 +198,15 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
           {[
             { label: "Season Yield",    value: `${totalKg.toFixed(0)} kg`,  sub: "all origins combined",              icon: "🌾" },
             { label: "Best Efficiency", value: rows[0] ? `${rows[0].kgPerM.toFixed(2)} kg/m` : "—", sub: rows[0]?.origin ?? "", icon: "🏆" },
-            { label: "Total Cartons",   value: `${totalCartons}`,           sub: `${PACKAGING_RECORDS.length} batches`, icon: "📦" },
+            { label: "Total Cartons",   value: `${totalCartons}`,           sub: `${packagingRecords.length} batches`, icon: "📦" },
             { label: "Farm Grade A",    value: `${farmGradeA}%`,            sub: `${harvests.length} harvest events`, icon: "⭐" },
             { label: "Active Alerts",   value: activeDiseaseCount > 0 ? `${activeDiseaseCount}` : "Clean", sub: activeDiseaseCount > 0 ? "disease reports" : "no active issues", icon: activeDiseaseCount > 0 ? "⚠️" : "✅" },
           ].map(kpi => (
             <div key={kpi.label} className="bg-white/6 rounded-xl p-3 border border-white/8">
               <div className="text-lg mb-1">{kpi.icon}</div>
               <div className="text-white font-bold text-lg tabular-nums leading-none">{kpi.value}</div>
-              <div className="text-slate-400 text-[10px] mt-1 uppercase tracking-wide">{kpi.label}</div>
-              <div className="text-slate-500 text-[9px] mt-0.5 truncate">{kpi.sub}</div>
+              <div className="text-slate-300 text-[10px] mt-1 uppercase tracking-wide">{kpi.label}</div>
+              <div className="text-slate-400 text-[9px] mt-0.5 truncate">{kpi.sub}</div>
             </div>
           ))}
         </div>
@@ -229,7 +230,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
           return (
             <div
               key={r.origin}
-              className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
+              className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
               style={{ boxShadow: `0 0 0 0 ${pal.bar}` }}
             >
               {/* Top accent strip */}
@@ -243,13 +244,13 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                     {/* Composite score ring */}
                     <div style={{
                       width: 56, height: 56, borderRadius: "50%",
-                      background: `conic-gradient(from -90deg, ${pal.bar} ${score * 3.6}deg, #e2e8f0 0)`,
+                      background: `conic-gradient(from -90deg, ${pal.bar} ${score * 3.6}deg, hsl(var(--border)) 0)`,
                       display: "grid", placeItems: "center",
                       boxShadow: `0 0 12px ${pal.glow}`,
                     }}>
                       <div style={{
                         width: 40, height: 40, borderRadius: "50%",
-                        background: "white",
+                        background: "hsl(var(--card))",
                         display: "grid", placeItems: "center",
                         flexDirection: "column" as const,
                       }}>
@@ -270,8 +271,8 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-2xl leading-none">{flag(r.origin)}</span>
                       <div>
-                        <div className="font-bold text-slate-900 text-sm leading-none">{countryOf(r.origin)}</div>
-                        <div className="text-slate-500 text-xs mt-0.5">{region(r.origin)}</div>
+                        <div className="font-bold text-foreground text-sm leading-none">{countryOf(r.origin)}</div>
+                        <div className="text-muted-foreground text-xs mt-0.5">{region(r.origin)}</div>
                       </div>
                       <span className="text-base leading-none">{MEDALS[i]}</span>
                     </div>
@@ -282,28 +283,28 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                       >
                         {tier.label}
                       </span>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${deltaVsAvg >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${deltaVsAvg >= 0 ? "bg-primary/10 text-primary" : "bg-red-50 text-red-600"}`}>
                         {deltaVsAvg >= 0 ? "↑" : "↓"} {Math.abs(deltaVsAvg).toFixed(0)}% vs avg
                       </span>
-                      <span className="text-[10px] text-slate-400">{sharePct.toFixed(0)}% of farm yield</span>
+                      <span className="text-[10px] text-muted-foreground">{sharePct.toFixed(0)}% of farm yield</span>
                     </div>
                   </div>
 
                   {/* Main KPI */}
                   <div className="text-right shrink-0">
                     <div className="text-2xl font-black tabular-nums" style={{ color: pal.text }}>{r.kgPerM.toFixed(2)}</div>
-                    <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">kg / metre</div>
-                    <div className="text-xs font-bold text-slate-700 mt-0.5">{r.kg.toFixed(1)} kg total</div>
+                    <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">kg / metre</div>
+                    <div className="text-xs font-bold text-foreground mt-0.5">{r.kg.toFixed(1)} kg total</div>
                   </div>
                 </div>
 
                 {/* ── Yield efficiency bar ────────────────────────────── */}
                 <div className="mb-4">
                   <div className="flex justify-between text-[10px] mb-1">
-                    <span className="text-slate-500 font-medium">Yield efficiency vs best origin</span>
+                    <span className="text-muted-foreground font-medium">Yield efficiency vs best origin</span>
                     <span className="font-bold tabular-nums" style={{ color: pal.text }}>{Math.round(yieldPct)}%</span>
                   </div>
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${yieldPct}%`, background: `linear-gradient(90deg, ${pal.bar}, ${pal.bar}cc)`, transition: "width 0.7s" }}
@@ -325,8 +326,8 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                     <div key={m.label} className="rounded-xl p-2.5 text-center" style={{ background: pal.glow, border: `1px solid ${pal.bar}22` }}>
                       <div className="text-base leading-none mb-1">{m.icon}</div>
                       <div className="text-xs font-black tabular-nums" style={{ color: pal.text }}>{m.value}</div>
-                      <div className="text-[9px] text-slate-500 mt-0.5 font-medium">{m.label}</div>
-                      <div className="text-[9px] text-slate-400">{m.sub}</div>
+                      <div className="text-[9px] text-muted-foreground mt-0.5 font-medium">{m.label}</div>
+                      <div className="text-[9px] text-muted-foreground/70">{m.sub}</div>
                     </div>
                   ))}
                 </div>
@@ -334,17 +335,17 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                 {/* ── Health bar ──────────────────────────────────────── */}
                 <div className="mb-3">
                   <div className="flex justify-between text-[10px] mb-1">
-                    <span className="text-slate-500 font-medium">Bed health</span>
-                    <span className={`font-bold ${r.healthScore >= 80 ? "text-emerald-600" : r.healthScore >= 60 ? "text-amber-500" : "text-red-500"}`}>
+                    <span className="text-muted-foreground font-medium">Bed health</span>
+                    <span className={`font-bold ${r.healthScore >= 80 ? "text-primary" : r.healthScore >= 60 ? "text-amber-500" : "text-red-500"}`}>
                       {r.healthScore}% healthy score
                     </span>
                   </div>
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                  <div className="h-2.5 bg-muted rounded-full overflow-hidden flex">
                     <div style={{ width: `${healthyPct}%`, background: "#10b981" }} className="h-full transition-all" />
                     <div style={{ width: `${warningPct}%`, background: "#f59e0b" }} className="h-full transition-all" />
                     <div style={{ width: `${infectedPct}%`, background: "#ef4444" }} className="h-full transition-all" />
                   </div>
-                  <div className="flex items-center gap-4 mt-1.5 text-[9px] text-slate-400">
+                  <div className="flex items-center gap-4 mt-1.5 text-[9px] text-muted-foreground">
                     <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-400 inline-block" />{r.healthy} healthy</span>
                     {r.warning  > 0 && <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400 inline-block" />{r.warning} warning</span>}
                     {r.infected > 0 && <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-400 inline-block" />{r.infected} infected</span>}
@@ -355,16 +356,16 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                 {r.harvestEvents > 0 && (
                   <div className="mb-3">
                     <div className="flex justify-between text-[10px] mb-1">
-                      <span className="text-slate-500 font-medium">Harvest grade distribution</span>
-                      <span className="text-slate-400">{r.harvestEvents} events</span>
+                      <span className="text-muted-foreground font-medium">Harvest grade distribution</span>
+                      <span className="text-muted-foreground">{r.harvestEvents} events</span>
                     </div>
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                    <div className="h-2.5 bg-muted rounded-full overflow-hidden flex">
                       <div style={{ width: `${r.gradeAPct}%`, background: "#10b981" }} className="h-full" />
                       <div style={{ width: `${gradeBPct}%`,   background: "#f59e0b" }} className="h-full" />
                       <div style={{ width: `${gradeCPct}%`,   background: "#ef4444" }} className="h-full" />
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-[9px]">
-                      <span className="flex items-center gap-1 text-emerald-600 font-semibold"><span className="size-2 rounded-sm bg-emerald-400 inline-block" />A {r.gradeAPct}%</span>
+                      <span className="flex items-center gap-1 text-primary font-semibold"><span className="size-2 rounded-sm bg-emerald-400 inline-block" />A {r.gradeAPct}%</span>
                       <span className="flex items-center gap-1 text-amber-500 font-semibold"><span className="size-2 rounded-sm bg-amber-400 inline-block" />B {gradeBPct}%</span>
                       <span className="flex items-center gap-1 text-red-500 font-semibold"><span className="size-2 rounded-sm bg-red-400 inline-block" />C {gradeCPct}%</span>
                     </div>
@@ -374,7 +375,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                 {/* ── Growth stage breakdown ──────────────────────────── */}
                 {Object.keys(r.stages).length > 0 && (
                   <div className="mb-3">
-                    <div className="text-[10px] text-slate-500 font-medium mb-1.5">Growth stages</div>
+                    <div className="text-[10px] text-muted-foreground font-medium mb-1.5">Growth stages</div>
                     <div className="flex flex-wrap gap-1.5">
                       {STAGE_ORDER.filter(s => r.stages[s]).map(s => (
                         <span
@@ -391,7 +392,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
 
                 {/* ── Varieties ───────────────────────────────────────── */}
                 <div className="mb-3">
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mb-1.5">Varieties</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide font-bold mb-1.5">Varieties</div>
                   <div className="flex flex-wrap gap-1">
                     {r.varieties.map(v => (
                       <span key={v} className={`text-[10px] px-2.5 py-0.5 rounded-full border font-medium ${pal.badge}`}>{v}</span>
@@ -401,13 +402,13 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
 
                 {/* ── Last harvest ────────────────────────────────────── */}
                 {r.lastHarvestDate && (
-                  <div className="text-[10px] text-slate-400 mb-2">
-                    Last harvest: <span className="text-slate-600 font-semibold">{new Date(r.lastHarvestDate).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}</span>
+                  <div className="text-[10px] text-muted-foreground mb-2">
+                    Last harvest: <span className="text-foreground font-semibold">{new Date(r.lastHarvestDate).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}</span>
                   </div>
                 )}
 
                 {/* ── Disease status footer ───────────────────────────── */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-3 border-t border-border flex items-center justify-between">
                   {r.activeDiseases > 0 ? (
                     <div className="flex items-center gap-2">
                       <span className="size-2 rounded-full bg-red-400 animate-pulse inline-block" />
@@ -417,13 +418,13 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                       </span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold">
-                      <span className="size-2 rounded-full bg-emerald-400 inline-block" />
+                    <div className="flex items-center gap-1.5 text-[10px] text-primary font-semibold">
+                      <span className="size-2 rounded-full bg-primary inline-block" />
                       Disease-free
                     </div>
                   )}
                   {r.resolvedDiseases > 0 && (
-                    <span className="text-[9px] text-slate-400">{r.resolvedDiseases} resolved</span>
+                    <span className="text-[9px] text-muted-foreground">{r.resolvedDiseases} resolved</span>
                   )}
                 </div>
               </div>
@@ -433,17 +434,17 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
       </div>
 
       {/* ── Ranked comparison table ──────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-          <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">Origin Comparison — All Metrics</div>
-          <span className="text-[10px] text-slate-400 font-medium">Sorted by yield efficiency</span>
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-border bg-muted flex items-center justify-between">
+          <div className="text-xs font-bold text-foreground uppercase tracking-wide">Origin Comparison — All Metrics</div>
+          <span className="text-[10px] text-muted-foreground font-medium">Sorted by yield efficiency</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-border">
                 {["Rank", "Origin", "Score", "kg/m", "vs Avg", "Total kg", "Share", "Cartons", "Grade A", "Health", "Consistency", "Disease"].map(h => (
-                  <th key={h} className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-2 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -455,7 +456,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                 const delta     = avgKgPerM > 0 ? ((r.kgPerM - avgKgPerM) / avgKgPerM) * 100 : 0;
                 const sharePct  = totalKg > 0 ? (r.kg / totalKg) * 100 : 0;
                 return (
-                  <tr key={r.origin} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                  <tr key={r.origin} className="border-b border-border hover:bg-accent transition-colors">
                     <td className="px-3 py-2.5">
                       <div className={`size-6 rounded-lg bg-gradient-to-br ${pal.rank} grid place-items-center text-white font-black text-[10px]`}>{i + 1}</div>
                     </td>
@@ -463,14 +464,14 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                       <div className="flex items-center gap-2">
                         <span>{flag(r.origin)}</span>
                         <div>
-                          <div className="font-semibold text-slate-800">{countryOf(r.origin)}</div>
-                          <div className="text-[9px] text-slate-400">{region(r.origin)}</div>
+                          <div className="font-semibold text-foreground">{countryOf(r.origin)}</div>
+                          <div className="text-[9px] text-muted-foreground">{region(r.origin)}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-black text-slate-800">{score}</span>
+                        <span className="font-black text-foreground">{score}</span>
                         <span className="text-[9px] font-semibold" style={{ color: scoreTier(score).color }}>/{scoreTier(score).label}</span>
                       </div>
                     </td>
@@ -478,40 +479,40 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                       <span className="font-bold tabular-nums" style={{ color: pal.text }}>{r.kgPerM.toFixed(2)}</span>
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={`font-semibold ${delta >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                      <span className={`font-semibold ${delta >= 0 ? "text-primary" : "text-red-500"}`}>
                         {delta >= 0 ? "↑" : "↓"}{Math.abs(delta).toFixed(0)}%
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 tabular-nums font-medium text-slate-700">{r.kg.toFixed(1)}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-medium text-foreground">{r.kg.toFixed(1)}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${sharePct}%`, background: pal.bar }} />
                         </div>
-                        <span className="text-[10px] text-slate-500 tabular-nums">{sharePct.toFixed(0)}%</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">{sharePct.toFixed(0)}%</span>
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
                       {r.cartons > 0
                         ? <span className="font-bold text-indigo-600 flex items-center gap-1">📦 {r.cartons}</span>
-                        : <span className="text-slate-300">—</span>
+                        : <span className="text-muted-foreground/40">—</span>
                       }
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={`font-bold ${r.gradeAPct >= 70 ? "text-emerald-600" : r.gradeAPct >= 50 ? "text-amber-500" : "text-red-500"}`}>
+                      <span className={`font-bold ${r.gradeAPct >= 70 ? "text-primary" : r.gradeAPct >= 50 ? "text-amber-500" : "text-red-500"}`}>
                         {r.gradeAPct}%
                       </span>
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={`font-bold ${r.healthScore >= 80 ? "text-emerald-600" : r.healthScore >= 60 ? "text-amber-500" : "text-red-500"}`}>
+                      <span className={`font-bold ${r.healthScore >= 80 ? "text-primary" : r.healthScore >= 60 ? "text-amber-500" : "text-red-500"}`}>
                         {r.healthScore}%
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 tabular-nums text-slate-600">{r.consistency.toFixed(1)} kg</td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">{r.consistency.toFixed(1)} kg</td>
                     <td className="px-3 py-2.5">
                       {r.activeDiseases > 0
                         ? <span className="text-red-500 font-semibold flex items-center gap-1"><span className="size-1.5 rounded-full bg-red-400 animate-pulse inline-block" />{r.activeDiseases}</span>
-                        : <span className="text-emerald-500 font-semibold">✓ None</span>
+                        : <span className="text-primary font-semibold">✓ None</span>
                       }
                     </td>
                   </tr>
@@ -544,11 +545,11 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
             </div>
 
             {/* Body */}
-            <p className="text-sm text-slate-700 leading-7 mb-4">
+            <p className="text-sm text-foreground leading-7 mb-4">
               ምንም እንኳን የፍሎሪዳ ዘር በአንድ ሜትር የሚሰጠው ምርት{" "}
               <span className="font-semibold text-blue-700">(efficiency)</span>{" "}
               ቢበልጥም፣ ካሊፎርኒያ በድምሩ የሚሰጠው የምርት መጠን{" "}
-              <span className="font-semibold text-emerald-700">(volume)</span>{" "}
+              <span className="font-semibold text-primary">(volume)</span>{" "}
               ይበልጣል። ይህ የሚያሳየው የካሊፎርኒያ እርሻ ቦታ ሰፊ መሆኑን፣ ፍሎሪዳው ዘር ግን
               በአነስተኛ ቦታ የተሻለ ምርት ማግኘቷን ነው።
             </p>
@@ -558,7 +559,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 border border-blue-200 text-xs font-semibold text-blue-700">
                 🏅 Best efficiency: {efficiencyLeader.origin} · {efficiencyLeader.kgPerM.toFixed(2)} kg/m
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-700">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-xs font-semibold text-primary">
                 🌾 Highest volume: {volumeLeader.origin} · {volumeLeader.kg.toFixed(0)} kg total
               </div>
               {split && (
@@ -569,7 +570,7 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
             </div>
 
             {/* Question prompt */}
-            <div className="rounded-xl border border-violet-200 bg-white px-4 py-3.5">
+            <div className="rounded-xl border border-violet-200 bg-card px-4 py-3.5">
               <div className="flex items-start gap-2.5">
                 <span className="text-base shrink-0 mt-0.5">💬</span>
                 <p className="text-sm text-violet-800 font-medium leading-relaxed">
@@ -584,8 +585,8 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
       })()}
 
       {/* ── Yield share bar ──────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-3">Yield Share — Season Total</div>
+      <div className="rounded-2xl border border-border bg-muted px-5 py-4">
+        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Yield Share — Season Total</div>
         <div className="space-y-2.5">
           {rows.map((r, i) => {
             const pal = PALETTE[i] ?? PALETTE[PALETTE.length - 1];
@@ -594,9 +595,9 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
               <div key={r.origin} className="flex items-center gap-3">
                 <div className="flex items-center gap-2 w-40 shrink-0">
                   <span>{flag(r.origin)}</span>
-                  <span className="text-xs text-slate-700 font-semibold truncate">{r.origin}</span>
+                  <span className="text-xs text-foreground font-semibold truncate">{r.origin}</span>
                 </div>
-                <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                <div className="flex-1 h-3 bg-border rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all duration-700"
                     style={{ width: `${pct}%`, background: pal.bar }}
@@ -605,10 +606,10 @@ export function OriginPerformance({ beds, harvests, diseases }: Props) {
                   </div>
                 </div>
                 <div className="w-20 text-right shrink-0">
-                  <span className="text-xs font-bold tabular-nums text-slate-800">{r.kg.toFixed(1)} kg</span>
+                  <span className="text-xs font-bold tabular-nums text-foreground">{r.kg.toFixed(1)} kg</span>
                 </div>
                 <div className="w-16 text-right shrink-0 hidden md:block">
-                  <span className="text-[10px] text-slate-400 tabular-nums">{r.kgPerM.toFixed(2)} kg/m</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">{r.kgPerM.toFixed(2)} kg/m</span>
                 </div>
                 <div className="w-16 text-right shrink-0 hidden lg:block">
                   {r.cartons > 0 && <span className="text-[10px] text-indigo-500 font-semibold tabular-nums">📦 {r.cartons}</span>}

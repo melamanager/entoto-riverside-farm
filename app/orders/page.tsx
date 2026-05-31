@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,20 +10,20 @@ import {
   TrendingUp, DollarSign, BarChart3, TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CUSTOMER_ORDERS, PACKAGING_RECORDS, FERTIGATION_RECORDS, PAYROLL_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
-import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus } from "@/lib/erp-types";
+import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus, PackagingRecord, FertigationRecord } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useOptions } from "@/lib/use-options";
 
 const PAYMENT_STYLE: Record<PaymentStatus, string> = {
-  paid:    "bg-emerald-100 text-emerald-700 border-emerald-200",
+  paid:    "bg-primary/15 text-primary border-primary/30",
   partial: "bg-amber-100 text-amber-700 border-amber-200",
-  pending: "bg-slate-100 text-slate-600 border-slate-200",
+  pending: "bg-muted text-muted-foreground border-border",
   overdue: "bg-red-100 text-red-700 border-red-200",
 };
 const DELIVERY_STYLE: Record<DeliveryStatus, string> = {
-  delivered:  "bg-emerald-100 text-emerald-700 border-emerald-200",
+  delivered:  "bg-primary/15 text-primary border-primary/30",
   in_transit: "bg-blue-100 text-blue-700 border-blue-200",
   pending:    "bg-amber-100 text-amber-700 border-amber-200",
   cancelled:  "bg-red-100 text-red-700 border-red-200",
@@ -46,16 +46,57 @@ const EMPTY_FORM = {
 type ActiveTab = "orders" | "revenue";
 
 export default function OrdersPage() {
+  const options = useOptions();
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const [activeTab, setActiveTab]       = useState<ActiveTab>("orders");
-  const [orders, setOrders]             = useState<CustomerOrder[]>(CUSTOMER_ORDERS);
+  const [orders, setOrders]             = useState<CustomerOrder[]>([]);
+  const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
+  const [fertigationRecords, setFertigationRecords] = useState<FertigationRecord[]>([]);
   const [filter, setFilter]             = useState<"all" | PaymentStatus>("all");
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<CustomerOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerOrder | null>(null);
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/orders")
+      .then(r => r.json())
+      .then((data: (CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string })[]) =>
+        setOrders(data.map(o => ({
+          ...o,
+          quantityKg:  parseFloat(String(o.quantityKg)),
+          pricePerKg:  parseFloat(String(o.pricePerKg)),
+          totalAmount: parseFloat(String(o.totalAmount)),
+          advancePaid: parseFloat(String(o.advancePaid)),
+        })))
+      )
+      .catch(() => toast.error("Failed to load orders"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/packaging")
+      .then(r => r.json())
+      .then((data: (PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string })[]) =>
+        setPackagingRecords(data.map(p => ({
+          ...p,
+          harvestedKg: parseFloat(String(p.harvestedKg)),
+          gradedKg:    parseFloat(String(p.gradedKg)),
+          packedKg:    parseFloat(String(p.packedKg)),
+          rejectedKg:  parseFloat(String(p.rejectedKg)),
+          lostKg:      parseFloat(String(p.lostKg)),
+        })))
+      )
+      .catch(() => toast.error("Failed to load packaging records"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/fertigation")
+      .then(r => r.json())
+      .then((data: FertigationRecord[]) => setFertigationRecords(data))
+      .catch(() => toast.error("Failed to load fertigation records"));
+  }, []);
 
   function openCreate() { setForm(EMPTY_FORM); setCreateOpen(true); }
   function openEdit(o: CustomerOrder) {
@@ -72,56 +113,72 @@ export default function OrdersPage() {
 
   function totalAmt() { return form.quantityKg * form.pricePerKg; }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.customerName.trim()) { toast.error("Customer name is required"); return; }
     if (form.quantityKg <= 0)      { toast.error("Quantity must be > 0"); return; }
     if (form.pricePerKg <= 0)      { toast.error("Price must be > 0"); return; }
-    const id = `ord-${Date.now()}`;
-    const newOrder: CustomerOrder = {
-      id, customerName: form.customerName.trim(),
-      customerType: form.customerType,
-      orderDate: form.orderDate, deliveryDate: form.deliveryDate,
-      quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
-      totalAmount: totalAmt(), advancePaid: form.advancePaid,
-      paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
-      variety: form.variety || undefined,
-      phone: form.phone || undefined, notes: form.notes || undefined,
-    };
-    CUSTOMER_ORDERS.push(newOrder);
-    setOrders([...CUSTOMER_ORDERS]);
-    toast.success(`Order for ${newOrder.customerName} created`);
-    setCreateOpen(false);
-  }
-
-  function handleEdit() {
-    if (!editTarget) return;
-    const idx = CUSTOMER_ORDERS.findIndex(o => o.id === editTarget.id);
-    if (idx < 0) return;
-    Object.assign(CUSTOMER_ORDERS[idx], {
+    const body = {
       customerName: form.customerName.trim(),
       customerType: form.customerType,
       orderDate: form.orderDate, deliveryDate: form.deliveryDate,
       quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
       totalAmount: totalAmt(), advancePaid: form.advancePaid,
       paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
-      variety: form.variety || undefined,
-      phone: form.phone || undefined, notes: form.notes || undefined,
-    });
-    setOrders([...CUSTOMER_ORDERS]);
+      variety: form.variety || null,
+      phone: form.phone || null, notes: form.notes || null,
+    };
+    const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to create order"); return; }
+    const created = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
+    const newOrder: CustomerOrder = {
+      ...created,
+      quantityKg:  parseFloat(String(created.quantityKg)),
+      pricePerKg:  parseFloat(String(created.pricePerKg)),
+      totalAmount: parseFloat(String(created.totalAmount)),
+      advancePaid: parseFloat(String(created.advancePaid)),
+    };
+    setOrders(prev => [newOrder, ...prev]);
+    toast.success(`Order for ${newOrder.customerName} created`);
+    setCreateOpen(false);
+  }
+
+  async function handleEdit() {
+    if (!editTarget) return;
+    const body = {
+      customerName: form.customerName.trim(),
+      customerType: form.customerType,
+      orderDate: form.orderDate, deliveryDate: form.deliveryDate,
+      quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
+      totalAmount: totalAmt(), advancePaid: form.advancePaid,
+      paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
+      variety: form.variety || null,
+      phone: form.phone || null, notes: form.notes || null,
+    };
+    const res = await fetch(`/api/orders/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { toast.error("Failed to update order"); return; }
+    const updated = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
+    const updatedOrder: CustomerOrder = {
+      ...updated,
+      quantityKg:  parseFloat(String(updated.quantityKg)),
+      pricePerKg:  parseFloat(String(updated.pricePerKg)),
+      totalAmount: parseFloat(String(updated.totalAmount)),
+      advancePaid: parseFloat(String(updated.advancePaid)),
+    };
+    setOrders(prev => prev.map(o => o.id === editTarget.id ? updatedOrder : o));
     toast.success("Order updated");
     setEditTarget(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
     if (deleteTarget.deliveryStatus !== "pending") {
       toast.error("Can only delete pending orders");
       setDeleteTarget(null);
       return;
     }
-    const idx = CUSTOMER_ORDERS.findIndex(o => o.id === deleteTarget.id);
-    if (idx >= 0) CUSTOMER_ORDERS.splice(idx, 1);
-    setOrders([...CUSTOMER_ORDERS]);
+    const res = await fetch(`/api/orders/${deleteTarget.id}`, { method: "DELETE" });
+    if (!res.ok) { toast.error("Failed to delete order"); return; }
+    setOrders(prev => prev.filter(o => o.id !== deleteTarget.id));
     toast.success("Order deleted");
     setDeleteTarget(null);
   }
@@ -134,8 +191,8 @@ export default function OrdersPage() {
   const pending      = orders.filter(o => o.deliveryStatus === "pending").length;
 
   // Revenue tab data
-  const fertCost   = FERTIGATION_RECORDS.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
-  const payrollMay = PAYROLL_RECORDS.filter(r => r.month === "2026-05").reduce((s, r) => s + r.netPay, 0);
+  const fertCost   = fertigationRecords.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
+  const payrollMay = 0; // payroll not fetched here; keep structure but default to 0
   const totalCosts = fertCost + payrollMay;
   const grossProfit = collected - totalCosts;
   const totalKg    = orders.reduce((s, o) => s + o.quantityKg, 0);
@@ -156,99 +213,99 @@ export default function OrdersPage() {
     return (
       <div className="space-y-3">
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Customer Name <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Customer Name <span className="text-red-500">*</span></label>
           <input value={form.customerName}
             onChange={e => setForm(p => ({ ...p, customerName: e.target.value }))}
             placeholder="e.g. Skylight Hotel"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Customer Type</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Customer Type</label>
             <select value={form.customerType}
               onChange={e => setForm(p => ({ ...p, customerType: e.target.value as CustomerType }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {(Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map(ct => (
-                <option key={ct} value={ct}>{CUSTOMER_ICONS[ct]} {CUSTOMER_TYPE_LABELS[ct]}</option>
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              {options.customerTypes.map(ct => (
+                <option key={ct.value} value={ct.value}>{CUSTOMER_ICONS[ct.value as CustomerType] ?? ""} {ct.label}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Phone</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Phone</label>
             <input value={form.phone}
               onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
               placeholder="+251..."
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Order Date</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Order Date</label>
             <input type="date" value={form.orderDate}
               onChange={e => setForm(p => ({ ...p, orderDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Delivery Date</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Delivery Date</label>
             <input type="date" value={form.deliveryDate}
               onChange={e => setForm(p => ({ ...p, deliveryDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Qty (kg)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Qty (kg)</label>
             <input type="number" min={1} value={form.quantityKg}
               onChange={e => setForm(p => ({ ...p, quantityKg: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Price / kg (ETB)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Price / kg (ETB)</label>
             <input type="number" min={1} value={form.pricePerKg}
               onChange={e => setForm(p => ({ ...p, pricePerKg: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Total (ETB)</label>
-            <div className="border border-slate-100 bg-slate-50 rounded-md px-3 py-2 text-sm font-bold text-slate-700 tabular-nums">
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Total (ETB)</label>
+            <div className="border border-border bg-muted rounded-md px-3 py-2 text-sm font-bold text-foreground tabular-nums">
               {total.toLocaleString()}
             </div>
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Advance Paid (ETB)</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Advance Paid (ETB)</label>
           <input type="number" min={0} value={form.advancePaid}
             onChange={e => setForm(p => ({ ...p, advancePaid: Number(e.target.value) }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Payment Status</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Payment Status</label>
             <select value={form.paymentStatus}
               onChange={e => setForm(p => ({ ...p, paymentStatus: e.target.value as PaymentStatus }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
-              {(["pending","partial","paid","overdue"] as PaymentStatus[]).map(s => (
-                <option key={s} value={s} className="capitalize">{s}</option>
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
+              {options.paymentStatuses.map(s => (
+                <option key={s.value} value={s.value} className="capitalize">{s.label}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Delivery Status</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Delivery Status</label>
             <select value={form.deliveryStatus}
               onChange={e => setForm(p => ({ ...p, deliveryStatus: e.target.value as DeliveryStatus }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
-              {(["pending","in_transit","delivered","cancelled"] as DeliveryStatus[]).map(s => (
-                <option key={s} value={s}>{s.replace("_", " ")}</option>
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              {options.deliveryStatuses.map(s => (
+                <option key={s.value} value={s.value}>{s.label.replace("_", " ")}</option>
               ))}
             </select>
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Notes</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Notes</label>
           <textarea value={form.notes}
             onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
             rows={2} placeholder="Any special requirements..."
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm resize-none" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm resize-none" />
         </div>
       </div>
     );
@@ -261,9 +318,9 @@ export default function OrdersPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <ShoppingCart className="size-5 text-indigo-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.orders.title}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{t.orders.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.orders.subtitle}</p>
+          <p className="text-muted-foreground text-sm">{t.orders.subtitle}</p>
         </div>
         {activeTab === "orders" && (
           <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
@@ -273,14 +330,14 @@ export default function OrdersPage() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+      <div className="flex items-center gap-1 p-1 bg-muted rounded-xl w-fit">
         {([
           { key: "orders",  label: "Customer Orders", icon: ShoppingCart },
           { key: "revenue", label: "Revenue & P&L",    icon: TrendingUp  },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === key ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700"
+              activeTab === key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}>
             <Icon className="size-4" />
             {label}
@@ -297,37 +354,37 @@ export default function OrdersPage() {
               <div className="text-xl font-bold text-indigo-700 tabular-nums">{(totalRevenue / 1000).toFixed(1)}k ETB</div>
               <div className="text-xs text-indigo-600 font-medium mt-0.5">Total Order Value</div>
             </Card>
-            <Card className="p-4 bg-emerald-50 border-emerald-200">
-              <div className="text-xl font-bold text-emerald-700 tabular-nums">{(collected / 1000).toFixed(1)}k ETB</div>
-              <div className="text-xs text-emerald-600 font-medium mt-0.5">Collected</div>
+            <Card className="p-4 bg-primary/10 border-primary/30">
+              <div className="text-xl font-bold text-primary tabular-nums">{(collected / 1000).toFixed(1)}k ETB</div>
+              <div className="text-xs text-primary font-medium mt-0.5">Collected</div>
             </Card>
             <Card className="p-4 bg-red-50 border-red-200">
               <div className="text-xl font-bold text-red-700 tabular-nums">{(outstanding / 1000).toFixed(1)}k ETB</div>
               <div className="text-xs text-red-600 font-medium mt-0.5">Outstanding</div>
             </Card>
-            <Card className="p-4 bg-slate-50 border-slate-200">
+            <Card className="p-4 bg-muted border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xl font-bold text-slate-700 tabular-nums">{delivered}/{orders.length}</div>
-                  <div className="text-xs text-slate-500 font-medium mt-0.5">Delivered · {pending} pending</div>
+                  <div className="text-xl font-bold text-foreground tabular-nums">{delivered}/{orders.length}</div>
+                  <div className="text-xs text-muted-foreground font-medium mt-0.5">Delivered · {pending} pending</div>
                 </div>
-                <Truck className="size-7 text-slate-300" />
+                <Truck className="size-7 text-muted-foreground/40" />
               </div>
             </Card>
           </div>
 
           {/* Filter tabs */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
             {(["all", "paid", "partial", "pending", "overdue"] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                 {f}
               </button>
             ))}
           </div>
 
           {/* Table */}
-          <Card className="border border-slate-200 shadow-sm overflow-hidden">
+          <Card className="border border-border shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full pro-table">
                 <thead>
@@ -341,17 +398,17 @@ export default function OrdersPage() {
                 <tbody>
                   {records.map(ord => {
                     const balance = ord.totalAmount - ord.advancePaid;
-                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
-                    const batches = PACKAGING_RECORDS.filter(p => p.orderId === ord.id);
+                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < new Date().toISOString().split("T")[0];
+                    const batches = packagingRecords.filter(p => p.orderId === ord.id);
                     const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
                     const isExpanded = expandedOrder === ord.id;
                     return (
                       <>
                         <tr key={ord.id} className="group">
                           <td>
-                            <div className="font-semibold text-slate-800 text-sm">{ord.customerName}</div>
+                            <div className="font-semibold text-foreground text-sm">{ord.customerName}</div>
                             {ord.phone && (
-                              <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
                                 <Phone className="size-2.5" /> {ord.phone}
                               </div>
                             )}
@@ -359,7 +416,7 @@ export default function OrdersPage() {
                           <td>
                             <span className="flex items-center gap-1 text-xs">
                               <span>{CUSTOMER_ICONS[ord.customerType]}</span>
-                              <span className="text-slate-600">{CUSTOMER_TYPE_LABELS[ord.customerType]}</span>
+                              <span className="text-muted-foreground">{CUSTOMER_TYPE_LABELS[ord.customerType]}</span>
                             </span>
                           </td>
                           <td className="tabular-nums text-xs">{new Date(ord.orderDate).toLocaleDateString("en", { month: "short", day: "numeric" })}</td>
@@ -371,9 +428,9 @@ export default function OrdersPage() {
                           </td>
                           <td className="tabular-nums font-semibold">{ord.quantityKg}</td>
                           <td className="tabular-nums">{ord.pricePerKg}</td>
-                          <td className="tabular-nums font-bold text-slate-800">{ord.totalAmount.toLocaleString()}</td>
-                          <td className="tabular-nums text-emerald-700">{ord.advancePaid.toLocaleString()}</td>
-                          <td className={`tabular-nums font-semibold ${balance > 0 ? "text-red-600" : "text-slate-400"}`}>
+                          <td className="tabular-nums font-bold text-foreground">{ord.totalAmount.toLocaleString()}</td>
+                          <td className="tabular-nums text-primary">{ord.advancePaid.toLocaleString()}</td>
+                          <td className={`tabular-nums font-semibold ${balance > 0 ? "text-red-600" : "text-muted-foreground"}`}>
                             {balance > 0 ? balance.toLocaleString() : "—"}
                           </td>
                           <td><Badge className={`text-[10px] capitalize ${PAYMENT_STYLE[ord.paymentStatus]}`}>{ord.paymentStatus}</Badge></td>
@@ -385,17 +442,17 @@ export default function OrdersPage() {
                                 <Package className="size-3" /> {batches.length}
                                 <ChevronDown className={`size-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </button>
-                            ) : <span className="text-slate-300 text-xs">—</span>}
+                            ) : <span className="text-muted-foreground/40 text-xs">—</span>}
                           </td>
                           <td>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button onClick={() => openEdit(ord)}
-                                className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center">
-                                <Pencil className="size-3 text-slate-600" />
+                                className="size-6 rounded bg-muted hover:bg-accent grid place-items-center">
+                                <Pencil className="size-3 text-muted-foreground" />
                               </button>
                               <button onClick={() => setDeleteTarget(ord)}
-                                className="size-6 rounded bg-slate-100 hover:bg-red-100 grid place-items-center">
-                                <Trash2 className="size-3 text-slate-600" />
+                                className="size-6 rounded bg-muted hover:bg-red-100 grid place-items-center">
+                                <Trash2 className="size-3 text-muted-foreground" />
                               </button>
                             </div>
                           </td>
@@ -408,13 +465,13 @@ export default function OrdersPage() {
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {batches.map(b => (
-                                  <div key={b.id} className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-2">
+                                  <div key={b.id} className="flex items-center gap-2 bg-card border border-indigo-200 rounded-lg px-3 py-2">
                                     <Package className="size-3.5 text-indigo-500 shrink-0" />
                                     <div>
-                                      <div className="font-mono text-xs font-bold text-slate-800">{b.batchNumber}</div>
-                                      <div className="text-[10px] text-slate-500">{b.packedKg} kg · {b.variety} · {b.packedDate}</div>
+                                      <div className="font-mono text-xs font-bold text-foreground">{b.batchNumber}</div>
+                                      <div className="text-[10px] text-muted-foreground">{b.packedKg} kg · {b.variety} · {b.packedDate}</div>
                                     </div>
-                                    <Badge className={`text-[10px] ml-1 ${b.status === "dispatched" ? "bg-amber-100 text-amber-700 border-amber-200" : b.status === "packed" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-blue-100 text-blue-700 border-blue-200"}`}>
+                                    <Badge className={`text-[10px] ml-1 ${b.status === "dispatched" ? "bg-amber-100 text-amber-700 border-amber-200" : b.status === "packed" ? "bg-primary/15 text-primary border-primary/30" : "bg-blue-100 text-blue-700 border-blue-200"}`}>
                                       {b.status.replace("_"," ")}
                                     </Badge>
                                   </div>
@@ -438,14 +495,14 @@ export default function OrdersPage() {
         <div className="space-y-6">
           {/* KPI cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="p-5 bg-emerald-50 border-emerald-200">
+            <Card className="p-5 bg-primary/10 border-primary/30">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-2xl font-black text-emerald-700 tabular-nums">{(totalRevenue / 1000).toFixed(1)}k</div>
-                  <div className="text-xs text-emerald-600 font-semibold mt-0.5">Total Revenue (ETB)</div>
-                  <div className="text-[10px] text-emerald-500 mt-1">{orders.length} orders · {totalKg} kg</div>
+                  <div className="text-2xl font-black text-primary tabular-nums">{(totalRevenue / 1000).toFixed(1)}k</div>
+                  <div className="text-xs text-primary font-semibold mt-0.5">Total Revenue (ETB)</div>
+                  <div className="text-[10px] text-primary/70 mt-1">{orders.length} orders · {totalKg} kg</div>
                 </div>
-                <TrendingUp className="size-7 text-emerald-400 shrink-0" />
+                <TrendingUp className="size-7 text-primary/60 shrink-0" />
               </div>
             </Card>
             <Card className="p-5 bg-blue-50 border-blue-200">
@@ -481,24 +538,24 @@ export default function OrdersPage() {
           </div>
 
           {/* P&L */}
-          <Card className="p-5 border-slate-200">
-            <h3 className="font-semibold text-slate-900 mb-4">Simplified P&L — May 2026</h3>
+          <Card className="p-5 border-border">
+            <h3 className="font-semibold text-foreground mb-4">Simplified P&L — May 2026</h3>
             <div className="space-y-2">
               {[
-                { label: "Revenue Collected",  value: collected,   color: "text-emerald-700" },
+                { label: "Revenue Collected",  value: collected,   color: "text-primary" },
                 { label: "Fertigation Inputs", value: -fertCost,   color: "text-red-600" },
                 { label: "Payroll (May)",       value: -payrollMay, color: "text-red-600" },
               ].map(({ label, value, color }) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 text-sm">
-                  <span className="text-slate-600">{label}</span>
+                <div key={label} className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm">
+                  <span className="text-muted-foreground">{label}</span>
                   <span className={`font-bold tabular-nums ${color}`}>
                     {value >= 0 ? "+" : "−"} {Math.abs(value).toLocaleString()} ETB
                   </span>
                 </div>
               ))}
-              <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-slate-300 text-sm font-bold">
-                <span className="text-slate-900">Gross Profit</span>
-                <span className={`tabular-nums text-base ${grossProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+              <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-border text-sm font-bold">
+                <span className="text-foreground">Gross Profit</span>
+                <span className={`tabular-nums text-base ${grossProfit >= 0 ? "text-primary" : "text-red-700"}`}>
                   {grossProfit >= 0 ? "+" : "−"} {Math.abs(grossProfit).toLocaleString()} ETB
                 </span>
               </div>
@@ -507,20 +564,20 @@ export default function OrdersPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Revenue by customer type */}
-            <Card className="p-5 border-slate-200">
-              <h3 className="font-semibold text-slate-900 mb-4">Revenue by Customer Type</h3>
+            <Card className="p-5 border-border">
+              <h3 className="font-semibold text-foreground mb-4">Revenue by Customer Type</h3>
               <div className="space-y-4">
                 {sortedTypes.map(([type, data]) => (
                   <div key={type}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-slate-700">{CUSTOMER_TYPE_LABELS[type as keyof typeof CUSTOMER_TYPE_LABELS]}</span>
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="text-sm text-foreground">{CUSTOMER_TYPE_LABELS[type as keyof typeof CUSTOMER_TYPE_LABELS]}</span>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{data.count} orders</span>
-                        <span className="font-bold text-slate-800 tabular-nums">{data.revenue.toLocaleString()} ETB</span>
+                        <span className="font-bold text-foreground tabular-nums">{data.revenue.toLocaleString()} ETB</span>
                       </div>
                     </div>
-                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full"
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full"
                         style={{ width: `${(data.revenue / maxRevenue) * 100}%` }} />
                     </div>
                   </div>
@@ -529,19 +586,19 @@ export default function OrdersPage() {
             </Card>
 
             {/* Top customers */}
-            <Card className="p-5 border-slate-200">
-              <h3 className="font-semibold text-slate-900 mb-4">Top Customers</h3>
+            <Card className="p-5 border-border">
+              <h3 className="font-semibold text-foreground mb-4">Top Customers</h3>
               <div className="space-y-3">
                 {topCustomers.map((ord, i) => (
                   <div key={ord.id} className="flex items-center gap-3">
-                    <span className="size-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold grid place-items-center shrink-0">{i + 1}</span>
+                    <span className="size-6 rounded-full bg-muted text-muted-foreground text-xs font-bold grid place-items-center shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-slate-800 truncate">{ord.customerName}</div>
-                      <div className="text-[10px] text-slate-400">{ord.quantityKg} kg · {ord.pricePerKg} ETB/kg</div>
+                      <div className="text-sm font-semibold text-foreground truncate">{ord.customerName}</div>
+                      <div className="text-[10px] text-muted-foreground">{ord.quantityKg} kg · {ord.pricePerKg} ETB/kg</div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-slate-800 tabular-nums">{ord.totalAmount.toLocaleString()}</div>
-                      <div className="text-[10px] text-slate-400">ETB</div>
+                      <div className="text-sm font-bold text-foreground tabular-nums">{ord.totalAmount.toLocaleString()}</div>
+                      <div className="text-[10px] text-muted-foreground">ETB</div>
                     </div>
                   </div>
                 ))}
@@ -571,7 +628,7 @@ export default function OrdersPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit Order — {editTarget?.customerName}
+              <Pencil className="size-4 text-muted-foreground" /> Edit Order — {editTarget?.customerName}
             </DialogTitle>
           </DialogHeader>
           <OrderForm />
@@ -589,7 +646,7 @@ export default function OrdersPage() {
               <Trash2 className="size-4" /> Delete Order?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Delete order for <strong>{deleteTarget?.customerName}</strong>?
             {deleteTarget?.deliveryStatus !== "pending" && (
               <span className="block mt-2 text-red-600 font-medium">⚠ Only pending orders can be deleted.</span>
