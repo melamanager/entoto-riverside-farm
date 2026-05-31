@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,11 @@ import {
   TrendingUp, DollarSign, BarChart3, TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CUSTOMER_ORDERS, PACKAGING_RECORDS, FERTIGATION_RECORDS, PAYROLL_RECORDS } from "@/lib/erp-data";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
-import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus, PackagingRecord, FertigationRecord } from "@/lib/erp-types";
+import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import { useOptions } from "@/lib/use-options";
 
 const PAYMENT_STYLE: Record<PaymentStatus, string> = {
   paid:    "bg-primary/15 text-primary border-primary/30",
@@ -46,57 +46,16 @@ const EMPTY_FORM = {
 type ActiveTab = "orders" | "revenue";
 
 export default function OrdersPage() {
-  const options = useOptions();
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const [activeTab, setActiveTab]       = useState<ActiveTab>("orders");
-  const [orders, setOrders]             = useState<CustomerOrder[]>([]);
-  const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
-  const [fertigationRecords, setFertigationRecords] = useState<FertigationRecord[]>([]);
+  const [orders, setOrders]             = useState<CustomerOrder[]>(CUSTOMER_ORDERS);
   const [filter, setFilter]             = useState<"all" | PaymentStatus>("all");
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<CustomerOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerOrder | null>(null);
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/orders")
-      .then(r => r.json())
-      .then((data: (CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string })[]) =>
-        setOrders(data.map(o => ({
-          ...o,
-          quantityKg:  parseFloat(String(o.quantityKg)),
-          pricePerKg:  parseFloat(String(o.pricePerKg)),
-          totalAmount: parseFloat(String(o.totalAmount)),
-          advancePaid: parseFloat(String(o.advancePaid)),
-        })))
-      )
-      .catch(() => toast.error("Failed to load orders"));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/packaging")
-      .then(r => r.json())
-      .then((data: (PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string })[]) =>
-        setPackagingRecords(data.map(p => ({
-          ...p,
-          harvestedKg: parseFloat(String(p.harvestedKg)),
-          gradedKg:    parseFloat(String(p.gradedKg)),
-          packedKg:    parseFloat(String(p.packedKg)),
-          rejectedKg:  parseFloat(String(p.rejectedKg)),
-          lostKg:      parseFloat(String(p.lostKg)),
-        })))
-      )
-      .catch(() => toast.error("Failed to load packaging records"));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/fertigation")
-      .then(r => r.json())
-      .then((data: FertigationRecord[]) => setFertigationRecords(data))
-      .catch(() => toast.error("Failed to load fertigation records"));
-  }, []);
 
   function openCreate() { setForm(EMPTY_FORM); setCreateOpen(true); }
   function openEdit(o: CustomerOrder) {
@@ -113,72 +72,56 @@ export default function OrdersPage() {
 
   function totalAmt() { return form.quantityKg * form.pricePerKg; }
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!form.customerName.trim()) { toast.error("Customer name is required"); return; }
     if (form.quantityKg <= 0)      { toast.error("Quantity must be > 0"); return; }
     if (form.pricePerKg <= 0)      { toast.error("Price must be > 0"); return; }
-    const body = {
-      customerName: form.customerName.trim(),
+    const id = `ord-${Date.now()}`;
+    const newOrder: CustomerOrder = {
+      id, customerName: form.customerName.trim(),
       customerType: form.customerType,
       orderDate: form.orderDate, deliveryDate: form.deliveryDate,
       quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
       totalAmount: totalAmt(), advancePaid: form.advancePaid,
       paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
-      variety: form.variety || null,
-      phone: form.phone || null, notes: form.notes || null,
+      variety: form.variety || undefined,
+      phone: form.phone || undefined, notes: form.notes || undefined,
     };
-    const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { toast.error("Failed to create order"); return; }
-    const created = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
-    const newOrder: CustomerOrder = {
-      ...created,
-      quantityKg:  parseFloat(String(created.quantityKg)),
-      pricePerKg:  parseFloat(String(created.pricePerKg)),
-      totalAmount: parseFloat(String(created.totalAmount)),
-      advancePaid: parseFloat(String(created.advancePaid)),
-    };
-    setOrders(prev => [newOrder, ...prev]);
+    CUSTOMER_ORDERS.push(newOrder);
+    setOrders([...CUSTOMER_ORDERS]);
     toast.success(`Order for ${newOrder.customerName} created`);
     setCreateOpen(false);
   }
 
-  async function handleEdit() {
+  function handleEdit() {
     if (!editTarget) return;
-    const body = {
+    const idx = CUSTOMER_ORDERS.findIndex(o => o.id === editTarget.id);
+    if (idx < 0) return;
+    Object.assign(CUSTOMER_ORDERS[idx], {
       customerName: form.customerName.trim(),
       customerType: form.customerType,
       orderDate: form.orderDate, deliveryDate: form.deliveryDate,
       quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
       totalAmount: totalAmt(), advancePaid: form.advancePaid,
       paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
-      variety: form.variety || null,
-      phone: form.phone || null, notes: form.notes || null,
-    };
-    const res = await fetch(`/api/orders/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { toast.error("Failed to update order"); return; }
-    const updated = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
-    const updatedOrder: CustomerOrder = {
-      ...updated,
-      quantityKg:  parseFloat(String(updated.quantityKg)),
-      pricePerKg:  parseFloat(String(updated.pricePerKg)),
-      totalAmount: parseFloat(String(updated.totalAmount)),
-      advancePaid: parseFloat(String(updated.advancePaid)),
-    };
-    setOrders(prev => prev.map(o => o.id === editTarget.id ? updatedOrder : o));
+      variety: form.variety || undefined,
+      phone: form.phone || undefined, notes: form.notes || undefined,
+    });
+    setOrders([...CUSTOMER_ORDERS]);
     toast.success("Order updated");
     setEditTarget(null);
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!deleteTarget) return;
     if (deleteTarget.deliveryStatus !== "pending") {
       toast.error("Can only delete pending orders");
       setDeleteTarget(null);
       return;
     }
-    const res = await fetch(`/api/orders/${deleteTarget.id}`, { method: "DELETE" });
-    if (!res.ok) { toast.error("Failed to delete order"); return; }
-    setOrders(prev => prev.filter(o => o.id !== deleteTarget.id));
+    const idx = CUSTOMER_ORDERS.findIndex(o => o.id === deleteTarget.id);
+    if (idx >= 0) CUSTOMER_ORDERS.splice(idx, 1);
+    setOrders([...CUSTOMER_ORDERS]);
     toast.success("Order deleted");
     setDeleteTarget(null);
   }
@@ -191,8 +134,8 @@ export default function OrdersPage() {
   const pending      = orders.filter(o => o.deliveryStatus === "pending").length;
 
   // Revenue tab data
-  const fertCost   = fertigationRecords.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
-  const payrollMay = 0; // payroll not fetched here; keep structure but default to 0
+  const fertCost   = FERTIGATION_RECORDS.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
+  const payrollMay = PAYROLL_RECORDS.filter(r => r.month === "2026-05").reduce((s, r) => s + r.netPay, 0);
   const totalCosts = fertCost + payrollMay;
   const grossProfit = collected - totalCosts;
   const totalKg    = orders.reduce((s, o) => s + o.quantityKg, 0);
@@ -217,7 +160,7 @@ export default function OrdersPage() {
           <input value={form.customerName}
             onChange={e => setForm(p => ({ ...p, customerName: e.target.value }))}
             placeholder="e.g. Skylight Hotel"
-            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -225,8 +168,8 @@ export default function OrdersPage() {
             <select value={form.customerType}
               onChange={e => setForm(p => ({ ...p, customerType: e.target.value as CustomerType }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-              {options.customerTypes.map(ct => (
-                <option key={ct.value} value={ct.value}>{CUSTOMER_ICONS[ct.value as CustomerType] ?? ""} {ct.label}</option>
+              {(Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map(ct => (
+                <option key={ct} value={ct}>{CUSTOMER_ICONS[ct]} {CUSTOMER_TYPE_LABELS[ct]}</option>
               ))}
             </select>
           </div>
@@ -267,7 +210,7 @@ export default function OrdersPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Total (ETB)</label>
-            <div className="border border-border bg-muted rounded-md px-3 py-2 text-sm font-bold text-foreground tabular-nums">
+            <div className="border border-border/60 bg-muted rounded-md px-3 py-2 text-sm font-bold text-foreground/80 tabular-nums">
               {total.toLocaleString()}
             </div>
           </div>
@@ -284,8 +227,8 @@ export default function OrdersPage() {
             <select value={form.paymentStatus}
               onChange={e => setForm(p => ({ ...p, paymentStatus: e.target.value as PaymentStatus }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
-              {options.paymentStatuses.map(s => (
-                <option key={s.value} value={s.value} className="capitalize">{s.label}</option>
+              {(["pending","partial","paid","overdue"] as PaymentStatus[]).map(s => (
+                <option key={s} value={s} className="capitalize">{s}</option>
               ))}
             </select>
           </div>
@@ -294,8 +237,8 @@ export default function OrdersPage() {
             <select value={form.deliveryStatus}
               onChange={e => setForm(p => ({ ...p, deliveryStatus: e.target.value as DeliveryStatus }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-              {options.deliveryStatuses.map(s => (
-                <option key={s.value} value={s.value}>{s.label.replace("_", " ")}</option>
+              {(["pending","in_transit","delivered","cancelled"] as DeliveryStatus[]).map(s => (
+                <option key={s} value={s}>{s.replace("_", " ")}</option>
               ))}
             </select>
           </div>
@@ -337,7 +280,7 @@ export default function OrdersPage() {
         ] as const).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              activeTab === key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground/80"
             }`}>
             <Icon className="size-4" />
             {label}
@@ -365,10 +308,10 @@ export default function OrdersPage() {
             <Card className="p-4 bg-muted border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xl font-bold text-foreground tabular-nums">{delivered}/{orders.length}</div>
+                  <div className="text-xl font-bold text-foreground/80 tabular-nums">{delivered}/{orders.length}</div>
                   <div className="text-xs text-muted-foreground font-medium mt-0.5">Delivered · {pending} pending</div>
                 </div>
-                <Truck className="size-7 text-muted-foreground/40" />
+                <Truck className="size-7 text-muted-foreground/60" />
               </div>
             </Card>
           </div>
@@ -377,7 +320,7 @@ export default function OrdersPage() {
           <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
             {(["all", "paid", "partial", "pending", "overdue"] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground/80"}`}>
                 {f}
               </button>
             ))}
@@ -398,8 +341,8 @@ export default function OrdersPage() {
                 <tbody>
                   {records.map(ord => {
                     const balance = ord.totalAmount - ord.advancePaid;
-                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < new Date().toISOString().split("T")[0];
-                    const batches = packagingRecords.filter(p => p.orderId === ord.id);
+                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < "2026-05-17";
+                    const batches = PACKAGING_RECORDS.filter(p => p.orderId === ord.id);
                     const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
                     const isExpanded = expandedOrder === ord.id;
                     return (
@@ -442,12 +385,12 @@ export default function OrdersPage() {
                                 <Package className="size-3" /> {batches.length}
                                 <ChevronDown className={`size-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </button>
-                            ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                            ) : <span className="text-muted-foreground/60 text-xs">—</span>}
                           </td>
                           <td>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button onClick={() => openEdit(ord)}
-                                className="size-6 rounded bg-muted hover:bg-accent grid place-items-center">
+                                className="size-6 rounded bg-muted hover:bg-muted grid place-items-center">
                                 <Pencil className="size-3 text-muted-foreground" />
                               </button>
                               <button onClick={() => setDeleteTarget(ord)}
@@ -500,9 +443,9 @@ export default function OrdersPage() {
                 <div>
                   <div className="text-2xl font-black text-primary tabular-nums">{(totalRevenue / 1000).toFixed(1)}k</div>
                   <div className="text-xs text-primary font-semibold mt-0.5">Total Revenue (ETB)</div>
-                  <div className="text-[10px] text-primary/70 mt-1">{orders.length} orders · {totalKg} kg</div>
+                  <div className="text-[10px] text-emerald-500 mt-1">{orders.length} orders · {totalKg} kg</div>
                 </div>
-                <TrendingUp className="size-7 text-primary/60 shrink-0" />
+                <TrendingUp className="size-7 text-emerald-400 shrink-0" />
               </div>
             </Card>
             <Card className="p-5 bg-blue-50 border-blue-200">
@@ -546,7 +489,7 @@ export default function OrdersPage() {
                 { label: "Fertigation Inputs", value: -fertCost,   color: "text-red-600" },
                 { label: "Payroll (May)",       value: -payrollMay, color: "text-red-600" },
               ].map(({ label, value, color }) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm">
+                <div key={label} className="flex items-center justify-between py-2 border-b border-border/60 last:border-0 text-sm">
                   <span className="text-muted-foreground">{label}</span>
                   <span className={`font-bold tabular-nums ${color}`}>
                     {value >= 0 ? "+" : "−"} {Math.abs(value).toLocaleString()} ETB
@@ -570,7 +513,7 @@ export default function OrdersPage() {
                 {sortedTypes.map(([type, data]) => (
                   <div key={type}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-foreground">{CUSTOMER_TYPE_LABELS[type as keyof typeof CUSTOMER_TYPE_LABELS]}</span>
+                      <span className="text-sm text-foreground/80">{CUSTOMER_TYPE_LABELS[type as keyof typeof CUSTOMER_TYPE_LABELS]}</span>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{data.count} orders</span>
                         <span className="font-bold text-foreground tabular-nums">{data.revenue.toLocaleString()} ETB</span>

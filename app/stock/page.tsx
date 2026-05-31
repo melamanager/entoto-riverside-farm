@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,14 @@ import {
   History, CheckCircle2, Pencil, TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { STOCK_ITEMS, STOCK_TRANSACTIONS, FERTIGATION_RECORDS } from "@/lib/erp-data";
+import { FARMERS } from "@/lib/data";
 import type { StockItem, StockTransaction, StockCategory, TransactionType } from "@/lib/erp-types";
 import { STOCK_CATEGORY_LABELS, STOCK_CATEGORY_ICONS } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import type { Farmer } from "@/lib/types";
-import { useOptions } from "@/lib/use-options";
+
+const CATEGORY_FILTER = ["all", "fertilizer", "pesticide", "packaging", "tool", "seed", "other"] as const;
 
 const UNIT_LABELS: Record<string, string> = {
   kg: "kg", L: "L", g: "g", ml: "ml",
@@ -31,7 +33,7 @@ function stockLevel(item: StockItem): "ok" | "low" | "critical" {
 }
 
 function levelColor(level: "ok" | "low" | "critical") {
-  return level === "ok" ? "bg-emerald-500" : level === "low" ? "bg-amber-500" : "bg-rose-500";
+  return level === "ok" ? "bg-primary" : level === "low" ? "bg-amber-500" : "bg-rose-500";
 }
 
 const EMPTY_ITEM: Omit<StockItem, "id"> = {
@@ -44,43 +46,18 @@ const EMPTY_TX: { itemId: string; type: TransactionType; quantity: number; notes
   itemId: "", type: "stock_in", quantity: 1, notes: "", performedBy: "",
 };
 
-function parseStockItem(raw: Record<string, unknown>): StockItem {
-  return {
-    ...raw,
-    currentQty: parseFloat((raw.currentQty as { toString(): string }).toString()),
-    reorderLevel: parseFloat((raw.reorderLevel as { toString(): string }).toString()),
-    maxCapacity: parseFloat((raw.maxCapacity as { toString(): string }).toString()),
-    costPerUnit: parseFloat((raw.costPerUnit as { toString(): string }).toString()),
-  } as StockItem;
-}
-
-function parseTransaction(raw: Record<string, unknown>): StockTransaction {
-  return {
-    ...raw,
-    quantity: parseFloat((raw.quantity as { toString(): string }).toString()),
-  } as StockTransaction;
-}
-
 export default function StockPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const options = useOptions();
-  const [items, setItems]         = useState<StockItem[]>([]);
-  const [transactions, setTx]     = useState<StockTransaction[]>([]);
-  const [farmers, setFarmers]     = useState<Farmer[]>([]);
-  const [catFilter, setCatFilter] = useState<StockCategory | "all">("all");
+  const [items, setItems]         = useState<StockItem[]>(STOCK_ITEMS);
+  const [transactions, setTx]     = useState<StockTransaction[]>(STOCK_TRANSACTIONS);
+  const [catFilter, setCatFilter] = useState<typeof CATEGORY_FILTER[number]>("all");
   const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
-  const [historyTx, setHistoryTx]     = useState<StockTransaction[]>([]);
   const [txDialogOpen, setTxDialogOpen] = useState(false);
   const [newItemOpen, setNewItemOpen]   = useState(false);
   const [editTarget, setEditTarget]     = useState<StockItem | null>(null);
   const [txForm, setTxForm]   = useState({ ...EMPTY_TX });
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
-
-  useEffect(() => {
-    fetch("/api/stock").then(r => r.json()).then((data: Record<string, unknown>[]) => setItems(data.map(parseStockItem)));
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
-  }, []);
 
   const filtered = useMemo(() =>
     catFilter === "all" ? items : items.filter(i => i.category === catFilter),
@@ -89,17 +66,28 @@ export default function StockPage() {
   const lowCount  = items.filter(i => stockLevel(i) === "low" || stockLevel(i) === "critical").length;
   const totalValue = items.reduce((s, i) => s + i.currentQty * i.costPerUnit, 0);
 
-  // Transactions shown in history dialog are fetched per-item
+  // Compute g/kg used per stock item from fertigation records
+  const fertigationUsage = useMemo(() => {
+    const map: Record<string, number> = {};
+    FERTIGATION_RECORDS.filter(r => r.status === "applied").forEach(r => {
+      const kgUsed = (r.dosageGPerL * r.waterVolumeLiters) / 1000;
+      // Match fertilizer name to stock item
+      const si = items.find(i => i.name.toLowerCase().includes(r.fertilizerType.split(" ")[0].toLowerCase()));
+      if (si) map[si.id] = (map[si.id] ?? 0) + kgUsed;
+    });
+    return map;
+  }, [items]);
+
   function itemTransactions(itemId: string) {
-    return historyTx.filter(tx => tx.itemId === itemId).sort((a, b) => b.date.localeCompare(a.date));
+    return transactions.filter(tx => tx.itemId === itemId).sort((a, b) => b.date.localeCompare(a.date));
   }
 
   function openTxDialog(itemId?: string, type: TransactionType = "stock_in") {
-    setTxForm({ ...EMPTY_TX, itemId: itemId ?? items[0]?.id ?? "", type, performedBy: farmers[0]?.id ?? "" });
+    setTxForm({ ...EMPTY_TX, itemId: itemId ?? items[0]?.id ?? "", type, performedBy: FARMERS[0]?.id ?? "" });
     setTxDialogOpen(true);
   }
 
-  async function handleTx() {
+  function handleTx() {
     if (!txForm.itemId) { toast.error("Select an item"); return; }
     if (txForm.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
     const item = items.find(i => i.id === txForm.itemId);
@@ -108,52 +96,41 @@ export default function StockPage() {
       toast.error("Not enough stock", { description: `Only ${item.currentQty} ${item.unit} available` });
       return;
     }
-    const body = {
-      itemId: txForm.itemId,
-      type: txForm.type,
-      quantity: txForm.quantity,
-      date: new Date().toISOString().split("T")[0],
-      referenceType: "manual",
-      performedBy: txForm.performedBy,
-      notes: txForm.notes || undefined,
+    const newTx: StockTransaction = {
+      id: `st-${Date.now()}`, itemId: txForm.itemId, type: txForm.type,
+      quantity: txForm.quantity, date: "2026-05-19",
+      referenceType: "manual", performedBy: txForm.performedBy, notes: txForm.notes || undefined,
     };
-    const res = await fetch("/api/stock/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) { toast.error("Failed to record transaction"); return; }
-    // Refresh stock items
-    const updated = await fetch("/api/stock").then(r => r.json()) as Record<string, unknown>[];
-    setItems(updated.map(parseStockItem));
+    STOCK_TRANSACTIONS.push(newTx);
+    setTx([...STOCK_TRANSACTIONS]);
+    // Update currentQty
+    const delta = txForm.type === "stock_in" ? txForm.quantity
+      : txForm.type === "stock_out" || txForm.type === "waste" ? -txForm.quantity : 0;
+    const idx = STOCK_ITEMS.findIndex(i => i.id === txForm.itemId);
+    if (idx >= 0) {
+      STOCK_ITEMS[idx].currentQty = Math.max(0, STOCK_ITEMS[idx].currentQty + delta);
+      if (txForm.type === "stock_in") STOCK_ITEMS[idx].lastRestockedDate = "2026-05-19";
+    }
+    setItems([...STOCK_ITEMS]);
     toast.success(txForm.type === "stock_in" ? `${item.name} restocked +${txForm.quantity} ${item.unit}` : `${item.name} usage recorded`);
     setTxDialogOpen(false);
   }
 
-  async function handleNewItem() {
+  function handleNewItem() {
     if (!itemForm.name.trim()) { toast.error("Item name is required"); return; }
-    const res = await fetch("/api/stock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(itemForm),
-    });
-    if (!res.ok) { toast.error("Failed to add item"); return; }
-    const created = await res.json() as Record<string, unknown>;
-    setItems(prev => [...prev, parseStockItem(created)]);
+    const newItem: StockItem = { id: `si-${Date.now()}`, ...itemForm };
+    STOCK_ITEMS.push(newItem);
+    setItems([...STOCK_ITEMS]);
     toast.success(`${itemForm.name} added to inventory`);
     setNewItemOpen(false);
   }
 
-  async function handleEditItem() {
+  function handleEditItem() {
     if (!editTarget) return;
-    const res = await fetch(`/api/stock/${editTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(itemForm),
-    });
-    if (!res.ok) { toast.error("Failed to update item"); return; }
-    const updated = await res.json() as Record<string, unknown>;
-    setItems(prev => prev.map(i => i.id === editTarget.id ? parseStockItem(updated) : i));
+    const idx = STOCK_ITEMS.findIndex(i => i.id === editTarget.id);
+    if (idx < 0) return;
+    Object.assign(STOCK_ITEMS[idx], itemForm);
+    setItems([...STOCK_ITEMS]);
     toast.success("Item updated");
     setEditTarget(null);
   }
@@ -166,11 +143,7 @@ export default function StockPage() {
     setEditTarget(item);
   }
 
-  async function openHistory(item: StockItem) {
-    setHistoryItem(item);
-    const txData = await fetch(`/api/stock/${item.id}/transactions`).then(r => r.json()) as Record<string, unknown>[];
-    setHistoryTx(txData.map(parseTransaction));
-  }
+  const farmers = FARMERS;
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -187,7 +160,7 @@ export default function StockPage() {
           <Button variant="outline" onClick={() => openTxDialog(undefined, "stock_out")} className="gap-2">
             <ArrowDownCircle className="size-4 text-rose-500" /> {t.stock.stockOut}
           </Button>
-          <Button onClick={() => { setItemForm({ ...EMPTY_ITEM }); setNewItemOpen(true); }} className="bg-primary hover:bg-primary/90 gap-2">
+          <Button onClick={() => { setItemForm({ ...EMPTY_ITEM }); setNewItemOpen(true); }} className="bg-primary hover:bg-emerald-700 gap-2">
             <Plus className="size-4" /> {t.stock.addItem}
           </Button>
         </div>
@@ -201,9 +174,9 @@ export default function StockPage() {
             <Package className="size-3" /> {t.stock.totalItems}
           </div>
         </Card>
-        <Card className={`p-4 ${lowCount > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200"}`}>
-          <div className={`text-2xl font-bold ${lowCount > 0 ? "text-rose-700" : "text-emerald-700"}`}>{lowCount}</div>
-          <div className={`text-xs font-medium mt-0.5 flex items-center gap-1 ${lowCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+        <Card className={`p-4 ${lowCount > 0 ? "bg-rose-50 border-rose-200" : "bg-primary/10 border-primary/30"}`}>
+          <div className={`text-2xl font-bold ${lowCount > 0 ? "text-rose-700" : "text-primary"}`}>{lowCount}</div>
+          <div className={`text-xs font-medium mt-0.5 flex items-center gap-1 ${lowCount > 0 ? "text-rose-600" : "text-primary"}`}>
             <AlertTriangle className="size-3" /> {t.stock.lowStock}
           </div>
         </Card>
@@ -225,14 +198,14 @@ export default function StockPage() {
 
       {/* Category filter */}
       <div className="flex items-center gap-1 flex-wrap">
-        {[{ value: "all", label: "All Items", icon: undefined }, ...options.stockCategories].map(c => (
-          <button key={c.value} onClick={() => setCatFilter(c.value as StockCategory | "all")}
+        {CATEGORY_FILTER.map(c => (
+          <button key={c} onClick={() => setCatFilter(c)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all capitalize ${
-              catFilter === c.value
-                ? "bg-foreground text-background border-foreground"
-                : "bg-card text-muted-foreground border-border hover:border-muted-foreground"
+              catFilter === c
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-card text-muted-foreground border-border hover:border-slate-400"
             }`}>
-            {c.value === "all" ? c.label : `${c.icon ?? ""} ${c.label}`}
+            {c === "all" ? "All Items" : `${STOCK_CATEGORY_ICONS[c as StockCategory]} ${STOCK_CATEGORY_LABELS[c as StockCategory]}`}
           </button>
         ))}
       </div>
@@ -242,6 +215,8 @@ export default function StockPage() {
         {filtered.map(item => {
           const level   = stockLevel(item);
           const pct     = Math.min(100, (item.currentQty / item.maxCapacity) * 100);
+          const usage   = fertigationUsage[item.id];
+          const txCount = itemTransactions(item.id).length;
           return (
             <Card key={item.id}
               className={`p-4 transition-all ${level === "critical" ? "border-rose-300 bg-rose-50/40" : level === "low" ? "border-amber-300 bg-amber-50/40" : ""}`}>
@@ -288,6 +263,16 @@ export default function StockPage() {
                   <div className="text-[10px] text-muted-foreground">{item.costPerUnit} ETB/{item.unit}</div>
                 </div>
 
+                {/* Usage from fertigation */}
+                {usage !== undefined && (
+                  <Tooltip content={`${usage.toFixed(2)} ${item.unit} consumed in fertigation applications this month`} side="top">
+                    <div className="text-center cursor-help hidden lg:block">
+                      <div className="text-sm font-semibold text-violet-700 tabular-nums">−{usage.toFixed(2)} {item.unit}</div>
+                      <div className="text-[10px] text-violet-400">This month used</div>
+                    </div>
+                  </Tooltip>
+                )}
+
                 {/* Last restocked */}
                 <div className="text-center hidden lg:block">
                   <div className="text-xs text-muted-foreground">
@@ -302,7 +287,7 @@ export default function StockPage() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Tooltip content="Add stock (receive delivery)" side="top">
                     <button onClick={() => openTxDialog(item.id, "stock_in")}
-                      className="size-7 rounded-md bg-primary/15 hover:bg-primary/25 grid place-items-center transition-colors">
+                      className="size-7 rounded-md bg-primary/15 hover:bg-emerald-200 grid place-items-center transition-colors">
                       <ArrowUpCircle className="size-3.5 text-primary" />
                     </button>
                   </Tooltip>
@@ -312,14 +297,14 @@ export default function StockPage() {
                       <ArrowDownCircle className="size-3.5 text-rose-700" />
                     </button>
                   </Tooltip>
-                  <Tooltip content="Transaction history" side="top">
-                    <button onClick={() => openHistory(item)}
-                      className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors">
+                  <Tooltip content={`${txCount} transaction${txCount !== 1 ? "s" : ""}`} side="top">
+                    <button onClick={() => setHistoryItem(item)}
+                      className="size-7 rounded-md bg-muted hover:bg-muted grid place-items-center transition-colors">
                       <History className="size-3.5 text-muted-foreground" />
                     </button>
                   </Tooltip>
                   <button onClick={() => openEdit(item)}
-                    className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors">
+                    className="size-7 rounded-md bg-muted hover:bg-muted grid place-items-center transition-colors">
                     <Pencil className="size-3.5 text-muted-foreground" />
                   </button>
                 </div>
@@ -356,9 +341,10 @@ export default function StockPage() {
               <select value={txForm.type}
                 onChange={e => setTxForm(p => ({ ...p, type: e.target.value as TransactionType }))}
                 className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-                {options.stockTransactionTypes.map(type => (
-                  <option key={type.value} value={type.value}>{type.label.replace("_", " ")}</option>
-                ))}
+                <option value="stock_in">➕ Received / Restocked</option>
+                <option value="stock_out">➖ Used / Issued</option>
+                <option value="adjustment">🔄 Adjustment (recount)</option>
+                <option value="waste">🗑️ Waste / Damaged</option>
               </select>
             </div>
             <div>
@@ -388,7 +374,7 @@ export default function StockPage() {
           </div>
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setTxDialogOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleTx}>Save</Button>
+            <Button className="flex-1 bg-primary hover:bg-emerald-700" onClick={handleTx}>Save</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -406,7 +392,7 @@ export default function StockPage() {
               <p className="text-sm text-muted-foreground text-center py-4">No transactions recorded yet.</p>
             )}
             {historyItem && itemTransactions(historyItem.id).map(tx => {
-              const worker = farmers.find(f => f.id === tx.performedBy);
+              const worker = FARMERS.find(f => f.id === tx.performedBy);
               const isIn   = tx.type === "stock_in";
               return (
                 <div key={tx.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
@@ -458,14 +444,14 @@ export default function StockPage() {
                   <label className="text-xs font-semibold text-foreground/80 block mb-1">Category</label>
                   <select value={itemForm.category} onChange={e => setItemForm(p => ({ ...p, category: e.target.value as StockCategory }))}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-                    {options.stockCategories.map(c => <option key={c.value} value={c.value}>{c.icon ?? ""} {c.label}</option>)}
+                    {Object.entries(STOCK_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-foreground/80 block mb-1">Unit</label>
                   <select value={itemForm.unit} onChange={e => setItemForm(p => ({ ...p, unit: e.target.value as any }))}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-                    {options.stockUnits.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                    {["kg", "L", "g", "ml", "piece", "box", "bag", "roll"].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
               </div>
@@ -479,7 +465,7 @@ export default function StockPage() {
                 <div>
                   <label className="text-xs font-semibold text-foreground/80 block mb-1">
                     <Tooltip content="Send a low-stock alert when quantity falls below this level">
-                      <span className="border-b border-dotted border-muted-foreground cursor-help">Reorder at</span>
+                      <span className="border-b border-dotted border-slate-400 cursor-help">Reorder at</span>
                     </Tooltip>
                   </label>
                   <input type="number" min={0} step={0.1} value={itemForm.reorderLevel}
@@ -515,7 +501,7 @@ export default function StockPage() {
             </div>
             <div className="flex gap-2 mt-2">
               <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-              <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={onSave}>Save</Button>
+              <Button className="flex-1 bg-primary hover:bg-emerald-700" onClick={onSave}>Save</Button>
             </div>
           </DialogContent>
         </Dialog>

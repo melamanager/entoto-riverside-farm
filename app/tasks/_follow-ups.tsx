@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,14 @@ import {
   Bug, Sprout, Droplets, ListChecks, FileText, Filter, ClipboardPlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { FOLLOW_UPS } from "@/lib/erp-data";
+import { FARMERS, VALVES, BEDS, addTask } from "@/lib/data";
 import type { FollowUp, FollowUpEntityType, FollowUpStatus, FollowUpPriority } from "@/lib/erp-types";
 import { FOLLOW_UP_ENTITY_LABELS, FOLLOW_UP_ENTITY_ICONS } from "@/lib/erp-types";
-import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import { useOptions } from "@/lib/use-options";
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = "2026-05-19";
 
 const PRIORITY_STYLE: Record<FollowUpPriority, string> = {
   low:    "bg-muted text-muted-foreground border-border",
@@ -35,7 +35,7 @@ const STATUS_ICON = {
 
 const ENTITY_ICONS: Record<FollowUpEntityType, React.ReactNode> = {
   disease:     <Bug className="size-4 text-rose-500" />,
-  planting:    <Sprout className="size-4 text-emerald-600" />,
+  planting:    <Sprout className="size-4 text-primary" />,
   fertigation: <Droplets className="size-4 text-violet-600" />,
   task:        <ListChecks className="size-4 text-amber-600" />,
   general:     <FileText className="size-4 text-muted-foreground" />,
@@ -64,11 +64,7 @@ type FilterTab = "all" | "pending" | "overdue" | "done" | "today";
 export function FollowUpsSection() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const options = useOptions();
-  const [followUps, setFollowUps]   = useState<FollowUp[]>([]);
-  const [farmers, setFarmers]       = useState<Farmer[]>([]);
-  const [valves, setValves]         = useState<Valve[]>([]);
-  const [beds, setBeds]             = useState<Bed[]>([]);
+  const [followUps, setFollowUps]   = useState<FollowUp[]>(FOLLOW_UPS);
   const [tab, setTab]               = useState<FilterTab>("all");
   const [entityFilter, setEntity]   = useState<FollowUpEntityType | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -77,18 +73,8 @@ export function FollowUpsSection() {
   const [doneNote, setDoneNote]     = useState("");
   const [form, setForm]             = useState({ ...EMPTY_FORM });
 
-  useEffect(() => {
-    fetch("/api/follow-ups").then(r => r.json()).then(setFollowUps);
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
-    fetch("/api/valves").then(r => r.json()).then(setValves);
-    fetch("/api/beds").then(r => r.json()).then(setBeds);
-  }, []);
-
-  const managers = farmers.filter(f => f.role === "manager" || f.role === "supervisor");
-  const entityLabel = (entityType: FollowUpEntityType) =>
-    options.followUpEntityTypes.find(e => e.value === entityType)?.label ?? FOLLOW_UP_ENTITY_LABELS[entityType] ?? entityType;
-  const entityIcon = (entityType: FollowUpEntityType) =>
-    options.followUpEntityTypes.find(e => e.value === entityType)?.icon ?? FOLLOW_UP_ENTITY_ICONS[entityType] ?? "";
+  const beds    = BEDS();
+  const managers = FARMERS.filter(f => f.role === "manager" || f.role === "supervisor");
 
   const computed = useMemo(() => {
     return followUps.map(fu => {
@@ -124,74 +110,57 @@ export function FollowUpsSection() {
     today:   computed.filter(f => f.status !== "done" && f.days === 0).length,
   }), [computed]);
 
-  async function markDone() {
+  function markDone() {
     if (!doneTarget) return;
-    const res = await fetch(`/api/follow-ups/${doneTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "done", completedAt: TODAY, completionNote: doneNote || undefined }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setFollowUps(prev => prev.map(f => f.id === doneTarget.id ? updated : f));
-      toast.success("Follow-up marked as done");
-    } else {
-      toast.error("Failed to update follow-up");
+    const idx = FOLLOW_UPS.findIndex(f => f.id === doneTarget.id);
+    if (idx >= 0) {
+      FOLLOW_UPS[idx].status = "done";
+      FOLLOW_UPS[idx].completedAt = TODAY;
+      FOLLOW_UPS[idx].completionNote = doneNote || undefined;
     }
+    setFollowUps([...FOLLOW_UPS]);
+    toast.success("Follow-up marked as done");
     setDoneTarget(null);
     setDoneNote("");
   }
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
     if (!form.assignedTo)   { toast.error("Please assign to someone"); return; }
-    const res = await fetch("/api/follow-ups", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        entityType: form.entityType,
-        entityId: form.entityId || "farm",
-        title: form.title,
-        description: form.description || undefined,
-        dueDate: form.dueDate,
-        status: "pending",
-        priority: form.priority,
-        assignedTo: form.assignedTo,
-        createdBy: form.createdBy || (farmers.find(f => f.role === "manager")?.id ?? "f-008"),
-        bedId: form.bedId || undefined,
-        valveId: form.valveId || undefined,
-      }),
-    });
-    if (res.ok) {
-      const created = await res.json();
-      setFollowUps(prev => [...prev, created]);
-      toast.success("Follow-up created");
-      setCreateOpen(false);
-    } else {
-      toast.error("Failed to create follow-up");
-    }
+    const newFu: FollowUp = {
+      id: `fu-${Date.now()}`,
+      entityType: form.entityType,
+      entityId: form.entityId || "farm",
+      title: form.title,
+      description: form.description || undefined,
+      dueDate: form.dueDate,
+      status: "pending",
+      priority: form.priority,
+      assignedTo: form.assignedTo,
+      createdBy: form.createdBy || (FARMERS.find(f => f.role === "manager")?.id ?? "f-008"),
+      bedId: form.bedId || undefined,
+      valveId: form.valveId || undefined,
+    };
+    FOLLOW_UPS.push(newFu);
+    setFollowUps([...FOLLOW_UPS]);
+    toast.success("Follow-up created");
+    setCreateOpen(false);
   }
 
-  async function handleEdit() {
+  function handleEdit() {
     if (!editTarget) return;
-    const res = await fetch(`/api/follow-ups/${editTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const idx = FOLLOW_UPS.findIndex(f => f.id === editTarget.id);
+    if (idx >= 0) {
+      Object.assign(FOLLOW_UPS[idx], {
         title: form.title, description: form.description || undefined,
         dueDate: form.dueDate, priority: form.priority,
         assignedTo: form.assignedTo, entityType: form.entityType,
         bedId: form.bedId || undefined, valveId: form.valveId || undefined,
-      }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setFollowUps(prev => prev.map(f => f.id === editTarget.id ? updated : f));
-      toast.success("Follow-up updated");
-      setEditTarget(null);
-    } else {
-      toast.error("Failed to update follow-up");
+      });
     }
+    setFollowUps([...FOLLOW_UPS]);
+    toast.success("Follow-up updated");
+    setEditTarget(null);
   }
 
   function openEdit(fu: FollowUp) {
@@ -205,7 +174,7 @@ export function FollowUpsSection() {
     setEditTarget(fu);
   }
 
-  async function assignAsTask(fu: FollowUp) {
+  function assignAsTask(fu: FollowUp) {
     const categoryMap: Record<FollowUpEntityType, string> = {
       disease:    "disease",
       planting:   "general",
@@ -213,21 +182,17 @@ export function FollowUpsSection() {
       task:       "general",
       general:    "general",
     };
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title:       fu.title,
-        description: fu.description ?? "",
-        assignedTo:  fu.assignedTo,
-        createdBy:   fu.createdBy,
-        bedId:       fu.bedId,
-        status:      "pending",
-        priority:    fu.priority === "urgent" ? "high" : fu.priority === "normal" ? "medium" : "low",
-        category:    categoryMap[fu.entityType],
-        createdAt:   new Date().toISOString(),
-        dueDate:     fu.dueDate,
-      }),
+    addTask({
+      title:       fu.title,
+      description: fu.description ?? "",
+      assignedTo:  fu.assignedTo,
+      createdBy:   fu.createdBy,
+      bedId:       fu.bedId,
+      status:      "pending",
+      priority:    fu.priority === "urgent" ? "high" : fu.priority === "normal" ? "medium" : "low",
+      category:    categoryMap[fu.entityType] as "disease" | "harvest" | "irrigation" | "general",
+      createdAt:   new Date().toISOString(),
+      dueDate:     fu.dueDate,
     });
     toast.success("Assigned as Task", {
       description: `"${fu.title.slice(0, 40)}…" added to daily tasks`,
@@ -255,7 +220,7 @@ export function FollowUpsSection() {
           { label: t.common.done,        value: counts.done,    color: "text-primary", bg: "bg-primary/10 border-primary/30", tabKey: "done" as FilterTab },
         ].map(({ label, value, color, bg, tabKey }) => (
           <button key={label} onClick={() => setTab(tabKey)}
-            className={`rounded-xl border p-4 text-left transition-all hover:shadow-sm ${bg} ${tab === tabKey ? "ring-2 ring-offset-1 ring-primary/40" : ""}`}>
+            className={`rounded-xl border p-4 text-left transition-all hover:shadow-sm ${bg} ${tab === tabKey ? "ring-2 ring-offset-1 ring-slate-400" : ""}`}>
             <div className={`text-2xl font-bold tabular-nums ${color}`}>{value}</div>
             <div className={`text-xs font-medium mt-0.5 ${color}`}>{label}</div>
           </button>
@@ -268,7 +233,7 @@ export function FollowUpsSection() {
           {(["all", "pending", "overdue", "today", "done"] as FilterTab[]).map(f => (
             <button key={f} onClick={() => setTab(f)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${
-                tab === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+                tab === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground/80"
               }`}>
               {f === "today" ? t.followUps.dueToday : f}
             </button>
@@ -276,14 +241,14 @@ export function FollowUpsSection() {
         </div>
         <div className="flex items-center gap-1 ml-2">
           <Filter className="size-3.5 text-muted-foreground" />
-          {[{ value: "all", label: t.followUps.allTypes, icon: undefined }, ...options.followUpEntityTypes].map(e => (
-            <button key={e.value} onClick={() => setEntity(e.value as FollowUpEntityType | "all")}
+          {(["all", "disease", "planting", "fertigation", "task", "general"] as (FollowUpEntityType | "all")[]).map(e => (
+            <button key={e} onClick={() => setEntity(e)}
               className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all capitalize ${
-                entityFilter === e.value
-                  ? "bg-foreground text-background border-foreground"
-                  : "bg-card text-muted-foreground border-border hover:border-muted-foreground"
+                entityFilter === e
+                  ? "bg-slate-800 text-white border-slate-800"
+                  : "bg-card text-muted-foreground border-border hover:border-slate-400"
               }`}>
-              {e.value === "all" ? e.label : `${e.icon ?? ""} ${e.label}`}
+              {e === "all" ? t.followUps.allTypes : `${FOLLOW_UP_ENTITY_ICONS[e]} ${FOLLOW_UP_ENTITY_LABELS[e]}`}
             </button>
           ))}
         </div>
@@ -292,8 +257,8 @@ export function FollowUpsSection() {
       {/* Follow-up list */}
       <div className="space-y-2">
         {filtered.map(fu => {
-          const worker  = farmers.find(f => f.id === fu.assignedTo);
-          const valve   = valves.find(v => v.id === fu.valveId);
+          const worker  = FARMERS.find(f => f.id === fu.assignedTo);
+          const valve   = VALVES.find(v => v.id === fu.valveId);
           const days    = daysUntil(fu.dueDate);
           const isOverdue = fu.status === "overdue";
           return (
@@ -314,7 +279,7 @@ export function FollowUpsSection() {
                       )}
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <Badge className={`text-[10px] capitalize ${PRIORITY_STYLE[fu.priority]}`}>{fu.priority}</Badge>
-                        <span className="text-[10px] text-muted-foreground capitalize">{entityLabel(fu.entityType)}</span>
+                        <span className="text-[10px] text-muted-foreground capitalize">{FOLLOW_UP_ENTITY_LABELS[fu.entityType]}</span>
                         {fu.bedId && <span className="text-[10px] font-mono text-muted-foreground">{fu.bedId}</span>}
                         {valve && <span className="text-[10px] font-semibold" style={{ color: valve.color }}>{valve.name}</span>}
                         {worker && <span className="text-[10px] text-muted-foreground">→ {worker.name.split(" ")[0]}</span>}
@@ -352,7 +317,7 @@ export function FollowUpsSection() {
                     <Tooltip content="Mark as complete">
                       <button
                         onClick={() => { setDoneTarget(fu); setDoneNote(""); }}
-                        className="size-7 rounded-md bg-primary/15 hover:bg-primary/25 grid place-items-center transition-colors">
+                        className="size-7 rounded-md bg-primary/15 hover:bg-emerald-200 grid place-items-center transition-colors">
                         <CheckCircle2 className="size-3.5 text-primary" />
                       </button>
                     </Tooltip>
@@ -368,7 +333,7 @@ export function FollowUpsSection() {
                   )}
                   <Tooltip content="Edit">
                     <button onClick={() => openEdit(fu)}
-                      className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors">
+                      className="size-7 rounded-md bg-muted hover:bg-muted grid place-items-center transition-colors">
                       <Pencil className="size-3.5 text-muted-foreground" />
                     </button>
                   </Tooltip>
@@ -403,7 +368,7 @@ export function FollowUpsSection() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setDoneTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={markDone}>{t.followUps.confirmDone}</Button>
+            <Button className="flex-1 bg-primary hover:bg-emerald-700" onClick={markDone}>{t.followUps.confirmDone}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -439,8 +404,8 @@ export function FollowUpsSection() {
                   <select value={form.entityType}
                     onChange={e => setForm(p => ({ ...p, entityType: e.target.value as FollowUpEntityType }))}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-                    {options.followUpEntityTypes.map(e => (
-                      <option key={e.value} value={e.value}>{e.icon ?? entityIcon(e.value as FollowUpEntityType)} {e.label}</option>
+                    {Object.entries(FOLLOW_UP_ENTITY_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{FOLLOW_UP_ENTITY_ICONS[k as FollowUpEntityType]} {v}</option>
                     ))}
                   </select>
                 </div>
@@ -449,9 +414,9 @@ export function FollowUpsSection() {
                   <select value={form.priority}
                     onChange={e => setForm(p => ({ ...p, priority: e.target.value as FollowUpPriority }))}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
-                    {options.followUpPriorities.map(p => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
+                    <option value="low">🟢 Low</option>
+                    <option value="normal">🔵 Normal</option>
+                    <option value="urgent">🔴 Urgent</option>
                   </select>
                 </div>
               </div>
@@ -468,7 +433,7 @@ export function FollowUpsSection() {
                     onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     <option value="">— Select —</option>
-                    {farmers.map(f => <option key={f.id} value={f.id}>{f.name} ({f.role})</option>)}
+                    {FARMERS.map(f => <option key={f.id} value={f.id}>{f.name} ({f.role})</option>)}
                   </select>
                 </div>
               </div>
@@ -478,7 +443,7 @@ export function FollowUpsSection() {
                   <select value={form.valveId} onChange={e => setForm(p => ({ ...p, valveId: e.target.value }))}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     <option value="">— None —</option>
-                    {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
                 </div>
                 <div>

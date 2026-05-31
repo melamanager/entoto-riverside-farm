@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,13 @@ import {
   Search, ScanLine, Wheat, MapPin, User, Leaf, Calendar, X, AlertCircle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HARVESTS, getFarmer, getValve } from "@/lib/data";
 import { toast } from "sonner";
-import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose, CustomerOrder } from "@/lib/erp-types";
-import type { Farmer, Valve, Bed } from "@/lib/types";
+import { PACKAGING_RECORDS, CUSTOMER_ORDERS } from "@/lib/erp-data";
+import { FARMERS, VALVES, BEDS } from "@/lib/data";
+import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import { useOptions } from "@/lib/use-options";
 
 const STATUS_STYLE: Record<PackagingStatus, string> = {
   in_progress: "bg-blue-100 text-blue-700 border-blue-200",
@@ -26,94 +27,36 @@ const PURPOSE_STYLE: Record<PackagingPurpose, string> = {
   export:      "bg-purple-100 text-purple-700 border-purple-200",
   juice:       "bg-orange-100 text-orange-700 border-orange-200",
   jam:         "bg-rose-100 text-rose-700 border-rose-200",
-  local:       "bg-muted text-muted-foreground border-border",
+  local:       "bg-stone-100 text-stone-700 border-border",
   hotel:       "bg-sky-100 text-sky-700 border-sky-200",
   supermarket: "bg-teal-100 text-teal-700 border-teal-200",
 };
-type HarvestRecord = { id: string; bedId: string; date: string; kg: number; farmerId: string; qualityGrade: string; bed?: { valveId: string; variety: string } };
+const PURPOSES: PackagingPurpose[] = ["export", "juice", "jam", "local", "hotel", "supermarket"];
+const STATUSES: PackagingStatus[] = ["in_progress", "packed", "dispatched"];
+const SIZES: PackageSize[] = ["250g", "500g", "1kg", "2kg", "bulk"];
 
-function emptyForm() {
-  const today = new Date().toISOString().split("T")[0];
-  return {
-  batchNumber: "", harvestDate: today, packedDate: today,
+const EMPTY_FORM = {
+  batchNumber: "", harvestDate: "2026-05-17", packedDate: "2026-05-17",
   valveId: "", variety: "",
   harvestedKg: 20, gradedKg: 18, packedKg: 16,
   rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
   cartonCount: 2, plateCount: 0, lostKg: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
   orderId: "",
-  };
-}
+};
 
 export default function PackagingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const options = useOptions();
-  const [records, setRecords]   = useState<PackagingRecord[]>([]);
-  const [orders, setOrders]     = useState<CustomerOrder[]>([]);
-  const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
-  const [farmers, setFarmers]   = useState<Farmer[]>([]);
-  const [valves, setValves]     = useState<Valve[]>([]);
-  const [beds, setBeds]         = useState<Bed[]>([]);
+  const [records, setRecords] = useState<PackagingRecord[]>(PACKAGING_RECORDS);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PackagingRecord | null>(null);
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState(EMPTY_FORM);
   const [harvestSource, setHarvestSource] = useState<string>("");
-
-  useEffect(() => {
-    fetch("/api/packaging")
-      .then(r => r.json())
-      .then((data: (PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string })[]) =>
-        setRecords(data.map(p => ({
-          ...p,
-          harvestedKg: parseFloat(String(p.harvestedKg)),
-          gradedKg:    parseFloat(String(p.gradedKg)),
-          packedKg:    parseFloat(String(p.packedKg)),
-          rejectedKg:  parseFloat(String(p.rejectedKg)),
-          lostKg:      parseFloat(String(p.lostKg)),
-        })))
-      )
-      .catch(() => toast.error("Failed to load packaging records"));
-
-    fetch("/api/orders")
-      .then(r => r.json())
-      .then((data: (CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string })[]) =>
-        setOrders(data.map(o => ({
-          ...o,
-          quantityKg:  parseFloat(String(o.quantityKg)),
-          pricePerKg:  parseFloat(String(o.pricePerKg)),
-          totalAmount: parseFloat(String(o.totalAmount)),
-          advancePaid: parseFloat(String(o.advancePaid)),
-        })))
-      )
-      .catch(() => toast.error("Failed to load orders"));
-
-    fetch("/api/harvest")
-      .then(r => r.json())
-      .then((data: (HarvestRecord & { kg: number | string })[]) =>
-        setHarvests(data.map(h => ({ ...h, kg: parseFloat(String(h.kg)) })))
-      )
-      .catch(() => toast.error("Failed to load harvest records"));
-
-    fetch("/api/farmers")
-      .then(r => r.json())
-      .then((data: Farmer[]) => setFarmers(data))
-      .catch(() => toast.error("Failed to load farmers"));
-
-    fetch("/api/valves")
-      .then(r => r.json())
-      .then((data: Valve[]) => setValves(data))
-      .catch(() => toast.error("Failed to load valves"));
-
-    fetch("/api/beds")
-      .then(r => r.json())
-      .then((data: Bed[]) => setBeds(data))
-      .catch(() => toast.error("Failed to load beds"));
-  }, []);
 
   function openCreate() {
     const next = String(records.length + 54).padStart(3, "0");
-    setForm({ ...emptyForm(), batchNumber: `PKG-2026-0${next}`, valveId: valves[0]?.id ?? "", packedBy: farmers[0]?.id ?? "" });
+    setForm({ ...EMPTY_FORM, batchNumber: `PKG-2026-0${next}`, valveId: VALVES[0]?.id ?? "", packedBy: FARMERS[0]?.id ?? "" });
     setHarvestSource("");
     setCreateOpen(true);
   }
@@ -131,41 +74,23 @@ export default function PackagingPage() {
     setEditTarget(r);
   }
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!form.batchNumber.trim()) { toast.error("Batch number required"); return; }
     if (!form.valveId)            { toast.error("Please select a valve"); return; }
-    const body = { ...form, orderId: form.orderId || null };
-    const res = await fetch("/api/packaging", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { toast.error("Failed to create batch"); return; }
-    const created = await res.json() as PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string };
-    const newRec: PackagingRecord = {
-      ...created,
-      harvestedKg: parseFloat(String(created.harvestedKg)),
-      gradedKg:    parseFloat(String(created.gradedKg)),
-      packedKg:    parseFloat(String(created.packedKg)),
-      rejectedKg:  parseFloat(String(created.rejectedKg)),
-      lostKg:      parseFloat(String(created.lostKg)),
-    };
-    setRecords(prev => [newRec, ...prev]);
+    const id = `pk-${Date.now()}`;
+    const newRec: PackagingRecord = { id, ...form, orderId: form.orderId || undefined };
+    PACKAGING_RECORDS.push(newRec);
+    setRecords([...PACKAGING_RECORDS]);
     toast.success(`${form.batchNumber} created`);
     setCreateOpen(false);
   }
 
-  async function handleEdit() {
+  function handleEdit() {
     if (!editTarget) return;
-    const body = { ...form, orderId: form.orderId || null };
-    const res = await fetch(`/api/packaging/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { toast.error("Failed to update batch"); return; }
-    const updated = await res.json() as PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string };
-    const updatedRec: PackagingRecord = {
-      ...updated,
-      harvestedKg: parseFloat(String(updated.harvestedKg)),
-      gradedKg:    parseFloat(String(updated.gradedKg)),
-      packedKg:    parseFloat(String(updated.packedKg)),
-      rejectedKg:  parseFloat(String(updated.rejectedKg)),
-      lostKg:      parseFloat(String(updated.lostKg)),
-    };
-    setRecords(prev => prev.map(r => r.id === editTarget.id ? updatedRec : r));
+    const idx = PACKAGING_RECORDS.findIndex(r => r.id === editTarget.id);
+    if (idx < 0) return;
+    Object.assign(PACKAGING_RECORDS[idx], form);
+    setRecords([...PACKAGING_RECORDS]);
     toast.success(`${form.batchNumber} updated`);
     setEditTarget(null);
   }
@@ -185,23 +110,23 @@ export default function PackagingPage() {
   // ── Tracker state ──────────────────────────────────────────────────────────
   const [trackQuery, setTrackQuery] = useState("");
   const trackResult = trackQuery.trim()
-    ? records.find(r =>
+    ? PACKAGING_RECORDS.find(r =>
         r.batchNumber.toLowerCase() === trackQuery.trim().toLowerCase() ||
         r.batchNumber.toLowerCase().includes(trackQuery.trim().toLowerCase())
       ) ?? null
     : null;
-  const trackValve    = trackResult ? valves.find(v => v.id === trackResult.valveId) ?? null : null;
-  const trackPacker   = trackResult ? farmers.find(f => f.id === trackResult.packedBy) ?? null : null;
+  const trackValve    = trackResult ? getValve(trackResult.valveId) : null;
+  const trackPacker   = trackResult ? getFarmer(trackResult.packedBy) : null;
   const trackHarvests = trackResult
-    ? harvests.filter(h => {
-        const b = beds.find(x => x.id === h.bedId);
+    ? HARVESTS().filter(h => {
+        const b = BEDS().find(x => x.id === h.bedId);
         return b?.valveId === trackResult.valveId && b?.variety === trackResult.variety && h.date === trackResult.harvestDate;
       })
     : [];
-  const trackBeds = [...new Set(trackHarvests.map(h => h.bedId))].map(bid => beds.find(b => b.id === bid)).filter(Boolean);
-  const trackFarmers = [...new Set(trackHarvests.map(h => h.farmerId))].map(fid => farmers.find(f => f.id === fid)).filter(Boolean);
+  const trackBeds = [...new Set(trackHarvests.map(h => h.bedId))].map(bid => BEDS().find(b => b.id === bid)).filter(Boolean);
+  const trackFarmers = [...new Set(trackHarvests.map(h => h.farmerId))].map(fid => getFarmer(fid)).filter(Boolean);
 
-  const valveBeds = form.valveId ? [...new Set(beds.filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
+  const valveBeds = form.valveId ? [...new Set(BEDS().filter(b => b.valveId === form.valveId).map(b => b.variety))] : [];
 
   // Group harvest records by date+valve+variety for "link from harvest" picker
   const harvestGroups = (() => {
@@ -209,8 +134,8 @@ export default function PackagingPage() {
       key: string; date: string; valveId: string; variety: string;
       totalKg: number; beds: string[];
     }> = {};
-    harvests.forEach(h => {
-      const bed = beds.find(b => b.id === h.bedId);
+    HARVESTS().forEach(h => {
+      const bed = BEDS().find(b => b.id === h.bedId);
       if (!bed) return;
       const key = `${h.date}|${bed.valveId}|${bed.variety}`;
       if (!groups[key]) groups[key] = { key, date: h.date, valveId: bed.valveId, variety: bed.variety, totalKg: 0, beds: [] };
@@ -248,16 +173,16 @@ export default function PackagingPage() {
           <div className="flex items-center gap-1.5 mb-2">
             <Wheat className="size-3.5 text-primary" />
             <span className="text-xs font-semibold text-primary">Link from Harvest Log</span>
-            <span className="text-[10px] text-primary/70 ml-auto">Auto-fills kg, variety &amp; date</span>
+            <span className="text-[10px] text-primary ml-auto">Auto-fills kg, variety &amp; date</span>
           </div>
           <select
             value={harvestSource}
             onChange={e => applyHarvestSource(e.target.value)}
-            className="w-full border border-border rounded-md px-3 py-2 text-xs bg-card"
+            className="w-full border border-primary/30 rounded-md px-3 py-2 text-xs bg-card"
           >
             <option value="">— Pick a harvest event (optional) —</option>
             {harvestGroups.map(g => {
-              const valve = valves.find(v => v.id === g.valveId);
+              const valve = VALVES.find(v => v.id === g.valveId);
               const alreadyPacked = packagedKeys.has(g.key);
               return (
                 <option key={g.key} value={g.key}>
@@ -271,7 +196,7 @@ export default function PackagingPage() {
             <button
               type="button"
               onClick={() => { setHarvestSource(""); }}
-              className="mt-1.5 text-[10px] text-muted-foreground hover:text-foreground underline"
+              className="mt-1.5 text-[10px] text-muted-foreground hover:text-foreground/80 underline"
             >
               Clear selection
             </button>
@@ -290,7 +215,7 @@ export default function PackagingPage() {
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, variety: "" }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
-              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
         </div>
@@ -311,7 +236,7 @@ export default function PackagingPage() {
             <select value={form.purpose}
               onChange={e => setForm(p => ({ ...p, purpose: e.target.value as PackagingPurpose }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
-              {options.packagingPurposes.map(p => <option key={p.value} value={p.value} className="capitalize">{p.label}</option>)}
+              {PURPOSES.map(p => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
             </select>
           </div>
         </div>
@@ -384,7 +309,7 @@ export default function PackagingPage() {
           <select value={form.packageSize}
             onChange={e => setForm(p => ({ ...p, packageSize: e.target.value as PackageSize }))}
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-            {options.packageSizes.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
 
@@ -397,7 +322,7 @@ export default function PackagingPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Grade B %</label>
-            <div className="border border-border bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground tabular-nums">
+            <div className="border border-border/60 bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground tabular-nums">
               {form.gradeBPct}%
             </div>
           </div>
@@ -410,7 +335,7 @@ export default function PackagingPage() {
               onChange={e => setForm(p => ({ ...p, packedBy: e.target.value }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
-              {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {FARMERS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
           <div>
@@ -418,7 +343,7 @@ export default function PackagingPage() {
             <select value={form.status}
               onChange={e => setForm(p => ({ ...p, status: e.target.value as PackagingStatus }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
-              {options.packagingStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label.replace("_"," ")}</option>)}
+              {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s.replace("_"," ")}</option>)}
             </select>
           </div>
         </div>
@@ -429,7 +354,7 @@ export default function PackagingPage() {
             onChange={e => setForm(p => ({ ...p, orderId: e.target.value }))}
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
             <option value="">— Unlinked —</option>
-            {orders.map(o => (
+            {CUSTOMER_ORDERS.map(o => (
               <option key={o.id} value={o.id}>{o.customerName} · {o.quantityKg}kg · {o.deliveryDate}</option>
             ))}
           </select>
@@ -470,10 +395,10 @@ export default function PackagingPage() {
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div>
-              <div className="text-xl font-bold text-foreground tabular-nums">{avgGradeA}%</div>
+              <div className="text-xl font-bold text-foreground/80 tabular-nums">{avgGradeA}%</div>
               <div className="text-xs text-muted-foreground font-medium mt-0.5">Avg Grade A</div>
             </div>
-            <BarChart3 className="size-6 text-muted-foreground/30 ml-auto" />
+            <BarChart3 className="size-6 text-muted-foreground/60 ml-auto" />
           </div>
         </Card>
       </div>
@@ -493,7 +418,7 @@ export default function PackagingPage() {
           <div className="text-xs text-red-600 font-medium mt-0.5 flex items-center gap-1"><AlertCircle className="size-3" /> Lost (kg)</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xl font-bold text-foreground tabular-nums">{totalPacked.toFixed(1)} kg</div>
+          <div className="text-xl font-bold text-foreground/80 tabular-nums">{totalPacked.toFixed(1)} kg</div>
           <div className="text-xs text-muted-foreground font-medium mt-0.5">{totalPackages} packages</div>
         </Card>
       </div>
@@ -515,11 +440,11 @@ export default function PackagingPage() {
                   value={trackQuery}
                   onChange={e => setTrackQuery(e.target.value)}
                   placeholder="e.g. PKG-2026-051"
-                  className="w-full pl-9 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full pl-9 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               {trackQuery && (
-                <button onClick={() => setTrackQuery("")} className="p-2 rounded-md border border-border hover:bg-accent">
+                <button onClick={() => setTrackQuery("")} className="p-2 rounded-md border border-border hover:bg-muted">
                   <X className="size-4 text-muted-foreground" />
                 </button>
               )}
@@ -548,11 +473,11 @@ export default function PackagingPage() {
 
                 {/* Timeline */}
                 <div className="relative pl-7 space-y-4">
-                  <div className="absolute left-2.5 top-2 bottom-2 w-px bg-border" />
+                  <div className="absolute left-2.5 top-2 bottom-2 w-px bg-muted" />
 
                   {/* Step 1 – Harvest */}
                   <div className="relative">
-                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-primary/15 border-2 border-primary grid place-items-center">
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-primary/15 border-2 border-emerald-400 grid place-items-center">
                       <Wheat className="size-2.5 text-primary" />
                     </div>
                     <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
@@ -560,11 +485,11 @@ export default function PackagingPage() {
                       <div className="text-xs text-primary">
                         <span className="font-medium">{new Date(trackResult.harvestDate).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</span>
                       </div>
-                      <div className="text-xs text-primary/70 mt-1">
+                      <div className="text-xs text-primary mt-1">
                         {trackResult.harvestedKg} kg harvested · {trackResult.rejectedKg} kg rejected · {trackResult.lostKg > 0 ? `${trackResult.lostKg} kg lost · ` : ""}{trackResult.packedKg} kg packed
                       </div>
                       {trackHarvests.length > 0 && (
-                        <div className="mt-1 text-xs text-primary/70">
+                        <div className="mt-1 text-xs text-primary">
                           Total yield from contributing beds: {trackHarvests.reduce((s,h)=>s+h.kg,0).toFixed(1)} kg
                         </div>
                       )}
@@ -631,11 +556,11 @@ export default function PackagingPage() {
 
                   {/* Step 5 – Packaging */}
                   <div className="relative">
-                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-muted border-2 border-muted-foreground/50 grid place-items-center">
-                      <Package className="size-2.5 text-muted-foreground" />
+                    <div className="absolute -left-[18px] top-1 size-5 rounded-full bg-muted border-2 border-slate-400 grid place-items-center">
+                      <Package className="size-2.5 text-foreground/80" />
                     </div>
                     <div className="bg-muted border border-border rounded-lg p-3">
-                      <div className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5"><Package className="size-3" /> Packaging details</div>
+                      <div className="text-xs font-semibold text-foreground/80 mb-2 flex items-center gap-1.5"><Package className="size-3" /> Packaging details</div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-card rounded border border-border p-2">
                           <div className="text-base font-bold text-purple-700">{trackResult.cartonCount}</div>
@@ -657,7 +582,7 @@ export default function PackagingPage() {
                         Packed by {trackPacker?.name} · {new Date(trackResult.packedDate).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
                       </div>
                       {trackResult.orderId && (() => {
-                        const ord = orders.find(o => o.id === trackResult.orderId);
+                        const ord = CUSTOMER_ORDERS.find(o => o.id === trackResult.orderId);
                         return ord ? (
                           <div className="mt-2 flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-md px-2.5 py-2">
                             <div className="size-5 rounded-full bg-indigo-100 grid place-items-center shrink-0">
@@ -683,7 +608,7 @@ export default function PackagingPage() {
       <Card className="p-4 flex items-center gap-6 flex-wrap border-red-100 bg-red-50/40">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 w-full">Yield Summary</div>
         <div className="flex items-center gap-6 flex-wrap text-sm">
-          <span className="text-foreground">Harvested: <strong className="tabular-nums">{totalHarvested.toFixed(1)} kg</strong></span>
+          <span className="text-foreground/80">Harvested: <strong className="tabular-nums">{totalHarvested.toFixed(1)} kg</strong></span>
           <span className="text-primary">Packed: <strong className="tabular-nums">{totalPacked.toFixed(1)} kg</strong></span>
           <span className="text-red-600">Rejected: <strong className="tabular-nums">{totalRejected.toFixed(1)} kg</strong></span>
           <span className="text-muted-foreground">Yield rate: <strong>{totalHarvested > 0 ? Math.round((totalPacked / totalHarvested) * 100) : 0}%</strong></span>
@@ -704,21 +629,21 @@ export default function PackagingPage() {
             </thead>
             <tbody>
               {[...records].sort((a, b) => b.harvestDate.localeCompare(a.harvestDate)).map(rec => {
-                const valve = valves.find(v => v.id === rec.valveId);
-                const worker = farmers.find(f => f.id === rec.packedBy);
+                const valve = VALVES.find(v => v.id === rec.valveId);
+                const worker = FARMERS.find(f => f.id === rec.packedBy);
                 return (
                   <tr key={rec.id} className="group">
-                    <td className="font-mono text-xs font-semibold text-foreground">{rec.batchNumber}</td>
+                    <td className="font-mono text-xs font-semibold text-foreground/80">{rec.batchNumber}</td>
                     <td>
                       {rec.orderId ? (() => {
-                        const ord = orders.find(o => o.id === rec.orderId);
+                        const ord = CUSTOMER_ORDERS.find(o => o.id === rec.orderId);
                         return ord ? (
                           <div className="text-xs">
                             <div className="font-semibold text-indigo-700 truncate max-w-[120px]">{ord.customerName}</div>
                             <div className="text-[10px] text-muted-foreground">{ord.quantityKg} kg</div>
                           </div>
-                        ) : <span className="text-muted-foreground/40 text-xs">—</span>;
-                      })() : <span className="text-muted-foreground/40 text-xs">—</span>}
+                        ) : <span className="text-muted-foreground/60 text-xs">—</span>;
+                      })() : <span className="text-muted-foreground/60 text-xs">—</span>}
                     </td>
                     <td><span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name}</span></td>
                     <td className="text-xs text-muted-foreground max-w-[120px] truncate">{rec.variety}</td>
@@ -728,7 +653,7 @@ export default function PackagingPage() {
                     <td className="tabular-nums text-red-600 font-semibold">{rec.rejectedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-center font-bold text-purple-700">{rec.cartonCount}</td>
                     <td className="tabular-nums text-center font-bold text-sky-700">{rec.plateCount}</td>
-                    <td className={`tabular-nums text-center font-bold ${rec.lostKg > 0 ? "text-red-600" : "text-muted-foreground/40"}`}>{rec.lostKg > 0 ? `${rec.lostKg.toFixed(1)}` : "—"}</td>
+                    <td className={`tabular-nums text-center font-bold ${rec.lostKg > 0 ? "text-red-600" : "text-muted-foreground/60"}`}>{rec.lostKg > 0 ? `${rec.lostKg.toFixed(1)}` : "—"}</td>
                     <td className="tabular-nums text-center text-muted-foreground text-xs">{rec.packageCount}</td>
                     <td>
                       <div className="flex items-center gap-1.5">
@@ -742,7 +667,7 @@ export default function PackagingPage() {
                     <td><Badge className={`text-[10px] capitalize ${STATUS_STYLE[rec.status]}`}>{rec.status.replace("_", " ")}</Badge></td>
                     <td>
                       <button onClick={() => openEdit(rec)}
-                        className="size-6 rounded bg-muted hover:bg-accent grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        className="size-6 rounded bg-muted hover:bg-muted grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Pencil className="size-3 text-muted-foreground" />
                       </button>
                     </td>

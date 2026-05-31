@@ -1,14 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save } from "lucide-react";
 import { toast } from "sonner";
-import type { Farmer, AttendanceRecord, AttendanceStatus, Valve } from "@/lib/types";
-import { useOptions } from "@/lib/use-options";
+import { FARMERS, ATTENDANCE, VALVES, attendanceForDate } from "@/lib/data";
+import type { AttendanceStatus } from "@/lib/types";
+import { useLang } from "@/lib/lang";
+import { EN, AM } from "@/lib/translations";
+
+const STATUSES: { value: AttendanceStatus; label: string; color: string }[] = [
+  { value: "present", label: "Present", color: "bg-primary" },
+  { value: "late",    label: "Late",    color: "bg-amber-500"   },
+  { value: "absent",  label: "Absent",  color: "bg-red-500"     },
+  { value: "leave",   label: "Leave",   color: "bg-slate-400"   },
+];
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -18,70 +28,30 @@ const STATUS_ICONS = {
 };
 
 export default function AttendancePage() {
-  const options = useOptions();
-  const statuses = options.attendanceStatuses.map(s => ({
-    value: s.value as AttendanceStatus,
-    label: s.label,
-    color: s.color ?? "bg-slate-400",
-  }));
-  const today = new Date().toISOString().split("T")[0];
+  const { isAm } = useLang();
+  const t = isAm ? AM : EN;
+  const today = "2026-05-17";
+  const farmers = FARMERS.filter(f => f.role !== "manager");
+  const existingToday = attendanceForDate(today);
 
-  const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [valves, setValves] = useState<Valve[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
-  const [checkIns, setCheckIns] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Record<string, AttendanceStatus>>(
+    () => Object.fromEntries(existingToday.map(a => [a.farmerId, a.status]))
+  );
+  const [checkIns, setCheckIns] = useState<Record<string, string>>(
+    () => Object.fromEntries(existingToday.filter(a=>a.checkInTime).map(a => [a.farmerId, a.checkInTime!]))
+  );
   const [viewDate, setViewDate] = useState(today);
   const [saved, setSaved] = useState(false);
 
-  const [historicRecords, setHistoricRecords] = useState<AttendanceRecord[]>([]);
-
-  // Load farmers, valves, and today's attendance on mount
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/farmers").then(r => r.json()),
-      fetch("/api/valves").then(r => r.json()),
-      fetch(`/api/attendance?date=${today}`).then(r => r.json()),
-    ]).then(([farmData, valveData, attData]) => {
-      setFarmers((farmData as Farmer[]).filter(f => f.role !== "manager"));
-      setValves(valveData as Valve[]);
-      const records = attData as AttendanceRecord[];
-      setSelected(Object.fromEntries(records.map((a: AttendanceRecord) => [a.farmerId, a.status])));
-      setCheckIns(Object.fromEntries(records.filter((a: AttendanceRecord) => a.checkInTime).map((a: AttendanceRecord) => [a.farmerId, a.checkInTime!])));
-      setLoading(false);
-    });
-  }, []);
-
-  // Refetch historic records when viewDate changes (and it's not today)
-  useEffect(() => {
-    if (viewDate === today) {
-      setHistoricRecords([]);
-      return;
-    }
-    fetch(`/api/attendance?date=${viewDate}`)
-      .then(r => r.json())
-      .then(data => setHistoricRecords(data as AttendanceRecord[]));
-  }, [viewDate]);
+  const historicRecords = attendanceForDate(viewDate);
 
   function setStatus(farmerId: string, status: AttendanceStatus) {
     setSelected(prev => ({ ...prev, [farmerId]: status }));
     setSaved(false);
   }
 
-  async function saveAttendance() {
-    const body = farmers.map(f => ({
-      farmerId: f.id,
-      date: today,
-      status: selected[f.id] ?? "absent",
-      checkInTime: checkIns[f.id] ?? null,
-      recordedBy: "supervisor",
-    }));
-    await fetch("/api/attendance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  function saveAttendance() {
+    // In real app: POST to /api/attendance
     toast.success("Attendance saved", {
       description: `Recorded for ${Object.keys(selected).length} staff members.`,
     });
@@ -92,10 +62,6 @@ export default function AttendancePage() {
   const lateCount = Object.values(selected).filter(s => s === "late").length;
   const absentCount = Object.values(selected).filter(s => s === "absent").length;
 
-  if (loading) {
-    return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
-  }
-
   return (
     <div className="p-6 md:p-8 max-w-[1200px] mx-auto space-y-6">
       {/* Header */}
@@ -103,9 +69,9 @@ export default function AttendancePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <CalendarCheck className="size-5 text-primary" />
-            <h1 className="text-2xl font-bold text-foreground">Attendance</h1>
+            <h1 className="text-2xl font-bold text-foreground">{t.attendance.title}</h1>
           </div>
-          <p className="text-muted-foreground text-sm">Daily attendance tracking for all farm staff</p>
+          <p className="text-muted-foreground text-sm">{t.attendance.subtitle}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2">
@@ -113,10 +79,10 @@ export default function AttendancePage() {
           </Button>
           <Button
             size="sm"
-            className="gap-2 bg-primary hover:bg-primary/90"
+            className="gap-2 bg-primary hover:bg-emerald-700"
             onClick={saveAttendance}
           >
-            <Save className="size-3.5" /> Save Attendance
+            <Save className="size-3.5" /> {t.attendance.recordAttendance}
           </Button>
         </div>
       </div>
@@ -143,7 +109,7 @@ export default function AttendancePage() {
 
       {/* Today's register */}
       <Card className="border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/60">
           <div className="font-semibold text-foreground">
             Daily Register — {new Date(today).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
           </div>
@@ -164,7 +130,7 @@ export default function AttendancePage() {
             </thead>
             <tbody>
               {farmers.map(f => {
-                const valve = valves.filter(v => f.assignedValves.includes(v.id));
+                const valve = VALVES.filter(v => f.assignedValves.includes(v.id));
                 const status = selected[f.id];
                 const StatusIcon = status ? STATUS_ICONS[status] : null;
                 return (
@@ -172,7 +138,7 @@ export default function AttendancePage() {
                     <td>
                       <div className="flex items-center gap-2.5">
                         <Avatar className="size-8">
-                          <AvatarFallback className="bg-muted text-muted-foreground text-xs font-bold">{f.avatar}</AvatarFallback>
+                          <AvatarFallback className="bg-muted text-foreground/80 text-xs font-bold">{f.avatar}</AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="font-semibold text-foreground text-sm">{f.name}</div>
@@ -193,10 +159,10 @@ export default function AttendancePage() {
                         type="time"
                         value={checkIns[f.id] ?? "06:00"}
                         onChange={e => setCheckIns(prev=>({...prev,[f.id]:e.target.value}))}
-                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground"
+                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground/80"
                       />
                     </td>
-                    {statuses.map(s => (
+                    {STATUSES.map(s => (
                       <td key={s.value} className="text-center px-2">
                         <button
                           onClick={() => setStatus(f.id, s.value)}
@@ -204,7 +170,7 @@ export default function AttendancePage() {
                           className={`size-8 rounded-full border-2 transition-all ${
                             status === s.value
                               ? `${s.color} border-transparent scale-110`
-                              : "bg-muted border-border hover:border-muted-foreground"
+                              : "bg-muted border-border hover:border-slate-400"
                           }`}
                         >
                           {status === s.value && (
@@ -235,9 +201,9 @@ export default function AttendancePage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 bg-muted border-t border-border">
+        <div className="flex items-center justify-between px-5 py-3 bg-muted border-t border-border/60">
           <div className="text-xs text-muted-foreground">Recorded by: Selam Girma (Supervisor)</div>
-          <Button onClick={saveAttendance} className="bg-primary hover:bg-primary/90 gap-2 text-sm" size="sm">
+          <Button onClick={saveAttendance} className="bg-primary hover:bg-emerald-700 gap-2 text-sm" size="sm">
             <Save className="size-3.5" /> Save & Submit
           </Button>
         </div>
@@ -252,7 +218,7 @@ export default function AttendancePage() {
             value={viewDate}
             max={today}
             onChange={e => setViewDate(e.target.value)}
-            className="text-xs border border-border rounded px-2 py-1 text-foreground"
+            className="text-xs border border-border rounded px-2 py-1 text-foreground/80"
           />
         </div>
         {viewDate !== today && (
@@ -260,7 +226,7 @@ export default function AttendancePage() {
             <table className="w-full pro-table">
               <thead>
                 <tr>
-                  <th>Farmer</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th>
+                  <th>{t.common.farmer}</th><th>{t.common.status}</th><th>{t.attendance.checkIn}</th><th>{t.attendance.checkOut}</th><th>{t.attendance.hours}</th>
                 </tr>
               </thead>
               <tbody>
@@ -284,9 +250,9 @@ export default function AttendancePage() {
                           }`}>{rec.status}</Badge>
                         ) : "—"}
                       </td>
-                      <td className="tabular-nums text-foreground/70">{rec?.checkInTime ?? "—"}</td>
-                      <td className="tabular-nums text-foreground/70">{rec?.checkOutTime ?? "—"}</td>
-                      <td className="tabular-nums text-foreground/70">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
+                      <td className="tabular-nums text-muted-foreground">{rec?.checkInTime ?? "—"}</td>
+                      <td className="tabular-nums text-muted-foreground">{rec?.checkOutTime ?? "—"}</td>
+                      <td className="tabular-nums text-muted-foreground">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
                     </tr>
                   );
                 })}

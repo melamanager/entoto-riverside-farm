@@ -8,8 +8,12 @@ import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, AlertTriangle, FlaskC
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
 import { BedQR } from "@/components/bed-qr";
 import { HarvestChart } from "@/components/harvest-chart";
-import { prisma } from "@/lib/prisma";
+import {
+  getBed, getValve, getFarmer, harvestsForBed, diseasesForBed,
+  plantsInBed, totalKgBed, FARMERS,
+} from "@/lib/data";
 import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
+import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
 
 const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
 
@@ -24,54 +28,19 @@ function addDays(dateStr: string, days: number): string {
 
 export default async function BedPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-
-  const bed = await prisma.bed.findUnique({
-    where: { id },
-    include: {
-      valve: true,
-      farmer: true,
-      harvestRecords: { orderBy: { date: "desc" } },
-      diseaseReports: { orderBy: { reportedAt: "desc" } },
-      fertigationRecords: { orderBy: { applicationDate: "desc" }, include: { worker: true } },
-      plantingRecords: { orderBy: { createdAt: "desc" } },
-    },
-  });
-
+  const bed = getBed(id);
   if (!bed) notFound();
 
-  // Fetch packaging records for this bed's valve+variety
-  const packagingRecords = await prisma.packagingRecord.findMany({
-    where: { valveId: bed.valveId, variety: bed.variety },
-    orderBy: { packedDate: "desc" },
-  });
-
-  // Fetch fertigation records for the whole valve (for activity log, matching original logic)
-  const valveFertigationRecords = await prisma.fertigationRecord.findMany({
-    where: { valveId: bed.valveId, status: "applied" },
-    include: { worker: true },
-    orderBy: { applicationDate: "desc" },
-  });
-
-  const valve = bed.valve;
-  const farmer = bed.farmer;
-  const harvests = bed.harvestRecords.map(h => ({
-    ...h,
-    kg: parseFloat(h.kg.toString()),
-    reportedAt: undefined,
-  })).sort((a, b) => b.date.localeCompare(a.date));
-  const diseases = bed.diseaseReports.map(d => ({
-    ...d,
-    reportedAt: d.reportedAt instanceof Date ? d.reportedAt.toISOString() : String(d.reportedAt),
-    treatmentSteps: (d.treatmentSteps as string[]) ?? [],
-    notificationChannels: (d.notificationChannels as Array<"telegram" | "sms">) ?? [],
-  }));
-  const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
-  const plants = Math.round(bed.lengthM * bed.plantsPerMeter);
-  const stageIdx = STAGES.indexOf(bed.stage as typeof STAGES[number]);
+  const valve = getValve(bed.valveId)!;
+  const farmer = getFarmer(bed.farmerId)!;
+  const harvests = harvestsForBed(bed.id).sort((a,b) => b.date.localeCompare(a.date));
+  const diseases = diseasesForBed(bed.id);
+  const totalKg = totalKgBed(bed.id);
+  const stageIdx = STAGES.indexOf(bed.stage);
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
-    const d = new Date();
+    const d = new Date("2026-05-17");
     d.setDate(d.getDate() - i);
     series[d.toISOString().split("T")[0]] = 0;
   }
@@ -81,6 +50,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
     kg: Math.round(kg * 10) / 10,
   }));
 
+  const plants = plantsInBed(bed);
   const yieldPerMeter = totalKg / bed.lengthM;
   const yieldPerPlant = totalKg / plants;
 
@@ -96,7 +66,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
   const yieldEfficiency = KG_PER_M_TARGET > 0 ? Math.round((yieldPerMeter / KG_PER_M_TARGET) * 100) : 0;
 
   // ── Activity log ──────────────────────────────────────────────────────────
-  type LogEntry = { date: string; kind: "harvest" | "disease" | "fertigation" | "packaging" | "stage"; data: unknown };
+  type LogEntry = { date: string; kind: "harvest"|"disease"|"fertigation"|"packaging"|"stage"; data: unknown };
   const stageHistory = STAGES.slice(0, stageIdx + 1).map(s => ({
     date: addDays(bed.plantedDate, STAGE_DAYS_FROM_PLANTED[s]),
     kind: "stage" as const,
@@ -104,19 +74,15 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
   }));
   const log: LogEntry[] = [
     ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
-    ...diseases.map(d => ({ date: d.reportedAt.slice(0, 10), kind: "disease" as const, data: d })),
-    ...valveFertigationRecords.map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
-    ...packagingRecords.map(p => ({
-      date: p.packedDate,
-      kind: "packaging" as const,
-      data: {
-        ...p,
-        packedKg: parseFloat(p.packedKg.toString()),
-        lostKg: parseFloat(p.lostKg.toString()),
-      },
-    })),
+    ...diseases.map(d => ({ date: d.reportedAt.slice(0,10), kind: "disease" as const, data: d })),
+    ...FERTIGATION_RECORDS
+      .filter(f => f.valveId === bed.valveId && f.status === "applied")
+      .map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
+    ...PACKAGING_RECORDS
+      .filter(p => p.valveId === bed.valveId && p.variety === bed.variety)
+      .map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
     ...stageHistory,
-  ].sort((a, b) => b.date.localeCompare(a.date));
+  ].sort((a,b) => b.date.localeCompare(a.date));
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -143,28 +109,28 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Badge className={`${bed.health==="healthy"?"bg-primary/15 text-primary":bed.health==="warning"?"bg-amber-100 text-amber-700":"bg-rose-100 text-rose-700"} capitalize`}>● {bed.health}</Badge>
-          <Badge variant="outline">{GROWTH_STAGE_LABELS[bed.stage as keyof typeof GROWTH_STAGE_LABELS]}</Badge>
+          <Badge variant="outline">{GROWTH_STAGE_LABELS[bed.stage]}</Badge>
           <AIDetectDialog bedId={bed.id} />
         </div>
       </div>
 
       {/* Bed Summary */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-800 to-slate-700 p-4 shadow-lg">
-        <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-3">Bed Summary</div>
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-slate-800 to-slate-700 p-4 shadow-lg">
+        <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3">Bed Summary</div>
         <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
           {[
             { icon: "🌾", label: "Total Yield",   value: `${totalKg.toFixed(1)} kg`,           sub: `${harvests.length} picks` },
             { icon: "📏", label: "Efficiency",     value: `${yieldPerMeter.toFixed(2)} kg/m`,   sub: "yield per metre" },
-            { icon: "🌱", label: "Age",            value: `${Math.floor((Date.now() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
-            { icon: "📊", label: "Stage",          value: GROWTH_STAGE_LABELS[bed.stage as keyof typeof GROWTH_STAGE_LABELS], sub: `${stageIdx + 1} of ${STAGES.length}` },
+            { icon: "🌱", label: "Age",            value: `${Math.floor((new Date("2026-05-20").getTime() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
+            { icon: "📊", label: "Stage",          value: GROWTH_STAGE_LABELS[bed.stage],       sub: `${stageIdx + 1} of ${STAGES.length}` },
             { icon: "⭐", label: "Grade A",         value: `${gradeAPct}%`,                      sub: `${gradeACount}/${harvests.length} picks` },
             { icon: "💚", label: "Health",          value: bed.health.charAt(0).toUpperCase() + bed.health.slice(1), sub: diseases.length > 0 ? `${diseases.length} issue${diseases.length > 1 ? "s" : ""}` : "No issues" },
           ].map(kpi => (
-            <div key={kpi.label} className="bg-white/8 rounded-xl p-3 border border-white/8">
+            <div key={kpi.label} className="bg-card/8 rounded-xl p-3 border border-white/8">
               <div className="text-lg mb-1">{kpi.icon}</div>
               <div className="text-white font-bold text-sm tabular-nums leading-tight">{kpi.value}</div>
-              <div className="text-slate-400 text-[9px] mt-0.5 uppercase tracking-wide">{kpi.label}</div>
-              <div className="text-slate-500 text-[9px]">{kpi.sub}</div>
+              <div className="text-muted-foreground text-[9px] mt-0.5 uppercase tracking-wide">{kpi.label}</div>
+              <div className="text-muted-foreground text-[9px]">{kpi.sub}</div>
             </div>
           ))}
         </div>
@@ -202,14 +168,14 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <div className="flex justify-between mb-2">
             {STAGES.map((s, i) => (
               <div key={s} className="flex flex-col items-center gap-1 flex-1">
-                <div className={`size-7 rounded-full grid place-items-center text-[10px] font-bold ${i<=stageIdx?"bg-primary text-background":"bg-muted text-muted-foreground"}`}>
+                <div className={`size-7 rounded-full grid place-items-center text-[10px] font-bold ${i<=stageIdx?"bg-primary text-white":"bg-stone-100 text-muted-foreground"}`}>
                   {i+1}
                 </div>
                 <span className={`text-[10px] text-center leading-tight ${i<=stageIdx?"text-primary font-medium":"text-muted-foreground"}`}>{GROWTH_STAGE_LABELS[s]}</span>
               </div>
             ))}
           </div>
-          <div className="absolute top-3.5 left-0 right-0 h-0.5 bg-muted -z-10">
+          <div className="absolute top-3.5 left-0 right-0 h-0.5 bg-stone-100 -z-10">
             <div className="h-full bg-primary" style={{width:`${(stageIdx/(STAGES.length-1))*100}%`}} />
           </div>
         </div>
@@ -258,7 +224,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">Planned</span>
-                  <span className="text-xs font-semibold text-foreground/80">{item.planned}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{item.planned}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">Actual</span>
@@ -317,13 +283,13 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 {diseases.map(d => (
                   <div key={d.id} className="border rounded-lg p-3 bg-rose-50/50">
                     <div className="flex items-center justify-between">
-                      <div className="font-semibold text-sm">{DISEASE_LABELS[d.type as keyof typeof DISEASE_LABELS]}</div>
+                      <div className="font-semibold text-sm">{DISEASE_LABELS[d.type]}</div>
                       <Badge variant="destructive" className="text-[10px]">{d.severity}%</Badge>
                     </div>
                     <Progress value={d.severity} className="my-2 h-1.5" />
-                    <div className="text-[11px] text-muted-foreground">💊 {d.suggestedTreatment}</div>
+                    <div className="text-[11px] text-stone-600">💊 {d.suggestedTreatment}</div>
                     <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
-                      <span>AI confidence {d.aiConfidence ?? 0}%</span>
+                      <span>AI confidence {d.aiConfidence}%</span>
                       <Badge variant={d.treatmentApplied?"default":"outline"} className="text-[10px]">
                         {d.treatmentApplied ? "✓ Treated" : "Pending treatment"}
                       </Badge>
@@ -350,33 +316,33 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
         ) : (
           <div className="relative pl-7 space-y-3">
-            <div className="absolute left-2.5 top-1 bottom-1 w-px bg-border" />
+            <div className="absolute left-2.5 top-1 bottom-1 w-px bg-muted" />
             {log.slice(0, 20).map((entry, i) => {
               const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
               if (entry.kind === "harvest") {
-                const h = entry.data as typeof harvests[0];
-                const f = farmer.id === h.farmerId ? farmer : null;
+                const h = entry.data as ReturnType<typeof harvestsForBed>[0];
+                const f = getFarmer(h.farmerId);
                 return (
                   <div key={i} className="relative">
-                    <div className={`${iconClass} bg-primary/15 border-primary/40`}><Wheat className="size-2.5 text-primary" /></div>
-                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 text-xs">
+                    <div className={`${iconClass} bg-primary/15 border-emerald-400`}><Wheat className="size-2.5 text-primary" /></div>
+                    <div className="bg-primary/10 border border-emerald-100 rounded-lg px-3 py-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-primary">Harvest — {h.kg.toFixed(1)} kg</span>
-                        <span className="text-primary/70 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                        <span className="text-primary tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                       </div>
-                      <div className="text-primary/70 mt-0.5">Grade {h.qualityGrade} · {f?.name ?? h.farmerId}</div>
+                      <div className="text-primary mt-0.5">Grade {h.qualityGrade} · {f?.name}</div>
                     </div>
                   </div>
                 );
               }
               if (entry.kind === "disease") {
-                const d = entry.data as typeof diseases[0];
+                const d = entry.data as ReturnType<typeof diseasesForBed>[0];
                 return (
                   <div key={i} className="relative">
                     <div className={`${iconClass} bg-red-100 border-red-400`}><Bug className="size-2.5 text-red-700" /></div>
                     <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-red-800">{DISEASE_LABELS[d.type as keyof typeof DISEASE_LABELS]}</span>
+                        <span className="font-semibold text-red-800">{DISEASE_LABELS[d.type]}</span>
                         <span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                       </div>
                       <div className="text-red-600 mt-0.5 flex items-center gap-2">
@@ -388,8 +354,8 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 );
               }
               if (entry.kind === "fertigation") {
-                const f = entry.data as (typeof valveFertigationRecords[0]);
-                const worker = f.worker;
+                const f = entry.data as typeof FERTIGATION_RECORDS[0];
+                const worker = FARMERS.find(x => x.id === f.responsibleWorkerId);
                 return (
                   <div key={i} className="relative">
                     <div className={`${iconClass} bg-blue-100 border-blue-400`}><Droplets className="size-2.5 text-blue-700" /></div>
@@ -404,7 +370,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 );
               }
               if (entry.kind === "packaging") {
-                const p = entry.data as { batchNumber: string; purpose: string; packedDate: string; packedKg: number; cartonCount: number; plateCount: number; lostKg: number };
+                const p = entry.data as typeof PACKAGING_RECORDS[0];
                 return (
                   <div key={i} className="relative">
                     <div className={`${iconClass} bg-amber-100 border-amber-400`}><Package className="size-2.5 text-amber-700" /></div>
@@ -423,20 +389,20 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 const isCurrentStage = s === bed.stage;
                 return (
                   <div key={`stage-${s}`} className="relative">
-                    <div className={`${iconClass} ${isCurrentStage ? "bg-primary border-primary/70" : "bg-muted border-border"}`}>
-                      <Sprout className={`size-2.5 ${isCurrentStage ? "text-background" : "text-muted-foreground"}`} />
+                    <div className={`${iconClass} ${isCurrentStage ? "bg-primary border-emerald-600" : "bg-muted border-border"}`}>
+                      <Sprout className={`size-2.5 ${isCurrentStage ? "text-white" : "text-muted-foreground"}`} />
                     </div>
-                    <div className={`border rounded-lg px-3 py-2 text-xs ${isCurrentStage ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}>
+                    <div className={`border rounded-lg px-3 py-2 text-xs ${isCurrentStage ? "bg-primary/10 border-primary/30" : "bg-muted border-border/60"}`}>
                       <div className="flex items-center justify-between">
-                        <span className={`font-semibold ${isCurrentStage ? "text-primary" : "text-foreground"}`}>
+                        <span className={`font-semibold ${isCurrentStage ? "text-primary" : "text-foreground/80"}`}>
                           Stage: {GROWTH_STAGE_LABELS[s as keyof typeof GROWTH_STAGE_LABELS]}
-                          {isCurrentStage && <span className="ml-1.5 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Current</span>}
+                          {isCurrentStage && <span className="ml-1.5 text-[10px] bg-emerald-200 text-primary px-1.5 py-0.5 rounded-full">Current</span>}
                         </span>
-                        <span className={`tabular-nums ${isCurrentStage ? "text-primary/70" : "text-muted-foreground"}`}>
+                        <span className={`tabular-nums ${isCurrentStage ? "text-primary" : "text-muted-foreground"}`}>
                           {new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       </div>
-                      <div className={`mt-0.5 text-[10px] ${isCurrentStage ? "text-primary/70" : "text-muted-foreground"}`}>
+                      <div className={`mt-0.5 text-[10px] ${isCurrentStage ? "text-primary" : "text-muted-foreground"}`}>
                         {STAGE_DAYS_FROM_PLANTED[s]} days from planting
                       </div>
                     </div>

@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Beaker, CheckCircle2, Clock, Droplets, Calendar, Plus, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { FERTIGATION_RECORDS, STOCK_ITEMS } from "@/lib/erp-data";
+import { FARMERS, VALVES, BEDS } from "@/lib/data";
 import type { FertigationRecord, FertigationStatus, ApplicationMethod } from "@/lib/erp-types";
-import type { StockItem } from "@/lib/erp-types";
-import type { Farmer, Valve, Bed } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import { useOptions } from "@/lib/use-options";
 
 const STATUS_STYLE: Record<FertigationStatus, string> = {
   applied:   "bg-primary/15 text-primary border-primary/30",
@@ -24,60 +23,36 @@ const METHOD_STYLE: Record<ApplicationMethod, string> = {
   foliar:      "bg-purple-100 text-purple-700",
   soil_drench: "bg-amber-100 text-amber-700",
 };
-function emptyForm() {
-  const today    = new Date().toISOString().split("T")[0];
-  const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
-  return {
-    valveId: "", bedId: "",
-    fertilizerType: "NPK 20-20-20", activeIngredient: "Nitrogen, Phosphorus, Potassium",
-    dosageGPerL: 2.5, waterVolumeLiters: 400,
-    applicationDate: today, nextScheduleDate: nextWeek,
-    responsibleWorkerId: "", applicationMethod: "drip" as ApplicationMethod,
-    status: "scheduled" as FertigationStatus, cost: 300, notes: "",
-  };
-}
+const METHODS: ApplicationMethod[] = ["drip", "foliar", "soil_drench"];
+const STATUSES: FertigationStatus[] = ["scheduled", "applied", "skipped"];
 
-function parseStockItem(raw: Record<string, unknown>): StockItem {
-  return {
-    ...raw,
-    currentQty:   parseFloat((raw.currentQty as { toString(): string }).toString()),
-    reorderLevel: parseFloat((raw.reorderLevel as { toString(): string }).toString()),
-    maxCapacity:  parseFloat((raw.maxCapacity as { toString(): string }).toString()),
-    costPerUnit:  parseFloat((raw.costPerUnit as { toString(): string }).toString()),
-  } as StockItem;
-}
+const COMMON_FERTILIZERS = [
+  "NPK 20-20-20", "Calcium Nitrate", "Potassium Sulfate",
+  "Humic Acid", "Iron Chelate (EDTA-Fe)", "Magnesium Sulfate", "Other",
+];
 
-function parseFertigationRecord(raw: Record<string, unknown>): FertigationRecord {
-  return {
-    ...raw,
-    cost: parseFloat((raw.cost as { toString(): string }).toString()),
-  } as FertigationRecord;
-}
+const EMPTY_FORM = {
+  valveId: "", bedId: "",
+  fertilizerType: "NPK 20-20-20", activeIngredient: "Nitrogen, Phosphorus, Potassium",
+  dosageGPerL: 2.5, waterVolumeLiters: 400,
+  applicationDate: "2026-05-17", nextScheduleDate: "2026-05-24",
+  responsibleWorkerId: "", applicationMethod: "drip" as ApplicationMethod,
+  status: "scheduled" as FertigationStatus, cost: 300, notes: "",
+};
 
 export default function FertigationPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
-  const options = useOptions();
-  const [records, setRecords]   = useState<FertigationRecord[]>([]);
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [valves, setValves]     = useState<Valve[]>([]);
-  const [beds, setBeds]         = useState<Bed[]>([]);
-  const [farmers, setFarmers]   = useState<Farmer[]>([]);
-  const [filter, setFilter]     = useState<FertigationStatus | "all">("all");
+  const [records, setRecords] = useState<FertigationRecord[]>(FERTIGATION_RECORDS);
+  const [filter, setFilter]   = useState<FertigationStatus | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<FertigationRecord | null>(null);
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  useEffect(() => {
-    fetch("/api/fertigation").then(r => r.json()).then((data: Record<string, unknown>[]) => setRecords(data.map(parseFertigationRecord)));
-    fetch("/api/stock").then(r => r.json()).then((data: Record<string, unknown>[]) => setStockItems(data.map(parseStockItem)));
-    fetch("/api/valves").then(r => r.json()).then(setValves);
-    fetch("/api/beds").then(r => r.json()).then(setBeds);
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
-  }, []);
+  const beds = BEDS();
 
   function openCreate() {
-    setForm({ ...emptyForm(), valveId: valves[0]?.id ?? "", responsibleWorkerId: farmers.filter(f => f.role === "farmer")[0]?.id ?? "" });
+    setForm({ ...EMPTY_FORM, valveId: VALVES[0]?.id ?? "", responsibleWorkerId: FARMERS.filter(f => f.role === "farmer")[0]?.id ?? "" });
     setCreateOpen(true);
   }
 
@@ -93,47 +68,37 @@ export default function FertigationPage() {
     setEditTarget(r);
   }
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!form.valveId)              { toast.error("Please select a valve"); return; }
     if (!form.responsibleWorkerId)  { toast.error("Please select a responsible worker"); return; }
-    const body = {
-      valveId: form.valveId, bedId: form.bedId || undefined,
+    const id = `ft-${Date.now()}`;
+    const newRec: FertigationRecord = {
+      id, valveId: form.valveId, bedId: form.bedId || undefined,
       fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
       dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
       applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
       responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
       status: form.status, cost: form.cost, notes: form.notes || undefined,
     };
-    const res = await fetch("/api/fertigation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) { toast.error("Failed to create record"); return; }
-    const newRec = await res.json() as Record<string, unknown>;
-    setRecords(prev => [...prev, parseFertigationRecord(newRec)]);
+    FERTIGATION_RECORDS.push(newRec);
+    setRecords([...FERTIGATION_RECORDS]);
     toast.success(`${form.fertilizerType} scheduled`);
     setCreateOpen(false);
   }
 
-  async function handleEdit() {
+  function handleEdit() {
     if (!editTarget) return;
-    const body = {
+    const idx = FERTIGATION_RECORDS.findIndex(r => r.id === editTarget.id);
+    if (idx < 0) return;
+    Object.assign(FERTIGATION_RECORDS[idx], {
       valveId: form.valveId, bedId: form.bedId || undefined,
       fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
       dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
       applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
       responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
       status: form.status, cost: form.cost, notes: form.notes || undefined,
-    };
-    const res = await fetch(`/api/fertigation/${editTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
     });
-    if (!res.ok) { toast.error("Failed to update record"); return; }
-    const updated = await res.json() as Record<string, unknown>;
-    setRecords(prev => prev.map(r => r.id === editTarget.id ? parseFertigationRecord(updated) : r));
+    setRecords([...FERTIGATION_RECORDS]);
     toast.success(`${form.fertilizerType} updated`);
     setEditTarget(null);
   }
@@ -149,14 +114,13 @@ export default function FertigationPage() {
   function findStockItem(fertType: string) {
     if (!fertType) return null;
     const lower = fertType.toLowerCase();
-    return stockItems.find(s =>
+    return STOCK_ITEMS.find(s =>
       s.category === "fertilizer" &&
       (s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase().split(" ")[0]))
     ) ?? null;
   }
 
   function FertigationForm() {
-    const fertilizerValues = [...options.fertilizers.map(f => f.value), "Other"];
     const stockItem = findStockItem(form.fertilizerType);
     const neededKg  = (form.dosageGPerL * form.waterVolumeLiters) / 1000;
     const hasEnough = stockItem ? stockItem.currentQty >= neededKg : true;
@@ -171,7 +135,7 @@ export default function FertigationPage() {
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
-              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {VALVES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
@@ -187,20 +151,12 @@ export default function FertigationPage() {
         </div>
         <div>
           <label className="text-xs font-semibold text-foreground/80 block mb-1">Fertilizer Type</label>
-          <select value={fertilizerValues.includes(form.fertilizerType) ? form.fertilizerType : "Other"}
-            onChange={e => {
-              const picked = options.fertilizers.find(f => f.value === e.target.value);
-              setForm(p => ({
-                ...p,
-                fertilizerType: e.target.value === "Other" ? "" : e.target.value,
-                activeIngredient: String(picked?.meta?.activeIngredient ?? p.activeIngredient),
-              }));
-            }}
+          <select value={COMMON_FERTILIZERS.includes(form.fertilizerType) ? form.fertilizerType : "Other"}
+            onChange={e => setForm(p => ({ ...p, fertilizerType: e.target.value === "Other" ? "" : e.target.value }))}
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-            {options.fertilizers.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            <option value="Other">Other</option>
+            {COMMON_FERTILIZERS.map(f => <option key={f} value={f}>{f}</option>)}
           </select>
-          {!options.fertilizers.some(f => f.value === form.fertilizerType) && (
+          {!COMMON_FERTILIZERS.slice(0, -1).includes(form.fertilizerType) && (
             <input value={form.fertilizerType}
               onChange={e => setForm(p => ({ ...p, fertilizerType: e.target.value }))}
               placeholder="Enter fertilizer name..."
@@ -208,15 +164,15 @@ export default function FertigationPage() {
           )}
           {/* Flow 2: live stock check */}
           {stockItem && (
-            <div className={`mt-2 rounded-lg border px-3 py-2 ${!hasEnough ? "bg-red-50 border-red-200" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+            <div className={`mt-2 rounded-lg border px-3 py-2 ${!hasEnough ? "bg-red-50 border-red-200" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-50 border-amber-200" : "bg-primary/10 border-primary/30"}`}>
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className={`font-semibold ${!hasEnough ? "text-red-700" : stockItem.currentQty <= stockItem.reorderLevel ? "text-amber-700" : "text-emerald-700"}`}>
+                <span className={`font-semibold ${!hasEnough ? "text-red-700" : stockItem.currentQty <= stockItem.reorderLevel ? "text-amber-700" : "text-primary"}`}>
                   {!hasEnough ? t.fertigation.insufficientStock : stockItem.currentQty <= stockItem.reorderLevel ? t.fertigation.lowStock : t.fertigation.stockOk}
                 </span>
                 <span className="text-muted-foreground tabular-nums">{stockItem.currentQty.toFixed(2)} / {stockItem.maxCapacity} {stockItem.unit}</span>
               </div>
-              <div className="w-full bg-white/60 rounded-full h-1.5 overflow-hidden">
-                <div className={`h-full rounded-full ${!hasEnough ? "bg-red-500" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-400" : "bg-emerald-500"}`}
+              <div className="w-full bg-card/60 rounded-full h-1.5 overflow-hidden">
+                <div className={`h-full rounded-full ${!hasEnough ? "bg-red-500" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-400" : "bg-primary"}`}
                   style={{ width: `${stockPct}%` }} />
               </div>
               <div className="flex justify-between text-[10px] mt-1 text-muted-foreground">
@@ -273,7 +229,7 @@ export default function FertigationPage() {
             <select value={form.applicationMethod}
               onChange={e => setForm(p => ({ ...p, applicationMethod: e.target.value as ApplicationMethod }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-              {options.applicationMethods.map(m => <option key={m.value} value={m.value} className="capitalize">{m.label.replace("_", " ")}</option>)}
+              {METHODS.map(m => <option key={m} value={m} className="capitalize">{m.replace("_", " ")}</option>)}
             </select>
           </div>
           <div>
@@ -282,7 +238,7 @@ export default function FertigationPage() {
               onChange={e => setForm(p => ({ ...p, responsibleWorkerId: e.target.value }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
-              {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {FARMERS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
         </div>
@@ -291,7 +247,7 @@ export default function FertigationPage() {
           <select value={form.status}
             onChange={e => setForm(p => ({ ...p, status: e.target.value as FertigationStatus }))}
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
-            {options.fertigationStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label}</option>)}
+            {STATUSES.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
           </select>
         </div>
         <div>
@@ -344,7 +300,7 @@ export default function FertigationPage() {
       <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
         {(["all", "applied", "scheduled", "skipped"] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground/80"}`}>
             {f}
           </button>
         ))}
@@ -364,8 +320,8 @@ export default function FertigationPage() {
             </thead>
             <tbody>
               {filtered.map(rec => {
-                const valve = valves.find(v => v.id === rec.valveId);
-                const worker = farmers.find(f => f.id === rec.responsibleWorkerId);
+                const valve = VALVES.find(v => v.id === rec.valveId);
+                const worker = FARMERS.find(f => f.id === rec.responsibleWorkerId);
                 return (
                   <tr key={rec.id} className="group">
                     <td>
@@ -399,7 +355,7 @@ export default function FertigationPage() {
                     <td><Badge className={`text-[10px] capitalize ${STATUS_STYLE[rec.status]}`}>{rec.status}</Badge></td>
                     <td>
                       <button onClick={() => openEdit(rec)}
-                        className="size-6 rounded bg-muted hover:bg-accent grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        className="size-6 rounded bg-muted hover:bg-muted grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Pencil className="size-3 text-muted-foreground" />
                       </button>
                     </td>
