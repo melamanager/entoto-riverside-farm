@@ -145,6 +145,90 @@ export interface Expense {
   note?: string;
 }
 
+// ─── IoT / Sensor types ──────────────────────────────────────────────────────
+
+export type ValveMode = "auto" | "manual";
+
+export interface ValveState {
+  valveId: string;
+  isOpen: boolean;
+  mode: ValveMode;
+  flowRateLph: number;
+  pressureBar: number;
+  openedAt?: string;
+  closedAt?: string;
+  totalLitersToday: number;
+  nextScheduledEvent: string;
+}
+
+export interface SoilReading {
+  bedId: string;
+  moisturePct: number;
+  tempC: number;
+  ecMsCm: number;
+  ph: number;
+  recordedAt: string;
+  status: "optimal" | "warning" | "critical";
+}
+
+export interface TankLevel {
+  id: string;
+  name: string;
+  capacityL: number;
+  currentL: number;
+  fillRateLph: number;
+  lastRefillAt: string;
+  status: "ok" | "low" | "critical";
+}
+
+export interface CameraAlert {
+  id: string;
+  bedId: string;
+  cameraId: string;
+  alertType: "disease" | "pest" | "ripeness" | "anomaly";
+  label: string;
+  confidence: number;
+  detectedAt: string;
+  status: "new" | "reviewed" | "actioned";
+  bgGradient: string;
+  description: string;
+}
+
+export interface WeatherPoint {
+  time: string;
+  tempC: number;
+  humidityPct: number;
+  windKph: number;
+  rainfallMm: number;
+  solarWm2: number;
+}
+
+export interface WeatherCurrent {
+  tempC: number;
+  feelsLikeC: number;
+  humidityPct: number;
+  windKph: number;
+  windDeg: number;
+  windLabel: string;
+  rainfallMm24h: number;
+  solarWm2: number;
+  dewPointC: number;
+  uvIndex: number;
+  pressureHpa: number;
+  condition: string;
+}
+
+export interface IrrigationEvent {
+  id: string;
+  valveId: string;
+  action: "open" | "close";
+  mode: ValveMode;
+  triggeredBy: string;
+  timestamp: string;
+  durationMinutes?: number;
+  totalLiters?: number;
+}
+
 export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   fuel:      "Fuel & Transport",
   chemicals: "Chemicals & Pesticides",

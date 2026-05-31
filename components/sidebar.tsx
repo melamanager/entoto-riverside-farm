@@ -7,7 +7,7 @@ import {
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   DollarSign, Beaker,
-  BarChart3, CalendarDays, Zap, Warehouse, Languages,
+  BarChart3, CalendarDays, Zap, Warehouse, Languages, Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -49,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
     groupKey: "operations",
     items: [
       { href: "/valves",      labelKey: "irrigationZones",  isValve: true,    roles: ["manager"] },
+      { href: "/iot",         labelKey: "iotControl",        icon: Cpu,        roles: ["manager", "supervisor"] },
       { href: "/fertigation", labelKey: "nutrientFeeding",  icon: Beaker,     roles: ["manager", "supervisor"] },
       { href: "/diseases",    labelKey: "diseaseMgmt",      icon: Bug,        roles: ["manager", "supervisor"] },
       { href: "/tasks",  labelKey: "dailyTasks", icon: ListChecks, roles: ["manager", "supervisor"] },

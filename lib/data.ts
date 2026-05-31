@@ -1,13 +1,20 @@
 import type {
   AttendanceRecord,
   Bed,
+  CameraAlert,
   DiseaseReport,
   Expense,
   Farmer,
   HarvestRecord,
+  IrrigationEvent,
   Notification,
+  SoilReading,
+  TankLevel,
   Task,
   Valve,
+  ValveState,
+  WeatherCurrent,
+  WeatherPoint,
 } from "./types";
 import { DISEASE_TREATMENT_STEPS, DISEASE_TREATMENTS } from "./types";
 
@@ -351,3 +358,197 @@ export function updateTaskStatus(taskId: string, status: TaskStatus, note?: stri
   return true;
 }
 type TaskStatus = "pending" | "in_progress" | "done";
+
+// ============================================================================
+// IoT / Sensor data
+// ============================================================================
+
+export const VALVE_STATES: ValveState[] = [
+  {
+    valveId: "valve-a",
+    isOpen: true,
+    mode: "auto",
+    flowRateLph: 1840,
+    pressureBar: 2.4,
+    openedAt: "2026-05-31T06:00:00",
+    totalLitersToday: 1278,
+    nextScheduledEvent: "Close at 06:25",
+  },
+  {
+    valveId: "valve-b",
+    isOpen: false,
+    mode: "auto",
+    flowRateLph: 0,
+    pressureBar: 2.6,
+    closedAt: "2026-05-31T05:55:00",
+    totalLitersToday: 940,
+    nextScheduledEvent: "Open at 17:30",
+  },
+  {
+    valveId: "valve-c",
+    isOpen: true,
+    mode: "manual",
+    flowRateLph: 1420,
+    pressureBar: 2.1,
+    openedAt: "2026-05-31T06:05:00",
+    totalLitersToday: 610,
+    nextScheduledEvent: "Manual override — close manually",
+  },
+];
+
+export function SOIL_READINGS(): SoilReading[] {
+  const beds = BEDS();
+  return beds.map((bed, i) => {
+    const moist = [72, 68, 81, 55, 88, 43, 74, 66, 79, 82, 61, 70, 48, 75, 83, 67, 77, 53, 85, 69, 71][i % 21];
+    const temp  = [18.4, 17.9, 19.1, 18.7, 17.5, 19.8, 18.2, 18.9, 17.6, 19.3, 18.1, 17.8, 19.5, 18.6, 17.4, 19.0, 18.3, 19.7, 17.7, 18.8, 19.2][i % 21];
+    const ec    = [1.8, 2.1, 1.6, 2.4, 1.9, 2.7, 1.7, 2.0, 1.5, 2.2, 1.8, 2.3, 2.6, 1.9, 1.6, 2.0, 1.7, 2.5, 1.8, 2.1, 1.6][i % 21];
+    const ph    = [6.2, 6.4, 6.1, 5.9, 6.3, 5.7, 6.5, 6.2, 6.0, 6.4, 6.1, 6.3, 5.8, 6.2, 6.5, 6.1, 6.3, 5.9, 6.4, 6.2, 6.0][i % 21];
+    const status: SoilReading["status"] = moist < 50 || ec > 2.5 || ph < 5.8 ? "warning"
+      : moist < 40 || ec > 3.0 ? "critical" : "optimal";
+    return {
+      bedId: bed.id,
+      moisturePct: moist,
+      tempC: temp,
+      ecMsCm: ec,
+      ph,
+      recordedAt: "2026-05-31T06:12:00",
+      status,
+    };
+  });
+}
+
+export const TANK_LEVELS: TankLevel[] = [
+  {
+    id: "tank-main",
+    name: "Main Reservoir",
+    capacityL: 50000,
+    currentL: 36200,
+    fillRateLph: -2100,
+    lastRefillAt: "2026-05-30T07:00:00",
+    status: "ok",
+  },
+  {
+    id: "tank-aux",
+    name: "Auxiliary Tank",
+    capacityL: 15000,
+    currentL: 5800,
+    fillRateLph: 0,
+    lastRefillAt: "2026-05-28T14:00:00",
+    status: "low",
+  },
+];
+
+export const CAMERA_ALERTS: CameraAlert[] = [
+  {
+    id: "ca-001",
+    bedId: "A-BED-06",
+    cameraId: "cam-a2",
+    alertType: "disease",
+    label: "Powdery Mildew",
+    confidence: 0.94,
+    detectedAt: "2026-05-31T05:48:22",
+    status: "new",
+    bgGradient: "from-red-900/60 to-red-700/40",
+    description: "White powdery coating detected on 3 leaves. Confidence 94%. Recommend sulfur spray within 24h.",
+  },
+  {
+    id: "ca-002",
+    bedId: "B-BED-04",
+    cameraId: "cam-b1",
+    alertType: "ripeness",
+    label: "Harvest-Ready Berries",
+    confidence: 0.88,
+    detectedAt: "2026-05-31T05:31:10",
+    status: "reviewed",
+    bgGradient: "from-emerald-900/60 to-emerald-700/40",
+    description: "88% of fruit cluster shows optimal red coloration and brix index consistent with peak ripeness.",
+  },
+  {
+    id: "ca-003",
+    bedId: "C-BED-02",
+    cameraId: "cam-c1",
+    alertType: "pest",
+    label: "Spider Mite Infestation",
+    confidence: 0.79,
+    detectedAt: "2026-05-31T04:57:45",
+    status: "actioned",
+    bgGradient: "from-amber-900/60 to-amber-700/40",
+    description: "Fine webbing and stippling on underside of leaves. Low-moderate density. Abamectin treatment assigned.",
+  },
+  {
+    id: "ca-004",
+    bedId: "A-BED-13",
+    cameraId: "cam-a3",
+    alertType: "disease",
+    label: "Gray Mold (Botrytis)",
+    confidence: 0.91,
+    detectedAt: "2026-05-31T04:22:18",
+    status: "new",
+    bgGradient: "from-slate-700/60 to-slate-600/40",
+    description: "Gray sporulation mass on 2 fruit. High humidity micro-climate detected. Remove infected fruit immediately.",
+  },
+  {
+    id: "ca-005",
+    bedId: "B-BED-07",
+    cameraId: "cam-b2",
+    alertType: "anomaly",
+    label: "Unusual Leaf Curl",
+    confidence: 0.72,
+    detectedAt: "2026-05-31T03:55:00",
+    status: "reviewed",
+    bgGradient: "from-purple-900/60 to-purple-700/40",
+    description: "Upward leaf curling observed across 6 plants. May indicate heat stress or broad mite presence. Inspect manually.",
+  },
+  {
+    id: "ca-006",
+    bedId: "A-BED-03",
+    cameraId: "cam-a1",
+    alertType: "ripeness",
+    label: "Early Ripening",
+    confidence: 0.83,
+    detectedAt: "2026-05-31T02:10:00",
+    status: "actioned",
+    bgGradient: "from-pink-900/60 to-rose-700/40",
+    description: "Partial red coloration — 70% surface coverage. Schedule harvest within 48h for peak quality.",
+  },
+];
+
+export const IRRIGATION_EVENTS: IrrigationEvent[] = [
+  { id: "ie-001", valveId: "valve-a", action: "open",  mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-31T06:00:00" },
+  { id: "ie-002", valveId: "valve-b", action: "open",  mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-31T05:30:00" },
+  { id: "ie-003", valveId: "valve-b", action: "close", mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-31T05:55:00", durationMinutes: 25, totalLiters: 940 },
+  { id: "ie-004", valveId: "valve-c", action: "open",  mode: "manual", triggeredBy: "f-006",    timestamp: "2026-05-31T06:05:00" },
+  { id: "ie-005", valveId: "valve-a", action: "open",  mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-30T17:00:00" },
+  { id: "ie-006", valveId: "valve-a", action: "close", mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-30T17:25:00", durationMinutes: 25, totalLiters: 767 },
+  { id: "ie-007", valveId: "valve-b", action: "open",  mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-30T17:30:00" },
+  { id: "ie-008", valveId: "valve-b", action: "close", mode: "auto",   triggeredBy: "schedule", timestamp: "2026-05-30T17:55:00", durationMinutes: 25, totalLiters: 920 },
+];
+
+export const WEATHER_HISTORY: WeatherPoint[] = Array.from({ length: 24 }, (_, i) => {
+  const hour = (i * 1);
+  const base = hour < 6 ? 12 : hour < 12 ? 12 + (hour - 6) * 1.2 : hour < 15 ? 19.2 - (hour - 12) * 0.3 : 18 - (hour - 15) * 0.5;
+  const solar = hour < 6 || hour > 18 ? 0 : Math.round(Math.sin(((hour - 6) / 12) * Math.PI) * 580 + 20);
+  return {
+    time: `${String(hour).padStart(2, "0")}:00`,
+    tempC: Math.round((base + Math.sin(i * 0.7) * 0.5) * 10) / 10,
+    humidityPct: Math.round(85 - (base - 12) * 1.8 + Math.sin(i * 0.5) * 3),
+    windKph: Math.round(4 + Math.sin(i * 0.9) * 3 + (hour > 9 && hour < 16 ? 4 : 0)),
+    rainfallMm: hour === 3 ? 1.2 : hour === 4 ? 0.6 : 0,
+    solarWm2: solar,
+  };
+});
+
+export const WEATHER_CURRENT: WeatherCurrent = {
+  tempC: 16.8,
+  feelsLikeC: 14.3,
+  humidityPct: 72,
+  windKph: 11,
+  windDeg: 245,
+  windLabel: "WSW",
+  rainfallMm24h: 1.8,
+  solarWm2: 312,
+  dewPointC: 11.9,
+  uvIndex: 4,
+  pressureHpa: 776,
+  condition: "Partly Cloudy",
+};

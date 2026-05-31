@@ -40,6 +40,7 @@ export const EN = {
     qrCodes:         "QR Codes",
     aiAlerts:        "AI Alerts & Forecast",
     expenses:        "Expenses",
+    iotControl:      "IoT Control Center",
   },
   // ── Mobile nav tabs ─────────────────────────────────────────────────────────
   tabs: {
@@ -314,6 +315,7 @@ export const AM: Stringify<typeof EN> = {
     qrCodes:         "QR ኮዶች",
     aiAlerts:        "AI ማስጠንቀቂያ እና ትንቢት",
     expenses:        "ወጪዎች",
+    iotControl:      "IoT ቁጥጥር ማዕከል",
   },
   tabs: {
     home: "ዋና", map: "ካርታ", diseases: "በሽታ", tasks: "ስራ", more: "ተጨማሪ",
