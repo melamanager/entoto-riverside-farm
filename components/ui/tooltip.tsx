@@ -28,7 +28,7 @@ export function Tooltip({ content, children, side = "top", className, maxWidth =
   }[side];
 
   return (
-    <span className={cn("relative group/tip inline-flex items-center", wrapperClassName, className)}>
+    <span className={cn("relative group/tip", wrapperClassName ?? "inline-flex items-center", className)}>
       {children}
       <span
         role="tooltip"
