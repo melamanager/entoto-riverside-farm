@@ -93,7 +93,7 @@ export default function AttendancePage() {
   const absentCount = Object.values(selected).filter(s => s === "absent").length;
 
   if (loading) {
-    return <div className="p-8 text-slate-400 text-sm">Loading…</div>;
+    return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
   }
 
   return (
@@ -102,10 +102,10 @@ export default function AttendancePage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <CalendarCheck className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
+            <CalendarCheck className="size-5 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">Attendance</h1>
           </div>
-          <p className="text-slate-500 text-sm">Daily attendance tracking for all farm staff</p>
+          <p className="text-muted-foreground text-sm">Daily attendance tracking for all farm staff</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2">
@@ -113,7 +113,7 @@ export default function AttendancePage() {
           </Button>
           <Button
             size="sm"
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            className="gap-2 bg-primary hover:bg-primary/90"
             onClick={saveAttendance}
           >
             <Save className="size-3.5" /> Save Attendance
@@ -123,9 +123,9 @@ export default function AttendancePage() {
 
       {/* Summary */}
       <div className="grid grid-cols-4 gap-3">
-        <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="text-2xl font-bold text-emerald-700 tabular-nums">{presentCount}</div>
-          <div className="text-xs text-emerald-600 font-medium mt-0.5">Present</div>
+        <Card className="p-4 bg-primary/10 border-primary/30">
+          <div className="text-2xl font-bold text-primary tabular-nums">{presentCount}</div>
+          <div className="text-xs text-primary font-medium mt-0.5">Present</div>
         </Card>
         <Card className="p-4 bg-amber-50 border-amber-200">
           <div className="text-2xl font-bold text-amber-700 tabular-nums">{lateCount}</div>
@@ -135,19 +135,19 @@ export default function AttendancePage() {
           <div className="text-2xl font-bold text-red-700 tabular-nums">{absentCount}</div>
           <div className="text-xs text-red-600 font-medium mt-0.5">Absent</div>
         </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="text-2xl font-bold text-slate-700 tabular-nums">{farmers.length}</div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">Total Staff</div>
+        <Card className="p-4 bg-muted border-border">
+          <div className="text-2xl font-bold text-foreground/80 tabular-nums">{farmers.length}</div>
+          <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Staff</div>
         </Card>
       </div>
 
       {/* Today's register */}
-      <Card className="border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-          <div className="font-semibold text-slate-900">
+      <Card className="border border-border shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+          <div className="font-semibold text-foreground">
             Daily Register — {new Date(today).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
           </div>
-          {saved && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200"><CheckCircle2 className="size-3 mr-1"/>Saved</Badge>}
+          {saved && <Badge className="bg-primary/15 text-primary border-primary/30"><CheckCircle2 className="size-3 mr-1"/>Saved</Badge>}
         </div>
 
         <div className="overflow-x-auto">
@@ -172,11 +172,11 @@ export default function AttendancePage() {
                     <td>
                       <div className="flex items-center gap-2.5">
                         <Avatar className="size-8">
-                          <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-bold">{f.avatar}</AvatarFallback>
+                          <AvatarFallback className="bg-muted text-muted-foreground text-xs font-bold">{f.avatar}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-semibold text-slate-800 text-sm">{f.name}</div>
-                          <div className="text-[11px] text-slate-400">{f.phone}</div>
+                          <div className="font-semibold text-foreground text-sm">{f.name}</div>
+                          <div className="text-[11px] text-muted-foreground">{f.phone}</div>
                         </div>
                       </div>
                     </td>
@@ -193,7 +193,7 @@ export default function AttendancePage() {
                         type="time"
                         value={checkIns[f.id] ?? "06:00"}
                         onChange={e => setCheckIns(prev=>({...prev,[f.id]:e.target.value}))}
-                        className="text-xs border border-slate-200 rounded px-2 py-1 w-24 text-slate-700"
+                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground"
                       />
                     </td>
                     {statuses.map(s => (
@@ -204,28 +204,28 @@ export default function AttendancePage() {
                           className={`size-8 rounded-full border-2 transition-all ${
                             status === s.value
                               ? `${s.color} border-transparent scale-110`
-                              : "bg-slate-100 border-slate-200 hover:border-slate-400"
+                              : "bg-muted border-border hover:border-muted-foreground"
                           }`}
                         >
                           {status === s.value && (
                             <span className="text-white text-[10px] font-bold">{s.label[0]}</span>
                           )}
                         </button>
-                        <div className="text-[9px] text-slate-400 mt-0.5">{s.label}</div>
+                        <div className="text-[9px] text-muted-foreground mt-0.5">{s.label}</div>
                       </td>
                     ))}
                     <td>
                       {status ? (
                         <Badge className={`text-[10px] capitalize gap-1 ${
-                          status==="present"?"bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100":
+                          status==="present"?"bg-primary/15 text-primary border-primary/30 hover:bg-primary/15":
                           status==="late"?"bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100":
                           status==="absent"?"bg-red-100 text-red-700 border-red-200 hover:bg-red-100":
-                          "bg-slate-100 text-slate-600 hover:bg-slate-100"
+                          "bg-muted text-muted-foreground hover:bg-muted"
                         }`}>
                           {StatusIcon && <StatusIcon className="size-2.5"/>}{status}
                         </Badge>
                       ) : (
-                        <span className="text-[11px] text-slate-400">— Not set</span>
+                        <span className="text-[11px] text-muted-foreground">— Not set</span>
                       )}
                     </td>
                   </tr>
@@ -235,24 +235,24 @@ export default function AttendancePage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-t border-slate-100">
-          <div className="text-xs text-slate-500">Recorded by: Selam Girma (Supervisor)</div>
-          <Button onClick={saveAttendance} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-sm" size="sm">
+        <div className="flex items-center justify-between px-5 py-3 bg-muted border-t border-border">
+          <div className="text-xs text-muted-foreground">Recorded by: Selam Girma (Supervisor)</div>
+          <Button onClick={saveAttendance} className="bg-primary hover:bg-primary/90 gap-2 text-sm" size="sm">
             <Save className="size-3.5" /> Save & Submit
           </Button>
         </div>
       </Card>
 
       {/* History */}
-      <Card className="border border-slate-200 shadow-sm p-5">
+      <Card className="border border-border shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900">Attendance History</h3>
+          <h3 className="font-semibold text-foreground">Attendance History</h3>
           <input
             type="date"
             value={viewDate}
             max={today}
             onChange={e => setViewDate(e.target.value)}
-            className="text-xs border border-slate-200 rounded px-2 py-1 text-slate-700"
+            className="text-xs border border-border rounded px-2 py-1 text-foreground"
           />
         </div>
         {viewDate !== today && (
@@ -270,23 +270,23 @@ export default function AttendancePage() {
                     <tr key={f.id}>
                       <td>
                         <div className="flex items-center gap-2">
-                          <Avatar className="size-6"><AvatarFallback className="bg-slate-100 text-slate-600 text-[10px] font-bold">{f.avatar}</AvatarFallback></Avatar>
+                          <Avatar className="size-6"><AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-bold">{f.avatar}</AvatarFallback></Avatar>
                           <span className="font-medium text-sm">{f.name}</span>
                         </div>
                       </td>
                       <td>
                         {rec ? (
                           <Badge className={`text-[10px] capitalize ${
-                            rec.status==="present"?"bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100":
+                            rec.status==="present"?"bg-primary/15 text-primary border-primary/30 hover:bg-primary/15":
                             rec.status==="late"?"bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100":
                             rec.status==="absent"?"bg-red-100 text-red-700 border-red-200 hover:bg-red-100":
-                            "bg-slate-100 text-slate-600 hover:bg-slate-100"
+                            "bg-muted text-muted-foreground hover:bg-muted"
                           }`}>{rec.status}</Badge>
                         ) : "—"}
                       </td>
-                      <td className="tabular-nums text-slate-600">{rec?.checkInTime ?? "—"}</td>
-                      <td className="tabular-nums text-slate-600">{rec?.checkOutTime ?? "—"}</td>
-                      <td className="tabular-nums text-slate-600">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
+                      <td className="tabular-nums text-foreground/70">{rec?.checkInTime ?? "—"}</td>
+                      <td className="tabular-nums text-foreground/70">{rec?.checkOutTime ?? "—"}</td>
+                      <td className="tabular-nums text-foreground/70">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
                     </tr>
                   );
                 })}
@@ -295,7 +295,7 @@ export default function AttendancePage() {
           </div>
         )}
         {viewDate === today && (
-          <p className="text-sm text-slate-500 text-center py-4">Select a past date above to view historical records.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">Select a past date above to view historical records.</p>
         )}
       </Card>
     </div>

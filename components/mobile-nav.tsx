@@ -83,7 +83,7 @@ const NAV_GROUPS = [
 const ROLE_COLORS = {
   manager:    { bg: "bg-amber-500",   badge: "bg-amber-100 text-amber-800 border-amber-300"   },
   supervisor: { bg: "bg-blue-500",    badge: "bg-blue-100 text-blue-800 border-blue-300"      },
-  farmer:     { bg: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  farmer:     { bg: "bg-primary",     badge: "bg-primary/15 text-primary border-primary/30" },
 };
 
 const PRIMARY_TAB_KEYS = ["home", "map", "diseases", "tasks"] as const;

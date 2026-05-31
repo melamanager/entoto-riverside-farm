@@ -20,10 +20,10 @@ export function Tooltip({ content, children, side = "top", className, maxWidth =
   }[side];
 
   const arrowClass = {
-    top:    "top-full left-1/2 -translate-x-1/2 border-t-slate-900 border-x-transparent border-b-transparent",
-    bottom: "bottom-full left-1/2 -translate-x-1/2 border-b-slate-900 border-x-transparent border-t-transparent",
-    left:   "left-full top-1/2 -translate-y-1/2 border-l-slate-900 border-y-transparent border-r-transparent",
-    right:  "right-full top-1/2 -translate-y-1/2 border-r-slate-900 border-y-transparent border-l-transparent",
+    top:    "top-full left-1/2 -translate-x-1/2 border-t-foreground border-x-transparent border-b-transparent",
+    bottom: "bottom-full left-1/2 -translate-x-1/2 border-b-foreground border-x-transparent border-t-transparent",
+    left:   "left-full top-1/2 -translate-y-1/2 border-l-foreground border-y-transparent border-r-transparent",
+    right:  "right-full top-1/2 -translate-y-1/2 border-r-foreground border-y-transparent border-l-transparent",
   }[side];
 
   return (
@@ -34,7 +34,7 @@ export function Tooltip({ content, children, side = "top", className, maxWidth =
         style={{ maxWidth }}
         className={cn(
           "absolute z-50 pointer-events-none",
-          "bg-slate-900 text-white text-[10px] leading-snug rounded px-2 py-1.5 shadow-lg",
+          "bg-foreground text-background text-[10px] leading-snug rounded px-2 py-1.5 shadow-lg",
           "opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150",
           "whitespace-normal text-center",
           posClass
@@ -51,7 +51,7 @@ export function Tooltip({ content, children, side = "top", className, maxWidth =
 export function Term({ label, explain }: { label: string; explain: string }) {
   return (
     <Tooltip content={explain} side="top">
-      <span className="border-b border-dotted border-slate-400 cursor-help">{label}</span>
+      <span className="border-b border-dotted border-muted-foreground cursor-help">{label}</span>
     </Tooltip>
   );
 }

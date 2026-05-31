@@ -178,16 +178,16 @@ export default function StockPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Package className="size-5 text-emerald-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.stock.title}</h1>
+            <Package className="size-5 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">{t.stock.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.stock.subtitle}</p>
+          <p className="text-muted-foreground text-sm">{t.stock.subtitle}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => openTxDialog(undefined, "stock_out")} className="gap-2">
             <ArrowDownCircle className="size-4 text-rose-500" /> {t.stock.stockOut}
           </Button>
-          <Button onClick={() => { setItemForm({ ...EMPTY_ITEM }); setNewItemOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+          <Button onClick={() => { setItemForm({ ...EMPTY_ITEM }); setNewItemOpen(true); }} className="bg-primary hover:bg-primary/90 gap-2">
             <Plus className="size-4" /> {t.stock.addItem}
           </Button>
         </div>
@@ -196,8 +196,8 @@ export default function StockPage() {
       {/* Summary tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4">
-          <div className="text-2xl font-bold text-slate-900">{items.length}</div>
-          <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+          <div className="text-2xl font-bold text-foreground">{items.length}</div>
+          <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
             <Package className="size-3" /> {t.stock.totalItems}
           </div>
         </Card>
@@ -208,16 +208,16 @@ export default function StockPage() {
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-xl font-bold text-slate-900">
+          <div className="text-xl font-bold text-foreground">
             {totalValue.toLocaleString()} ETB
           </div>
-          <div className="text-xs text-slate-500 mt-0.5">{t.stock.stockValue}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{t.stock.stockValue}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xl font-bold text-slate-900">
+          <div className="text-xl font-bold text-foreground">
             {transactions.filter(tx => tx.type === "stock_out").length}
           </div>
-          <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+          <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
             <TrendingDown className="size-3" /> {t.stock.transactions}
           </div>
         </Card>
@@ -229,8 +229,8 @@ export default function StockPage() {
           <button key={c.value} onClick={() => setCatFilter(c.value as StockCategory | "all")}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all capitalize ${
               catFilter === c.value
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                ? "bg-foreground text-background border-foreground"
+                : "bg-card text-muted-foreground border-border hover:border-muted-foreground"
             }`}>
             {c.value === "all" ? c.label : `${c.icon ?? ""} ${c.label}`}
           </button>
@@ -250,7 +250,7 @@ export default function StockPage() {
                 <div className="flex items-center gap-3 min-w-[220px] flex-1">
                   <span className="text-xl">{STOCK_CATEGORY_ICONS[item.category]}</span>
                   <div>
-                    <div className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                    <div className="font-semibold text-foreground text-sm flex items-center gap-2">
                       {item.name}
                       {level !== "ok" && (
                         <Tooltip content={level === "critical" ? "Critically low — order immediately!" : "Below reorder level — time to restock"}>
@@ -258,11 +258,11 @@ export default function StockPage() {
                         </Tooltip>
                       )}
                     </div>
-                    <div className="text-[10px] text-slate-400 capitalize">
+                    <div className="text-[10px] text-muted-foreground capitalize">
                       {STOCK_CATEGORY_LABELS[item.category]} · {item.supplier ?? "—"}
                     </div>
                     {item.notes && (
-                      <div className="text-[10px] text-slate-500 mt-0.5 italic">{item.notes}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 italic">{item.notes}</div>
                     )}
                   </div>
                 </div>
@@ -270,14 +270,14 @@ export default function StockPage() {
                 {/* Stock level bar */}
                 <div className="min-w-[140px] flex-1 max-w-[200px]">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      {item.currentQty} <span className="text-xs font-normal text-slate-500">{UNIT_LABELS[item.unit] ?? item.unit}</span>
+                    <span className="text-sm font-bold text-foreground tabular-nums">
+                      {item.currentQty} <span className="text-xs font-normal text-muted-foreground">{UNIT_LABELS[item.unit] ?? item.unit}</span>
                     </span>
-                    <span className="text-[10px] text-slate-400">of {item.maxCapacity}</span>
+                    <span className="text-[10px] text-muted-foreground">of {item.maxCapacity}</span>
                   </div>
                   <Progress value={pct} className="h-2"
                     style={{ "--progress-color": level === "ok" ? "#22c55e" : level === "low" ? "#f59e0b" : "#ef4444" } as React.CSSProperties} />
-                  <div className="text-[9px] text-slate-400 mt-0.5">
+                  <div className="text-[9px] text-muted-foreground mt-0.5">
                     Reorder at {item.reorderLevel} {UNIT_LABELS[item.unit] ?? item.unit}
                   </div>
                 </div>
@@ -285,25 +285,25 @@ export default function StockPage() {
                 {/* Cost */}
                 <div className="text-center hidden md:block">
                   <div className="text-sm font-semibold tabular-nums">{(item.currentQty * item.costPerUnit).toLocaleString()} ETB</div>
-                  <div className="text-[10px] text-slate-400">{item.costPerUnit} ETB/{item.unit}</div>
+                  <div className="text-[10px] text-muted-foreground">{item.costPerUnit} ETB/{item.unit}</div>
                 </div>
 
                 {/* Last restocked */}
                 <div className="text-center hidden lg:block">
-                  <div className="text-xs text-slate-600">
+                  <div className="text-xs text-muted-foreground">
                     {item.lastRestockedDate
                       ? new Date(item.lastRestockedDate).toLocaleDateString("en", { month: "short", day: "numeric" })
                       : "—"}
                   </div>
-                  <div className="text-[10px] text-slate-400">Last restock</div>
+                  <div className="text-[10px] text-muted-foreground">Last restock</div>
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Tooltip content="Add stock (receive delivery)" side="top">
                     <button onClick={() => openTxDialog(item.id, "stock_in")}
-                      className="size-7 rounded-md bg-emerald-100 hover:bg-emerald-200 grid place-items-center transition-colors">
-                      <ArrowUpCircle className="size-3.5 text-emerald-700" />
+                      className="size-7 rounded-md bg-primary/15 hover:bg-primary/25 grid place-items-center transition-colors">
+                      <ArrowUpCircle className="size-3.5 text-primary" />
                     </button>
                   </Tooltip>
                   <Tooltip content="Record usage / stock out" side="top">
@@ -314,13 +314,13 @@ export default function StockPage() {
                   </Tooltip>
                   <Tooltip content="Transaction history" side="top">
                     <button onClick={() => openHistory(item)}
-                      className="size-7 rounded-md bg-slate-100 hover:bg-slate-200 grid place-items-center transition-colors">
-                      <History className="size-3.5 text-slate-600" />
+                      className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors">
+                      <History className="size-3.5 text-muted-foreground" />
                     </button>
                   </Tooltip>
                   <button onClick={() => openEdit(item)}
-                    className="size-7 rounded-md bg-slate-100 hover:bg-slate-200 grid place-items-center transition-colors">
-                    <Pencil className="size-3.5 text-slate-600" />
+                    className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors">
+                    <Pencil className="size-3.5 text-muted-foreground" />
                   </button>
                 </div>
               </div>
@@ -328,7 +328,7 @@ export default function StockPage() {
           );
         })}
         {filtered.length === 0 && (
-          <div className="text-center py-12 text-slate-400 text-sm">No items in this category.</div>
+          <div className="text-center py-12 text-muted-foreground text-sm">No items in this category.</div>
         )}
       </div>
 
@@ -338,57 +338,57 @@ export default function StockPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {txForm.type === "stock_in"
-                ? <><ArrowUpCircle className="size-4 text-emerald-600" /> Receive Stock</>
+                ? <><ArrowUpCircle className="size-4 text-primary" /> Receive Stock</>
                 : <><ArrowDownCircle className="size-4 text-rose-600" /> Record Usage</>}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Item <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-foreground/80 block mb-1">Item <span className="text-red-500">*</span></label>
               <select value={txForm.itemId}
                 onChange={e => setTxForm(p => ({ ...p, itemId: e.target.value }))}
-                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                 {items.map(i => <option key={i.id} value={i.id}>{i.name} ({i.currentQty} {i.unit} in stock)</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Transaction type</label>
+              <label className="text-xs font-semibold text-foreground/80 block mb-1">Transaction type</label>
               <select value={txForm.type}
                 onChange={e => setTxForm(p => ({ ...p, type: e.target.value as TransactionType }))}
-                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                 {options.stockTransactionTypes.map(type => (
                   <option key={type.value} value={type.value}>{type.label.replace("_", " ")}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">
+              <label className="text-xs font-semibold text-foreground/80 block mb-1">
                 Quantity ({items.find(i => i.id === txForm.itemId)?.unit ?? "units"})
               </label>
               <input type="number" min={0.01} step={0.01} value={txForm.quantity}
                 onChange={e => setTxForm(p => ({ ...p, quantity: Number(e.target.value) }))}
-                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                className="w-full border border-border rounded-md px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Performed by</label>
+              <label className="text-xs font-semibold text-foreground/80 block mb-1">Performed by</label>
               <select value={txForm.performedBy}
                 onChange={e => setTxForm(p => ({ ...p, performedBy: e.target.value }))}
-                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                 <option value="">— Select —</option>
                 {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Notes (optional)</label>
+              <label className="text-xs font-semibold text-foreground/80 block mb-1">Notes (optional)</label>
               <input value={txForm.notes}
                 onChange={e => setTxForm(p => ({ ...p, notes: e.target.value }))}
                 placeholder="e.g. Delivered from Agri Supply..."
-                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                className="w-full border border-border rounded-md px-3 py-2 text-sm" />
             </div>
           </div>
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setTxDialogOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleTx}>Save</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleTx}>Save</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -403,29 +403,29 @@ export default function StockPage() {
           </DialogHeader>
           <div className="space-y-2 mt-2">
             {historyItem && itemTransactions(historyItem.id).length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">No transactions recorded yet.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No transactions recorded yet.</p>
             )}
             {historyItem && itemTransactions(historyItem.id).map(tx => {
               const worker = farmers.find(f => f.id === tx.performedBy);
               const isIn   = tx.type === "stock_in";
               return (
-                <div key={tx.id} className="flex items-start gap-3 p-3 rounded-lg border bg-white">
-                  <div className={`mt-0.5 size-6 rounded-full grid place-items-center flex-shrink-0 ${isIn ? "bg-emerald-100" : "bg-rose-100"}`}>
+                <div key={tx.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
+                  <div className={`mt-0.5 size-6 rounded-full grid place-items-center flex-shrink-0 ${isIn ? "bg-primary/15" : "bg-rose-100"}`}>
                     {isIn
-                      ? <ArrowUpCircle className="size-3.5 text-emerald-700" />
+                      ? <ArrowUpCircle className="size-3.5 text-primary" />
                       : <ArrowDownCircle className="size-3.5 text-rose-700" />}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <span className={`text-sm font-semibold ${isIn ? "text-emerald-700" : "text-rose-700"}`}>
+                      <span className={`text-sm font-semibold ${isIn ? "text-primary" : "text-rose-700"}`}>
                         {isIn ? "+" : "−"}{tx.quantity} {historyItem.unit}
                       </span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[10px] text-muted-foreground">
                         {new Date(tx.date).toLocaleDateString("en", { month: "short", day: "numeric" })}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-500 capitalize">{tx.type.replace("_", " ")} · {worker?.name ?? tx.performedBy}</div>
-                    {tx.notes && <div className="text-[10px] text-slate-400 mt-0.5 italic">{tx.notes}</div>}
+                    <div className="text-[11px] text-muted-foreground capitalize">{tx.type.replace("_", " ")} · {worker?.name ?? tx.performedBy}</div>
+                    {tx.notes && <div className="text-[10px] text-muted-foreground mt-0.5 italic">{tx.notes}</div>}
                     {tx.referenceId && (
                       <div className="text-[10px] text-violet-500 mt-0.5">Ref: {tx.referenceType} · {tx.referenceId}</div>
                     )}
@@ -449,73 +449,73 @@ export default function StockPage() {
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Item name <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-foreground/80 block mb-1">Item name <span className="text-red-500">*</span></label>
                 <input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. NPK 20-20-20" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                  placeholder="e.g. NPK 20-20-20" className="w-full border border-border rounded-md px-3 py-2 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Category</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Category</label>
                   <select value={itemForm.category} onChange={e => setItemForm(p => ({ ...p, category: e.target.value as StockCategory }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     {options.stockCategories.map(c => <option key={c.value} value={c.value}>{c.icon ?? ""} {c.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Unit</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Unit</label>
                   <select value={itemForm.unit} onChange={e => setItemForm(p => ({ ...p, unit: e.target.value as any }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     {options.stockUnits.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Current stock</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Current stock</label>
                   <input type="number" min={0} step={0.01} value={itemForm.currentQty}
                     onChange={e => setItemForm(p => ({ ...p, currentQty: Number(e.target.value) }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">
                     <Tooltip content="Send a low-stock alert when quantity falls below this level">
-                      <span className="border-b border-dotted border-slate-400 cursor-help">Reorder at</span>
+                      <span className="border-b border-dotted border-muted-foreground cursor-help">Reorder at</span>
                     </Tooltip>
                   </label>
                   <input type="number" min={0} step={0.1} value={itemForm.reorderLevel}
                     onChange={e => setItemForm(p => ({ ...p, reorderLevel: Number(e.target.value) }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Max capacity</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Max capacity</label>
                   <input type="number" min={1} value={itemForm.maxCapacity}
                     onChange={e => setItemForm(p => ({ ...p, maxCapacity: Number(e.target.value) }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Cost per unit (ETB)</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Cost per unit (ETB)</label>
                   <input type="number" min={0} value={itemForm.costPerUnit}
                     onChange={e => setItemForm(p => ({ ...p, costPerUnit: Number(e.target.value) }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Supplier</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Supplier</label>
                   <input value={itemForm.supplier} onChange={e => setItemForm(p => ({ ...p, supplier: e.target.value }))}
-                    placeholder="Supplier name" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                    placeholder="Supplier name" className="w-full border border-border rounded-md px-3 py-2 text-sm" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Notes</label>
+                <label className="text-xs font-semibold text-foreground/80 block mb-1">Notes</label>
                 <input value={itemForm.notes ?? ""} onChange={e => setItemForm(p => ({ ...p, notes: e.target.value }))}
                   placeholder="Storage instructions, warnings, etc."
-                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm" />
               </div>
             </div>
             <div className="flex gap-2 mt-2">
               <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={onSave}>Save</Button>
+              <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={onSave}>Save</Button>
             </div>
           </DialogContent>
         </Dialog>

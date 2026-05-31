@@ -19,7 +19,7 @@ const ROLE_ICONS = {
 const ROLE_COLORS = {
   manager: "bg-amber-100 text-amber-800 border-amber-200",
   supervisor: "bg-blue-100 text-blue-800 border-blue-200",
-  farmer: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  farmer: "bg-primary/15 text-primary border-primary/30",
 };
 
 export function AccountSwitcher() {
@@ -51,7 +51,7 @@ export function AccountSwitcher() {
         className="flex items-center gap-2 w-full px-2 py-2 rounded-lg hover:bg-white/5 transition-colors"
       >
         <Avatar className="size-7 shrink-0">
-          <AvatarFallback className="bg-emerald-700 text-white text-[11px] font-bold">
+          <AvatarFallback className="bg-primary text-background text-[11px] font-bold">
             {user.avatar}
           </AvatarFallback>
         </Avatar>
@@ -84,7 +84,7 @@ export function AccountSwitcher() {
                     className={`flex items-center gap-3 w-full px-3 py-2.5 hover:bg-white/5 transition-colors ${isActive ? "bg-white/5" : ""}`}
                   >
                     <Avatar className="size-8 shrink-0">
-                      <AvatarFallback className={`text-[11px] font-bold ${isActive ? "bg-emerald-700 text-white" : "bg-slate-700 text-slate-300"}`}>
+                      <AvatarFallback className={`text-[11px] font-bold ${isActive ? "bg-primary text-background" : "bg-white/10 text-white/70"}`}>
                         {f.avatar}
                       </AvatarFallback>
                     </Avatar>
@@ -99,7 +99,7 @@ export function AccountSwitcher() {
                         )}
                       </div>
                     </div>
-                    {isActive && <Check className="size-3.5 text-emerald-400 shrink-0" />}
+                    {isActive && <Check className="size-3.5 text-primary shrink-0" />}
                   </button>
                 );
               })}

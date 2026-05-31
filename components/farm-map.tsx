@@ -139,17 +139,17 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
           <button key={m} onClick={() => setViewMode(m)}
             className={`text-[11px] px-3.5 py-1.5 rounded-full font-semibold transition-all shadow-sm ${
               viewMode === m
-                ? "bg-stone-800 text-white shadow-stone-900/30"
-                : "bg-white text-stone-600 border border-stone-200 hover:border-stone-400 hover:shadow"
+                ? "bg-foreground text-background shadow-foreground/30"
+                : "bg-card text-muted-foreground border border-border hover:border-muted-foreground hover:shadow"
             }`}>
             {m === "health" ? "🌿 Health" : m === "yield" ? "🌾 Yield" : "🌸 Stage"}
           </button>
         ))}
-        <span className="ml-auto text-[10px] text-stone-400 hidden sm:block">Tap any bed for details</span>
+        <span className="ml-auto text-[10px] text-muted-foreground hidden sm:block">Tap any bed for details</span>
       </div>
 
       {/* Map canvas */}
-      <div className="overflow-x-auto rounded-2xl border border-stone-300 shadow-2xl">
+      <div className="overflow-x-auto rounded-2xl border border-border shadow-2xl">
         <div style={{ minWidth: Math.max(320, VW) }}>
           <svg viewBox={viewBox} width="100%" style={{ display: "block" }}>
             <defs>
@@ -560,20 +560,20 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
         const stClr   = STAGE_TEXT_COLOR[selectedBed.stage] ?? "#475569";
         const stBg    = STAGE_COLOR[selectedBed.stage] ?? "#94a3b8";
         return (
-          <div className="rounded-2xl border-2 bg-white shadow-xl overflow-hidden"
+          <div className="rounded-2xl border-2 bg-card shadow-xl overflow-hidden"
             style={{ borderColor: `${zc}45` }}>
             <div className="h-1.5" style={{ background: `linear-gradient(90deg,${zc},${zc}60,transparent)` }} />
             <div className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="font-black text-slate-900 text-lg leading-tight tracking-tight">
+                  <div className="font-black text-foreground text-lg leading-tight tracking-tight">
                     {selectedBed.id.replace("-BED-", " — ")}
                   </div>
-                  <div className="text-sm font-semibold text-slate-600 mt-0.5">{selectedBed.variety}</div>
-                  <div className="text-xs text-slate-400">{selectedBed.origin}</div>
+                  <div className="text-sm font-semibold text-muted-foreground mt-0.5">{selectedBed.variety}</div>
+                  <div className="text-xs text-muted-foreground">{selectedBed.origin}</div>
                 </div>
                 <button onClick={() => setSelected(null)}
-                  className="size-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-lg transition-colors">
+                  className="size-8 rounded-full bg-muted hover:bg-accent flex items-center justify-center text-muted-foreground font-bold text-lg transition-colors">
                   ×
                 </button>
               </div>
@@ -585,10 +585,10 @@ export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props
                   { label: "Stage",   value: STAGE_LABEL[selectedBed.stage] ?? selectedBed.stage, icon: "🌱" },
                   { label: "Harvest", value: yieldKg > 0 ? `${yieldKg.toFixed(1)} kg` : "—",     icon: "🌾" },
                 ].map(({ label, value, icon }) => (
-                  <div key={label} className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                  <div key={label} className="bg-muted rounded-xl p-2.5 text-center border border-border">
                     <div className="text-base mb-0.5">{icon}</div>
-                    <div className="text-sm font-black text-slate-800 leading-tight">{value}</div>
-                    <div className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wider">{label}</div>
+                    <div className="text-sm font-black text-foreground leading-tight">{value}</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5 uppercase tracking-wider">{label}</div>
                   </div>
                 ))}
               </div>

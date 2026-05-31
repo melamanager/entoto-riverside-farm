@@ -23,7 +23,7 @@ const EMPTY_FORM = {
 };
 
 function healthClass(h: HealthStatus) {
-  if (h === "healthy")  return "bg-emerald-100 text-emerald-700 hover:bg-emerald-100";
+  if (h === "healthy")  return "bg-primary/15 text-primary hover:bg-primary/15";
   if (h === "warning")  return "bg-amber-100 text-amber-700 hover:bg-amber-100";
   return "bg-rose-100 text-rose-700 hover:bg-rose-100";
 }
@@ -165,22 +165,22 @@ export default function BedsIndex() {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Valve <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Valve <span className="text-red-500">*</span></label>
             <select
               value={form.valveId}
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, farmerId: "" }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
             >
               <option value="">— Select valve —</option>
               {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Assigned Farmer <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Assigned Farmer <span className="text-red-500">*</span></label>
             <select
               value={form.farmerId}
               onChange={e => setForm(p => ({ ...p, farmerId: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
             >
               <option value="">— Select farmer —</option>
               {eligible.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -189,11 +189,11 @@ export default function BedsIndex() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Variety</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Variety</label>
           <select
             value={form.variety}
             onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
           >
             {options.varieties.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
           </select>
@@ -201,49 +201,49 @@ export default function BedsIndex() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Length (m)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Length (m)</label>
             <input
               type="number" min={5} max={200} value={form.lengthM}
               onChange={e => setForm(p => ({ ...p, lengthM: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Plants / meter</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Plants / meter</label>
             <input
               type="number" min={1} max={20} value={form.plantsPerMeter}
               onChange={e => setForm(p => ({ ...p, plantsPerMeter: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm"
             />
           </div>
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Planted Date</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Planted Date</label>
           <input
             type="date" value={form.plantedDate}
             onChange={e => setForm(p => ({ ...p, plantedDate: e.target.value }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Growth Stage</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Growth Stage</label>
             <select
               value={form.stage}
               onChange={e => setForm(p => ({ ...p, stage: e.target.value as GrowthStage }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize"
             >
               {options.growthStages.map(s => <option key={s.value} value={s.value}>{t.growthStages[s.value as GrowthStage] ?? s.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Health Status</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Health Status</label>
             <select
               value={form.health}
               onChange={e => setForm(p => ({ ...p, health: e.target.value as HealthStatus }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize"
             >
               {options.healthStatuses.map(h => <option key={h.value} value={h.value} className="capitalize">{h.label}</option>)}
             </select>
@@ -260,10 +260,10 @@ export default function BedsIndex() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">🌱 {t.beds.title}</h1>
-          <p className="text-stone-500 text-sm">{beds.length} beds · {totalPlants.toLocaleString()} plants</p>
+          <h1 className="text-2xl font-bold text-foreground">🌱 {t.beds.title}</h1>
+          <p className="text-muted-foreground text-sm">{beds.length} beds · {totalPlants.toLocaleString()} plants</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
           <Plus className="size-4" /> Add Bed
         </Button>
       </div>
@@ -271,7 +271,7 @@ export default function BedsIndex() {
       {/* Table */}
       <Card className="p-0 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-stone-50 text-[11px] uppercase tracking-wider text-stone-500">
+          <thead className="bg-muted text-[11px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="text-left py-2.5 px-4">Bed</th>
               <th className="text-left py-2.5">Valve</th>
@@ -289,16 +289,16 @@ export default function BedsIndex() {
               const v = getValve(b.valveId);
               const kg = totalKgBed(b.id);
               return (
-                <tr key={b.id} className="border-t hover:bg-stone-50 group">
+                <tr key={b.id} className="border-t hover:bg-accent group">
                   <td className="py-2.5 px-4">
-                    <Link href={`/beds/${b.id}`} className="font-mono font-semibold hover:text-emerald-700">{b.id}</Link>
+                    <Link href={`/beds/${b.id}`} className="font-mono font-semibold hover:text-primary">{b.id}</Link>
                   </td>
                   <td className="py-2.5">
                     <Link href={`/valves/${v?.id}`} className="hover:underline" style={{ color: v?.color }}>{v?.name}</Link>
                   </td>
                   <td className="py-2.5 tabular-nums">{b.lengthM}m</td>
                   <td className="py-2.5 tabular-nums">{plantsInBed(b)}</td>
-                  <td className="py-2.5 text-stone-600 max-w-[140px] truncate">{b.variety}</td>
+                  <td className="py-2.5 text-muted-foreground max-w-[140px] truncate">{b.variety}</td>
                   <td className="py-2.5">
                     <Badge variant="outline" className="text-[10px]">{t.growthStages[b.stage]}</Badge>
                   </td>
@@ -310,17 +310,17 @@ export default function BedsIndex() {
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => openEdit(b)}
-                        className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center"
+                        className="size-6 rounded bg-muted hover:bg-accent grid place-items-center"
                         title="Edit bed"
                       >
-                        <Pencil className="size-3 text-slate-600" />
+                        <Pencil className="size-3 text-muted-foreground" />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(b)}
-                        className="size-6 rounded bg-slate-100 hover:bg-red-100 grid place-items-center"
+                        className="size-6 rounded bg-muted hover:bg-red-100 grid place-items-center"
                         title="Delete bed"
                       >
-                        <Trash2 className="size-3 text-slate-600" />
+                        <Trash2 className="size-3 text-muted-foreground" />
                       </button>
                     </div>
                   </td>
@@ -336,13 +336,13 @@ export default function BedsIndex() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-emerald-600" /> Add Raised Bed
+              <Plus className="size-4 text-primary" /> Add Raised Bed
             </DialogTitle>
           </DialogHeader>
           <BedForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>{t.common.create}</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>{t.common.create}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -352,13 +352,13 @@ export default function BedsIndex() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit {editTarget?.id}
+              <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.id}
             </DialogTitle>
           </DialogHeader>
           <BedForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>{t.common.save}</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>{t.common.save}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -371,7 +371,7 @@ export default function BedsIndex() {
               <Trash2 className="size-4" /> Delete {deleteTarget?.id}?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Permanently remove <strong>{deleteTarget?.id}</strong> ({deleteTarget?.variety})? Harvest records for this bed will be orphaned.
           </p>
           <div className="flex gap-2 mt-2">

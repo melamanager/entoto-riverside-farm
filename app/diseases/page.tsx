@@ -262,9 +262,9 @@ export default function DiseasesPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Bug className="size-5 text-red-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.diseases.title}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{t.diseases.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">
+          <p className="text-muted-foreground text-sm">
             {isSupervisor
               ? `Your zones · ${notified.length} pending treatment · ${treating.length} applied`
               : `${open.length + notified.length} active · ${treating.length} under treatment · ${resolved.length} resolved`}
@@ -340,9 +340,9 @@ export default function DiseasesPage() {
                       {/* ── Disease info ─────────────────────────────────── */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <Link href={`/beds/${d.bedId}`} className="font-mono font-bold text-slate-900 hover:text-emerald-700">{d.bedId}</Link>
-                          <span className="text-slate-300">·</span>
-                          <span className="font-semibold text-slate-800">{DISEASE_LABELS[d.type]}</span>
+                          <Link href={`/beds/${d.bedId}`} className="font-mono font-bold text-foreground hover:text-primary">{d.bedId}</Link>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="font-semibold text-foreground">{DISEASE_LABELS[d.type]}</span>
                           {d.aiConfidence && (
                             <Badge variant="outline" className="text-[10px] gap-0.5">
                               <Sparkles className="size-2.5 text-amber-500" /> AI {d.aiConfidence}%
@@ -361,7 +361,7 @@ export default function DiseasesPage() {
                           )}
                         </div>
 
-                        <div className="text-xs text-slate-500 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div className="text-xs text-muted-foreground mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                           <span>{bed?.variety} · {bed?.valveId?.replace("valve-", "Zone ").toUpperCase()}</span>
                           <span>·</span>
                           <span>Reported by {reporter?.name}</span>
@@ -370,7 +370,7 @@ export default function DiseasesPage() {
                         </div>
 
                         <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[11px] text-slate-500 w-16">Severity</span>
+                          <span className="text-[11px] text-muted-foreground w-16">Severity</span>
                           <Progress value={d.severity} className="h-2 flex-1" />
                           <span className={`text-xs font-bold tabular-nums ${d.severity > 60 ? "text-red-600" : d.severity > 30 ? "text-amber-600" : "text-emerald-600"}`}>
                             {d.severity}%
@@ -381,14 +381,14 @@ export default function DiseasesPage() {
                           const pct = bed ? Math.round((d.infectedLengthM / bed.lengthM) * 100) : null;
                           return (
                             <div className="flex items-center gap-2 mb-3">
-                              <span className="text-[11px] text-slate-500 w-16">Infected</span>
-                              <div className="h-2 bg-slate-100 rounded-full flex-1 overflow-hidden">
+                              <span className="text-[11px] text-muted-foreground w-16">Infected</span>
+                              <div className="h-2 bg-muted rounded-full flex-1 overflow-hidden">
                                 <div
                                   className={`h-full rounded-full ${d.severity > 60 ? "bg-red-400" : d.severity > 30 ? "bg-amber-400" : "bg-emerald-400"}`}
                                   style={{ width: `${pct ?? 0}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-bold tabular-nums text-slate-700">
+                              <span className="text-xs font-bold tabular-nums text-foreground/80">
                                 {d.infectedLengthM}m{pct !== null ? ` (${pct}%)` : ""}
                               </span>
                             </div>
@@ -419,7 +419,7 @@ export default function DiseasesPage() {
                               <span>Applied by {applicator?.name} · {d.treatmentAppliedAt ? new Date(d.treatmentAppliedAt).toLocaleDateString("en", { month: "short", day: "numeric" }) : ""}</span>
                             </div>
                             {d.treatmentNote && (
-                              <div className="text-[11px] text-slate-600 italic bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5">
+                              <div className="text-[11px] text-foreground/70 italic bg-muted border border-border rounded px-2.5 py-1.5">
                                 "{d.treatmentNote}"
                               </div>
                             )}
@@ -436,7 +436,7 @@ export default function DiseasesPage() {
 
                         {/* Not yet notified indicator */}
                         {!d.managerNotified && isManager && (
-                          <div className="flex items-center gap-2 text-[11px] px-2.5 py-1.5 rounded-md bg-slate-100 text-slate-500 w-fit">
+                          <div className="flex items-center gap-2 text-[11px] px-2.5 py-1.5 rounded-md bg-muted text-muted-foreground w-fit">
                             <BellOff className="size-3" /> Not yet reviewed by manager
                           </div>
                         )}
@@ -480,7 +480,7 @@ export default function DiseasesPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="gap-1.5 text-xs w-full text-slate-500"
+                          className="gap-1.5 text-xs w-full text-muted-foreground"
                           onClick={() => setExpandedId(isExpanded ? null : d.id)}
                         >
                           <ClipboardList className="size-3.5" /> Protocol
@@ -491,10 +491,10 @@ export default function DiseasesPage() {
 
                     {/* ── Expandable treatment steps ───────────────────── */}
                     {isExpanded && (
-                      <div className="mt-4 border-t border-slate-100 pt-4">
+                      <div className="mt-4 border-t border-border pt-4">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-semibold text-slate-800">📋 Treatment Protocol</h4>
-                          <div className="text-[11px] text-slate-500">{doneSteps}/{steps.length} steps completed</div>
+                          <h4 className="text-sm font-semibold text-foreground">📋 Treatment Protocol</h4>
+                          <div className="text-[11px] text-muted-foreground">{doneSteps}/{steps.length} steps completed</div>
                         </div>
                         <Progress value={(doneSteps / steps.length) * 100} className="h-1.5 mb-3" />
                         <div className="space-y-2">
@@ -504,11 +504,11 @@ export default function DiseasesPage() {
                               onClick={() => toggleStep(d.id, i, steps.length)}
                               className="flex items-start gap-3 w-full text-left group"
                             >
-                              <div className={`size-5 rounded-full border-2 grid place-items-center shrink-0 mt-0.5 transition-colors ${stepChecks[i] ? "bg-emerald-500 border-emerald-500" : "border-slate-300 group-hover:border-emerald-400"}`}>
+                              <div className={`size-5 rounded-full border-2 grid place-items-center shrink-0 mt-0.5 transition-colors ${stepChecks[i] ? "bg-primary border-primary" : "border-border group-hover:border-primary/60"}`}>
                                 {stepChecks[i] && <CheckCircle2 className="size-3 text-white" />}
                               </div>
-                              <span className={`text-sm leading-snug ${stepChecks[i] ? "line-through text-slate-400" : "text-slate-700"}`}>
-                                <strong className="text-slate-500 text-[11px] mr-1">Step {i + 1}.</strong> {step}
+                              <span className={`text-sm leading-snug ${stepChecks[i] ? "line-through text-muted-foreground" : "text-foreground/80"}`}>
+                                <strong className="text-muted-foreground text-[11px] mr-1">Step {i + 1}.</strong> {step}
                               </span>
                             </button>
                           ))}
@@ -524,8 +524,8 @@ export default function DiseasesPage() {
       ))}
 
       {visibleGroups.every(g => g.items.length === 0) && (
-        <div className="text-center py-16 text-slate-400">
-          <Bug className="size-12 mx-auto mb-3 opacity-20" />
+        <div className="text-center py-16 text-muted-foreground">
+          <Bug className="size-12 mx-auto mb-3 text-muted-foreground opacity-20" />
           <p className="text-sm">No disease records found for your assigned zones.</p>
         </div>
       )}
@@ -544,16 +544,16 @@ export default function DiseasesPage() {
           {recommendTarget && (
             <div className="space-y-4">
               {/* Disease summary */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-                <div className="font-semibold text-slate-800">{DISEASE_LABELS[recommendTarget.type]}</div>
-                <div className="text-slate-500 text-xs mt-0.5">
+              <div className="bg-muted border border-border rounded-lg p-3 text-sm">
+                <div className="font-semibold text-foreground">{DISEASE_LABELS[recommendTarget.type]}</div>
+                <div className="text-muted-foreground text-xs mt-0.5">
                   Bed {recommendTarget.bedId} · Severity {recommendTarget.severity}% · Reported {new Date(recommendTarget.reportedAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
                 </div>
               </div>
 
               {/* Recommendation textarea */}
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                <label className="text-xs font-semibold text-foreground/80 block mb-1.5">
                   Treatment Recommendation <span className="text-red-500">*</span>
                 </label>
                 <Textarea
@@ -563,7 +563,7 @@ export default function DiseasesPage() {
                   rows={5}
                   className="text-sm resize-none"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">This will be sent to the assigned supervisor via SMS and Telegram.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">This will be sent to the assigned supervisor via SMS and Telegram.</p>
               </div>
 
               {/* Protocol steps preview */}
@@ -583,16 +583,16 @@ export default function DiseasesPage() {
               <button
                 type="button"
                 onClick={() => setRequireImage(p => !p)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${requireImage ? "border-purple-500 bg-purple-50" : "border-slate-200 bg-white hover:border-slate-300"}`}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${requireImage ? "border-purple-500 bg-purple-50" : "border-border bg-card hover:border-border/60"}`}
               >
-                <div className={`size-5 rounded border-2 grid place-items-center shrink-0 transition-colors ${requireImage ? "bg-purple-500 border-purple-500" : "border-slate-300"}`}>
+                <div className={`size-5 rounded border-2 grid place-items-center shrink-0 transition-colors ${requireImage ? "bg-purple-500 border-purple-500" : "border-border"}`}>
                   {requireImage && <CheckCircle2 className="size-3 text-white" />}
                 </div>
                 <div>
-                  <div className={`text-xs font-semibold ${requireImage ? "text-purple-800" : "text-slate-700"}`}>Require photo proof from supervisor</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Supervisor must upload a photo when confirming treatment</div>
+                  <div className={`text-xs font-semibold ${requireImage ? "text-purple-800" : "text-foreground/80"}`}>Require photo proof from supervisor</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">Supervisor must upload a photo when confirming treatment</div>
                 </div>
-                <ImageIcon className={`size-4 ml-auto shrink-0 ${requireImage ? "text-purple-500" : "text-slate-300"}`} />
+                <ImageIcon className={`size-4 ml-auto shrink-0 ${requireImage ? "text-purple-500" : "text-muted-foreground/40"}`} />
               </button>
 
               <Button
@@ -621,9 +621,9 @@ export default function DiseasesPage() {
           {confirmTarget && (
             <div className="space-y-4">
               {/* Disease summary */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-                <div className="font-semibold text-slate-800">{DISEASE_LABELS[confirmTarget.type]}</div>
-                <div className="text-slate-500 text-xs mt-0.5">
+              <div className="bg-muted border border-border rounded-lg p-3 text-sm">
+                <div className="font-semibold text-foreground">{DISEASE_LABELS[confirmTarget.type]}</div>
+                <div className="text-muted-foreground text-xs mt-0.5">
                   Bed {confirmTarget.bedId} · Severity {confirmTarget.severity}%
                 </div>
               </div>
@@ -641,7 +641,7 @@ export default function DiseasesPage() {
 
               {/* Treatment steps checklist */}
               <div>
-                <div className="text-xs font-semibold text-slate-700 mb-2">Treatment Protocol Checklist</div>
+                <div className="text-xs font-semibold text-foreground/80 mb-2">Treatment Protocol Checklist</div>
                 <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                   {(confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type]).map((step, i) => {
                     const checks = checkedSteps[confirmTarget.id] ?? Array((confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type]).length).fill(false);
@@ -651,11 +651,11 @@ export default function DiseasesPage() {
                         onClick={() => toggleStep(confirmTarget.id, i, (confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type]).length)}
                         className="flex items-start gap-3 w-full text-left group"
                       >
-                        <div className={`size-5 rounded-full border-2 grid place-items-center shrink-0 mt-0.5 transition-colors ${checks[i] ? "bg-emerald-500 border-emerald-500" : "border-slate-300 group-hover:border-emerald-400"}`}>
+                        <div className={`size-5 rounded-full border-2 grid place-items-center shrink-0 mt-0.5 transition-colors ${checks[i] ? "bg-primary border-primary" : "border-border group-hover:border-primary/60"}`}>
                           {checks[i] && <CheckCircle2 className="size-3 text-white" />}
                         </div>
-                        <span className={`text-xs leading-snug ${checks[i] ? "line-through text-slate-400" : "text-slate-700"}`}>
-                          <strong className="text-slate-400 text-[10px] mr-1">Step {i + 1}.</strong> {step}
+                        <span className={`text-xs leading-snug ${checks[i] ? "line-through text-muted-foreground" : "text-foreground/80"}`}>
+                          <strong className="text-muted-foreground text-[10px] mr-1">Step {i + 1}.</strong> {step}
                         </span>
                       </button>
                     );
@@ -665,7 +665,7 @@ export default function DiseasesPage() {
 
               {/* Supervisor note */}
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                <label className="text-xs font-semibold text-foreground/80 block mb-1.5">
                   Treatment Note <span className="text-red-500">*</span>
                 </label>
                 <Textarea
@@ -679,7 +679,7 @@ export default function DiseasesPage() {
 
               {/* Photo proof upload */}
               <div>
-                <label className={`text-xs font-semibold block mb-1.5 ${confirmTarget.requiresImageProof ? "text-purple-700" : "text-slate-700"}`}>
+                <label className={`text-xs font-semibold block mb-1.5 ${confirmTarget.requiresImageProof ? "text-purple-700" : "text-foreground/80"}`}>
                   Photo Proof {confirmTarget.requiresImageProof ? <span className="text-red-500">* (Required by manager)</span> : "(Optional)"}
                 </label>
                 <input
@@ -691,7 +691,7 @@ export default function DiseasesPage() {
                   onChange={handleProofUpload}
                 />
                 {proofImage ? (
-                  <div className="relative rounded-lg overflow-hidden border border-slate-200">
+                  <div className="relative rounded-lg overflow-hidden border border-border">
                     <img src={proofImage} alt="Proof" className="w-full max-h-40 object-cover" />
                     <div className="absolute top-2 right-2 flex gap-1">
                       <button
@@ -715,13 +715,13 @@ export default function DiseasesPage() {
                   <button
                     type="button"
                     onClick={() => proofInputRef.current?.click()}
-                    className={`w-full flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed transition-colors ${confirmTarget.requiresImageProof ? "border-purple-300 bg-purple-50 hover:bg-purple-100" : "border-slate-200 bg-slate-50 hover:bg-slate-100"}`}
+                    className={`w-full flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed transition-colors ${confirmTarget.requiresImageProof ? "border-purple-300 bg-purple-50 hover:bg-purple-100" : "border-border bg-muted hover:bg-accent"}`}
                   >
-                    <Upload className={`size-5 ${confirmTarget.requiresImageProof ? "text-purple-400" : "text-slate-400"}`} />
-                    <div className="text-xs text-slate-500">
-                      <span className={`font-semibold ${confirmTarget.requiresImageProof ? "text-purple-600" : "text-slate-600"}`}>Click to upload</span> or take photo
+                    <Upload className={`size-5 ${confirmTarget.requiresImageProof ? "text-purple-400" : "text-muted-foreground"}`} />
+                    <div className="text-xs text-muted-foreground">
+                      <span className={`font-semibold ${confirmTarget.requiresImageProof ? "text-purple-600" : "text-foreground/70"}`}>Click to upload</span> or take photo
                     </div>
-                    <div className="text-[10px] text-slate-400">JPG, PNG, HEIC — max 10 MB</div>
+                    <div className="text-[10px] text-muted-foreground">JPG, PNG, HEIC — max 10 MB</div>
                   </button>
                 )}
               </div>
@@ -751,9 +751,9 @@ export default function DiseasesPage() {
           </DialogHeader>
           {proofReviewTarget && (
             <div className="space-y-4">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-                <div className="font-semibold text-slate-800">{DISEASE_LABELS[proofReviewTarget.type]}</div>
-                <div className="text-slate-500 text-xs mt-0.5">Bed {proofReviewTarget.bedId} · Severity {proofReviewTarget.severity}%</div>
+              <div className="bg-muted border border-border rounded-lg p-3 text-sm">
+                <div className="font-semibold text-foreground">{DISEASE_LABELS[proofReviewTarget.type]}</div>
+                <div className="text-muted-foreground text-xs mt-0.5">Bed {proofReviewTarget.bedId} · Severity {proofReviewTarget.severity}%</div>
               </div>
               {proofReviewTarget.treatmentNote && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 italic">
@@ -761,8 +761,8 @@ export default function DiseasesPage() {
                 </div>
               )}
               <div>
-                <div className="text-xs font-semibold text-slate-700 mb-2">Supervisor's Proof Photo</div>
-                <img src={proofReviewTarget.proofImageUrl} alt="Treatment proof" className="w-full rounded-lg border border-slate-200 max-h-64 object-cover" />
+                <div className="text-xs font-semibold text-foreground/80 mb-2">Supervisor's Proof Photo</div>
+                <img src={proofReviewTarget.proofImageUrl} alt="Treatment proof" className="w-full rounded-lg border border-border max-h-64 object-cover" />
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setProofReviewTarget(null)}>Cancel</Button>

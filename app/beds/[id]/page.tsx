@@ -120,7 +120,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
-      <Link href="/beds" className="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-900">
+      <Link href="/beds" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> All beds
       </Link>
 
@@ -132,7 +132,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           </div>
           <div>
             <h1 className="text-2xl font-bold font-mono">{bed.id}</h1>
-            <p className="text-sm text-stone-500 flex items-center gap-2">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
               <Link href={`/valves/${valve.id}`} className="hover:underline" style={{color: valve.color}}>{valve.name}</Link>
               <span>·</span>
               <span>{bed.variety}</span>
@@ -142,7 +142,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge className={`${bed.health==="healthy"?"bg-emerald-100 text-emerald-700":bed.health==="warning"?"bg-amber-100 text-amber-700":"bg-rose-100 text-rose-700"} capitalize`}>● {bed.health}</Badge>
+          <Badge className={`${bed.health==="healthy"?"bg-primary/15 text-primary":bed.health==="warning"?"bg-amber-100 text-amber-700":"bg-rose-100 text-rose-700"} capitalize`}>● {bed.health}</Badge>
           <Badge variant="outline">{GROWTH_STAGE_LABELS[bed.stage as keyof typeof GROWTH_STAGE_LABELS]}</Badge>
           <AIDetectDialog bedId={bed.id} />
         </div>
@@ -173,23 +173,23 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
       {/* Info grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4">
-          <div className="text-xs text-stone-500 flex items-center gap-1.5"><MapPin className="size-3.5" /> Length</div>
-          <div className="text-2xl font-bold mt-1">{bed.lengthM}<span className="text-sm text-stone-500"> m</span></div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><MapPin className="size-3.5" /> Length</div>
+          <div className="text-2xl font-bold mt-1">{bed.lengthM}<span className="text-sm text-muted-foreground"> m</span></div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs text-stone-500 flex items-center gap-1.5"><Sprout className="size-3.5" /> Plants</div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Sprout className="size-3.5" /> Plants</div>
           <div className="text-2xl font-bold mt-1">{plants}</div>
-          <div className="text-[10px] text-stone-400 mt-0.5">{bed.plantsPerMeter}/m</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{bed.plantsPerMeter}/m</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs text-stone-500 flex items-center gap-1.5"><Calendar className="size-3.5" /> Planted</div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Calendar className="size-3.5" /> Planted</div>
           <div className="text-base font-bold mt-1">{new Date(bed.plantedDate).toLocaleDateString("en",{year:"numeric",month:"short",day:"numeric"})}</div>
-          <div className="text-[10px] text-stone-400">{Math.floor((Date.now()-new Date(bed.plantedDate).getTime())/86400000)} days ago</div>
+          <div className="text-[10px] text-muted-foreground">{Math.floor((Date.now()-new Date(bed.plantedDate).getTime())/86400000)} days ago</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs text-stone-500 flex items-center gap-1.5"><User className="size-3.5" /> Farmer</div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><User className="size-3.5" /> Farmer</div>
           <div className="flex items-center gap-2 mt-1.5">
-            <Avatar className="size-7"><AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px] font-semibold">{farmer.avatar}</AvatarFallback></Avatar>
+            <Avatar className="size-7"><AvatarFallback className="bg-primary/15 text-primary text-[10px] font-semibold">{farmer.avatar}</AvatarFallback></Avatar>
             <div className="text-sm font-medium truncate">{farmer.name}</div>
           </div>
         </Card>
@@ -202,15 +202,15 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <div className="flex justify-between mb-2">
             {STAGES.map((s, i) => (
               <div key={s} className="flex flex-col items-center gap-1 flex-1">
-                <div className={`size-7 rounded-full grid place-items-center text-[10px] font-bold ${i<=stageIdx?"bg-emerald-500 text-white":"bg-stone-100 text-stone-400"}`}>
+                <div className={`size-7 rounded-full grid place-items-center text-[10px] font-bold ${i<=stageIdx?"bg-primary text-background":"bg-muted text-muted-foreground"}`}>
                   {i+1}
                 </div>
-                <span className={`text-[10px] text-center leading-tight ${i<=stageIdx?"text-emerald-700 font-medium":"text-stone-400"}`}>{GROWTH_STAGE_LABELS[s]}</span>
+                <span className={`text-[10px] text-center leading-tight ${i<=stageIdx?"text-primary font-medium":"text-muted-foreground"}`}>{GROWTH_STAGE_LABELS[s]}</span>
               </div>
             ))}
           </div>
-          <div className="absolute top-3.5 left-0 right-0 h-0.5 bg-stone-100 -z-10">
-            <div className="h-full bg-emerald-500" style={{width:`${(stageIdx/(STAGES.length-1))*100}%`}} />
+          <div className="absolute top-3.5 left-0 right-0 h-0.5 bg-muted -z-10">
+            <div className="h-full bg-primary" style={{width:`${(stageIdx/(STAGES.length-1))*100}%`}} />
           </div>
         </div>
       </Card>
@@ -253,22 +253,22 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
               unit: "%",
             },
           ].map(item => (
-            <div key={item.label} className="rounded-xl border border-slate-200 p-3">
-              <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-2">{item.label}</div>
+            <div key={item.label} className="rounded-xl border border-border p-3">
+              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">{item.label}</div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400">Planned</span>
-                  <span className="text-xs font-semibold text-slate-600">{item.planned}</span>
+                  <span className="text-[10px] text-muted-foreground">Planned</span>
+                  <span className="text-xs font-semibold text-foreground/80">{item.planned}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400">Actual</span>
-                  <span className={`text-xs font-bold ${item.actual === "Not yet" ? "text-slate-400" : item.good ? "text-emerald-600" : "text-red-500"}`}>
+                  <span className="text-[10px] text-muted-foreground">Actual</span>
+                  <span className={`text-xs font-bold ${item.actual === "Not yet" ? "text-muted-foreground" : item.good ? "text-primary" : "text-red-500"}`}>
                     {item.actual}
                   </span>
                 </div>
               </div>
               {item.actual !== "Not yet" && (
-                <div className={`mt-2 text-[10px] font-semibold flex items-center gap-0.5 ${item.good ? "text-emerald-600" : "text-red-500"}`}>
+                <div className={`mt-2 text-[10px] font-semibold flex items-center gap-0.5 ${item.good ? "text-primary" : "text-red-500"}`}>
                   {item.good ? "↑ On track" : "↓ Below target"}
                 </div>
               )}
@@ -283,14 +283,14 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold">🍓 Harvest history</h3>
             <div className="text-right">
-              <div className="text-xl font-bold">{totalKg.toFixed(1)}<span className="text-sm font-normal text-stone-500"> kg total</span></div>
-              <div className="text-[11px] text-stone-500 tabular-nums">{yieldPerMeter.toFixed(2)} kg/m · {(yieldPerPlant*1000).toFixed(0)}g/plant</div>
+              <div className="text-xl font-bold">{totalKg.toFixed(1)}<span className="text-sm font-normal text-muted-foreground"> kg total</span></div>
+              <div className="text-[11px] text-muted-foreground tabular-nums">{yieldPerMeter.toFixed(2)} kg/m · {(yieldPerPlant*1000).toFixed(0)}g/plant</div>
             </div>
           </div>
           <HarvestChart data={chartData} />
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="text-stone-500"><tr><th className="text-left py-1">Date</th><th className="text-right py-1">KG</th><th className="text-right py-1">Grade</th></tr></thead>
+              <thead className="text-muted-foreground"><tr><th className="text-left py-1">Date</th><th className="text-right py-1">KG</th><th className="text-right py-1">Grade</th></tr></thead>
               <tbody>
                 {harvests.slice(0,6).map(h => (
                   <tr key={h.id} className="border-t">
@@ -308,8 +308,8 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <Card className="p-5">
             <h3 className="font-bold mb-2 flex items-center gap-2">🩺 Health</h3>
             {diseases.length === 0 ? (
-              <div className="text-sm text-emerald-700 flex items-center gap-2">
-                <span className="size-2 rounded-full bg-emerald-500" />
+              <div className="text-sm text-primary flex items-center gap-2">
+                <span className="size-2 rounded-full bg-primary" />
                 No active issues detected.
               </div>
             ) : (
@@ -321,8 +321,8 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                       <Badge variant="destructive" className="text-[10px]">{d.severity}%</Badge>
                     </div>
                     <Progress value={d.severity} className="my-2 h-1.5" />
-                    <div className="text-[11px] text-stone-600">💊 {d.suggestedTreatment}</div>
-                    <div className="flex items-center justify-between mt-2 text-[10px] text-stone-500">
+                    <div className="text-[11px] text-muted-foreground">💊 {d.suggestedTreatment}</div>
+                    <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
                       <span>AI confidence {d.aiConfidence ?? 0}%</span>
                       <Badge variant={d.treatmentApplied?"default":"outline"} className="text-[10px]">
                         {d.treatmentApplied ? "✓ Treated" : "Pending treatment"}
@@ -337,20 +337,20 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           <Card className="p-5 flex flex-col items-center">
             <h3 className="font-bold mb-3 self-start">📷 QR Sticker</h3>
             <BedQR bedId={bed.id} />
-            <div className="text-[11px] text-stone-500 mt-2 text-center">Print and stick on bed marker. Scanning opens this profile.</div>
+            <div className="text-[11px] text-muted-foreground mt-2 text-center">Print and stick on bed marker. Scanning opens this profile.</div>
           </Card>
         </div>
       </div>
       {/* Activity log */}
       <Card className="p-5">
-        <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-800">
-          <Calendar className="size-4 text-slate-500" /> Activity Log
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-foreground">
+          <Calendar className="size-4 text-muted-foreground" /> Activity Log
         </h3>
         {log.length === 0 ? (
-          <p className="text-sm text-slate-400">No activity recorded yet.</p>
+          <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
         ) : (
           <div className="relative pl-7 space-y-3">
-            <div className="absolute left-2.5 top-1 bottom-1 w-px bg-slate-100" />
+            <div className="absolute left-2.5 top-1 bottom-1 w-px bg-border" />
             {log.slice(0, 20).map((entry, i) => {
               const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
               if (entry.kind === "harvest") {
@@ -358,13 +358,13 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 const f = farmer.id === h.farmerId ? farmer : null;
                 return (
                   <div key={i} className="relative">
-                    <div className={`${iconClass} bg-emerald-100 border-emerald-400`}><Wheat className="size-2.5 text-emerald-700" /></div>
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-xs">
+                    <div className={`${iconClass} bg-primary/15 border-primary/40`}><Wheat className="size-2.5 text-primary" /></div>
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-emerald-800">Harvest — {h.kg.toFixed(1)} kg</span>
-                        <span className="text-emerald-600 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                        <span className="font-semibold text-primary">Harvest — {h.kg.toFixed(1)} kg</span>
+                        <span className="text-primary/70 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                       </div>
-                      <div className="text-emerald-600 mt-0.5">Grade {h.qualityGrade} · {f?.name ?? h.farmerId}</div>
+                      <div className="text-primary/70 mt-0.5">Grade {h.qualityGrade} · {f?.name ?? h.farmerId}</div>
                     </div>
                   </div>
                 );
@@ -381,7 +381,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                       </div>
                       <div className="text-red-600 mt-0.5 flex items-center gap-2">
                         Severity {d.severity}%
-                        {d.treatmentApplied && <span className="flex items-center gap-0.5 text-emerald-700"><CheckCircle2 className="size-2.5" /> Treated</span>}
+                        {d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}
                       </div>
                     </div>
                   </div>
@@ -423,20 +423,20 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 const isCurrentStage = s === bed.stage;
                 return (
                   <div key={`stage-${s}`} className="relative">
-                    <div className={`${iconClass} ${isCurrentStage ? "bg-emerald-500 border-emerald-600" : "bg-slate-100 border-slate-300"}`}>
-                      <Sprout className={`size-2.5 ${isCurrentStage ? "text-white" : "text-slate-500"}`} />
+                    <div className={`${iconClass} ${isCurrentStage ? "bg-primary border-primary/70" : "bg-muted border-border"}`}>
+                      <Sprout className={`size-2.5 ${isCurrentStage ? "text-background" : "text-muted-foreground"}`} />
                     </div>
-                    <div className={`border rounded-lg px-3 py-2 text-xs ${isCurrentStage ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-100"}`}>
+                    <div className={`border rounded-lg px-3 py-2 text-xs ${isCurrentStage ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}>
                       <div className="flex items-center justify-between">
-                        <span className={`font-semibold ${isCurrentStage ? "text-emerald-800" : "text-slate-700"}`}>
+                        <span className={`font-semibold ${isCurrentStage ? "text-primary" : "text-foreground"}`}>
                           Stage: {GROWTH_STAGE_LABELS[s as keyof typeof GROWTH_STAGE_LABELS]}
-                          {isCurrentStage && <span className="ml-1.5 text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-full">Current</span>}
+                          {isCurrentStage && <span className="ml-1.5 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Current</span>}
                         </span>
-                        <span className={`tabular-nums ${isCurrentStage ? "text-emerald-600" : "text-slate-400"}`}>
+                        <span className={`tabular-nums ${isCurrentStage ? "text-primary/70" : "text-muted-foreground"}`}>
                           {new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       </div>
-                      <div className={`mt-0.5 text-[10px] ${isCurrentStage ? "text-emerald-600" : "text-slate-400"}`}>
+                      <div className={`mt-0.5 text-[10px] ${isCurrentStage ? "text-primary/70" : "text-muted-foreground"}`}>
                         {STAGE_DAYS_FROM_PLANTED[s]} days from planting
                       </div>
                     </div>

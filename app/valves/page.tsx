@@ -143,43 +143,43 @@ export default function ValvesIndex() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Valve Name <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Valve Name <span className="text-red-500">*</span></label>
           <input
             value={form.name}
             onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
             placeholder="e.g. Valve D"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Zone Color</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Zone Color</label>
           <div className="flex gap-2 flex-wrap">
             {options.valveColors.map(({ value: c }) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setForm(p => ({ ...p, color: c }))}
-                className={`size-8 rounded-full border-2 transition-all ${form.color === c ? "border-slate-800 scale-110" : "border-transparent"}`}
+                className={`size-8 rounded-full border-2 transition-all ${form.color === c ? "border-foreground scale-110" : "border-transparent"}`}
                 style={{ background: c }}
               />
             ))}
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Irrigation Schedule</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Irrigation Schedule</label>
           <input
             value={form.irrigationSchedule}
             onChange={e => setForm(p => ({ ...p, irrigationSchedule: e.target.value }))}
             placeholder="e.g. 06:00 & 17:00 — 25 min"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1.5">Supervisor <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Supervisor <span className="text-red-500">*</span></label>
           <select
             value={form.supervisorId}
             onChange={e => setForm(p => ({ ...p, supervisorId: e.target.value }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
           >
             <option value="">— Select supervisor —</option>
             {supervisors.map(s => (
@@ -196,12 +196,12 @@ export default function ValvesIndex() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
             <ValveIcon size={28} /> Irrigation Valves
           </h1>
-          <p className="text-stone-500 text-sm">Manage irrigation zones — each valve controls its own beds, farmers and water schedule.</p>
+          <p className="text-muted-foreground text-sm">Manage irrigation zones — each valve controls its own beds, farmers and water schedule.</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 gap-2">
           <Plus className="size-4" /> Add Valve
         </Button>
       </div>
@@ -224,17 +224,17 @@ export default function ValvesIndex() {
               <div className="absolute top-3 right-3 flex gap-1">
                 <button
                   onClick={() => openEdit(v)}
-                  className="size-7 rounded-md bg-slate-100 hover:bg-slate-200 grid place-items-center transition-colors"
+                  className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors"
                   title="Edit valve"
                 >
-                  <Pencil className="size-3.5 text-slate-600" />
+                  <Pencil className="size-3.5 text-muted-foreground" />
                 </button>
                 <button
                   onClick={() => setDeleteTarget(v)}
-                  className="size-7 rounded-md bg-slate-100 hover:bg-red-100 grid place-items-center transition-colors"
+                  className="size-7 rounded-md bg-muted hover:bg-red-100 grid place-items-center transition-colors"
                   title="Delete valve"
                 >
-                  <Trash2 className="size-3.5 text-slate-600 hover:text-red-600" />
+                  <Trash2 className="size-3.5 text-muted-foreground hover:text-red-600" />
                 </button>
               </div>
 
@@ -245,7 +245,7 @@ export default function ValvesIndex() {
                   </div>
                   <div>
                     <div className="font-bold">{v.name}</div>
-                    <div className="text-[11px] text-stone-500">{v.irrigationSchedule}</div>
+                    <div className="text-[11px] text-muted-foreground">{v.irrigationSchedule}</div>
                   </div>
                   {infected > 0 && (
                     <Badge variant="destructive" className="text-[10px] ml-auto">
@@ -255,28 +255,28 @@ export default function ValvesIndex() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                  <div className="rounded-lg bg-stone-50 p-2">
+                  <div className="rounded-lg bg-muted p-2">
                     <Sprout className="size-4 mx-auto text-emerald-600 mb-0.5" />
                     <div className="text-base font-bold tabular-nums">{vBeds.length}</div>
-                    <div className="text-[10px] text-stone-500">beds</div>
+                    <div className="text-[10px] text-muted-foreground">beds</div>
                   </div>
-                  <div className="rounded-lg bg-stone-50 p-2">
+                  <div className="rounded-lg bg-muted p-2">
                     <ValveIcon size={16} className="mx-auto mb-0.5" />
                     <div className="text-base font-bold tabular-nums">{plants.toLocaleString()}</div>
-                    <div className="text-[10px] text-stone-500">plants</div>
+                    <div className="text-[10px] text-muted-foreground">plants</div>
                   </div>
-                  <div className="rounded-lg bg-stone-50 p-2">
+                  <div className="rounded-lg bg-muted p-2">
                     <Wheat className="size-4 mx-auto text-rose-600 mb-0.5" />
                     <div className="text-base font-bold tabular-nums">{kg.toFixed(0)}</div>
-                    <div className="text-[10px] text-stone-500">kg total</div>
+                    <div className="text-[10px] text-muted-foreground">kg total</div>
                   </div>
                 </div>
 
-                <div className="text-xs text-stone-600 border-t pt-3 flex items-center gap-2">
+                <div className="text-xs text-foreground/80 border-t border-border pt-3 flex items-center gap-2">
                   <Users className="size-3.5" />
                   <span><strong>Supervisor:</strong> {supervisor?.name ?? "—"}</span>
                 </div>
-                <div className="text-xs text-stone-500 mt-1 truncate">
+                <div className="text-xs text-muted-foreground mt-1 truncate">
                   Farmers: {valveFarmers.map(f => f.name.split(" ")[0]).join(", ") || "None assigned"}
                 </div>
               </Link>
@@ -287,7 +287,7 @@ export default function ValvesIndex() {
         {/* Add placeholder */}
         <button
           onClick={openCreate}
-          className="border-2 border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center gap-3 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all text-slate-400 hover:text-emerald-600 min-h-[200px]"
+          className="border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center justify-center gap-3 hover:border-primary/40 hover:bg-primary/10 transition-all text-muted-foreground hover:text-primary min-h-[200px]"
         >
           <Plus className="size-8" />
           <span className="text-sm font-semibold">Add New Valve</span>
@@ -299,13 +299,13 @@ export default function ValvesIndex() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-emerald-600" /> Add Irrigation Valve
+              <Plus className="size-4 text-primary" /> Add Irrigation Valve
             </DialogTitle>
           </DialogHeader>
           <ValveForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Valve</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Create Valve</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -315,13 +315,13 @@ export default function ValvesIndex() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> Edit {editTarget?.name}
+              <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.name}
             </DialogTitle>
           </DialogHeader>
           <ValveForm />
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleEdit}>Save Changes</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -334,7 +334,7 @@ export default function ValvesIndex() {
               <Trash2 className="size-4" /> Delete {deleteTarget?.name}?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             This will permanently remove <strong>{deleteTarget?.name}</strong>. Any beds assigned to this valve must be reassigned first.
           </p>
           <div className="flex gap-2 mt-2">

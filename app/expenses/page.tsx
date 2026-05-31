@@ -127,7 +127,7 @@ export default function ExpensesPage() {
   const managerNames = farmers.filter(f => f.role !== "farmer");
 
   if (loading) {
-    return <div className="p-8 text-slate-400 text-sm">Loading…</div>;
+    return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
   }
 
   return (
@@ -136,10 +136,10 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Expenses</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Track and manage all farm expenditures</p>
+          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Expenses</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Track and manage all farm expenditures</p>
         </div>
-        <Button onClick={openAdd} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
+        <Button onClick={openAdd} className="bg-primary hover:bg-primary/90 text-background shrink-0">
           <Plus className="size-4 mr-2" />Add Expense
         </Button>
       </div>
@@ -147,20 +147,20 @@ export default function ExpensesPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "This Month",   value: `${monthlyTotal.toLocaleString()} ETB`, icon: Wallet,      color: "text-emerald-600 bg-emerald-50" },
+          { label: "This Month",   value: `${monthlyTotal.toLocaleString()} ETB`, icon: Wallet,      color: "text-primary bg-primary/10" },
           { label: "All Time",      value: `${allTimeTotal.toLocaleString()} ETB`, icon: TrendingDown, color: "text-red-600 bg-red-50" },
           { label: "Transactions",  value: expenses.length,                         icon: ListOrdered,  color: "text-blue-600 bg-blue-50" },
           { label: "Top Category",  value: EXPENSE_CATEGORY_LABELS[topCategory],    icon: Tag,          color: "text-amber-600 bg-amber-50" },
         ].map(card => {
           const Icon = card.icon;
           return (
-            <Card key={card.label} className="border border-slate-200 shadow-sm p-4 flex items-start gap-3">
+            <Card key={card.label} className="border border-border shadow-sm p-4 flex items-start gap-3">
               <div className={`size-9 rounded-lg grid place-items-center shrink-0 ${card.color}`}>
                 <Icon className="size-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] text-slate-500 font-medium">{card.label}</div>
-                <div className="text-base font-extrabold text-slate-900 truncate">{card.value}</div>
+                <div className="text-[11px] text-muted-foreground font-medium">{card.label}</div>
+                <div className="text-base font-extrabold text-foreground truncate">{card.value}</div>
               </div>
             </Card>
           );
@@ -170,18 +170,18 @@ export default function ExpensesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Category breakdown */}
-        <Card className="border border-slate-200 shadow-sm p-4 md:p-5">
-          <div className="font-bold text-slate-900 mb-4">Spending by Category</div>
+        <Card className="border border-border shadow-sm p-4 md:p-5">
+          <div className="font-bold text-foreground mb-4">Spending by Category</div>
           <div className="space-y-3">
             {byCategory.map(({ category, total }) => (
               <div key={category}>
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="font-medium text-slate-700">{EXPENSE_CATEGORY_LABELS[category]}</span>
-                  <span className="tabular-nums font-bold text-slate-800">{total.toLocaleString()} <span className="text-slate-400 font-normal">ETB</span></span>
+                  <span className="font-medium text-foreground">{EXPENSE_CATEGORY_LABELS[category]}</span>
+                  <span className="tabular-nums font-bold text-foreground">{total.toLocaleString()} <span className="text-muted-foreground font-normal">ETB</span></span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    className="h-full rounded-full bg-primary transition-all"
                     style={{ width: `${(total / maxBar) * 100}%` }}
                   />
                 </div>
@@ -191,12 +191,12 @@ export default function ExpensesPage() {
         </Card>
 
         {/* Expense table */}
-        <Card className="lg:col-span-2 border border-slate-200 shadow-sm overflow-hidden">
+        <Card className="lg:col-span-2 border border-border shadow-sm overflow-hidden">
           {/* Category filter */}
-          <div className="px-4 py-3 border-b border-slate-100 flex gap-1.5 flex-wrap">
+          <div className="px-4 py-3 border-b border-border flex gap-1.5 flex-wrap">
             <button
               onClick={() => setCatFilter("all")}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${catFilter === "all" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${catFilter === "all" ? "bg-primary text-background" : "bg-muted text-muted-foreground hover:bg-accent"}`}
             >
               All
             </button>
@@ -204,7 +204,7 @@ export default function ExpensesPage() {
               <button
                 key={c}
                 onClick={() => setCatFilter(c)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${catFilter === c ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${catFilter === c ? "bg-primary text-background" : "bg-muted text-muted-foreground hover:bg-accent"}`}
               >
                 {EXPENSE_CATEGORY_LABELS[c].split(" ")[0]}
               </button>
@@ -213,7 +213,7 @@ export default function ExpensesPage() {
 
           <div className="overflow-x-auto">
             {filtered.length === 0 ? (
-              <div className="p-10 text-center text-slate-400 text-sm">No expenses found</div>
+              <div className="p-10 text-center text-muted-foreground text-sm">No expenses found</div>
             ) : (
               <table className="w-full pro-table">
                 <thead>
@@ -232,7 +232,7 @@ export default function ExpensesPage() {
                     const payer = farmers.find(f => f.id === exp.paidBy);
                     return (
                       <tr key={exp.id}>
-                        <td className="text-slate-500 text-xs tabular-nums whitespace-nowrap">
+                        <td className="text-muted-foreground text-xs tabular-nums whitespace-nowrap">
                           {new Date(exp.date).toLocaleDateString("en", { month: "short", day: "numeric" })}
                         </td>
                         <td>
@@ -241,25 +241,25 @@ export default function ExpensesPage() {
                           </Badge>
                         </td>
                         <td className="max-w-[180px]">
-                          <div className="font-medium text-slate-800 text-xs truncate">{exp.description}</div>
-                          {exp.receiptRef && <div className="text-[10px] text-slate-400">{exp.receiptRef}</div>}
+                          <div className="font-medium text-foreground text-xs truncate">{exp.description}</div>
+                          {exp.receiptRef && <div className="text-[10px] text-muted-foreground">{exp.receiptRef}</div>}
                         </td>
-                        <td className="hidden md:table-cell text-xs text-slate-500 truncate max-w-[120px]">
+                        <td className="hidden md:table-cell text-xs text-muted-foreground truncate max-w-[120px]">
                           {exp.vendor || "—"}
                         </td>
-                        <td className="text-right tabular-nums font-bold text-slate-900 whitespace-nowrap">
+                        <td className="text-right tabular-nums font-bold text-foreground whitespace-nowrap">
                           {exp.amountETB.toLocaleString()}
-                          <span className="text-[10px] text-slate-400 font-normal ml-0.5">ETB</span>
+                          <span className="text-[10px] text-muted-foreground font-normal ml-0.5">ETB</span>
                         </td>
-                        <td className="hidden sm:table-cell text-xs text-slate-600">
+                        <td className="hidden sm:table-cell text-xs text-muted-foreground">
                           {payer?.name.split(" ")[0] ?? "—"}
                         </td>
                         <td>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => openEdit(exp)} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                            <button onClick={() => openEdit(exp)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                               <Pencil className="size-3.5" />
                             </button>
-                            <button onClick={() => setDeleteTarget(exp)} className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors">
+                            <button onClick={() => setDeleteTarget(exp)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors">
                               <Trash2 className="size-3.5" />
                             </button>
                           </div>
@@ -277,11 +277,11 @@ export default function ExpensesPage() {
       {/* Add dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Receipt className="size-4 text-emerald-600" />Add Expense</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Receipt className="size-4 text-primary" />Add Expense</DialogTitle></DialogHeader>
           <ExpenseForm form={form} setForm={setForm} payers={managerNames} categories={options.expenseCategories} />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSaveAdd}>Create</Button>
+            <Button className="bg-primary hover:bg-primary/90 text-background" onClick={handleSaveAdd}>Create</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -289,11 +289,11 @@ export default function ExpensesPage() {
       {/* Edit dialog */}
       <Dialog open={!!editTarget} onOpenChange={v => { if (!v) setEditTarget(null); }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Pencil className="size-4 text-emerald-600" />Edit Expense</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Pencil className="size-4 text-muted-foreground" />Edit Expense</DialogTitle></DialogHeader>
           <ExpenseForm form={form} setForm={setForm} payers={managerNames} categories={options.expenseCategories} />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSaveEdit}>Save</Button>
+            <Button className="bg-primary hover:bg-primary/90 text-background" onClick={handleSaveEdit}>Save</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -302,7 +302,7 @@ export default function ExpensesPage() {
       <Dialog open={!!deleteTarget} onOpenChange={v => { if (!v) setDeleteTarget(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-red-700">Delete Expense?</DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-600">{deleteTarget?.description} — <strong>{deleteTarget?.amountETB.toLocaleString()} ETB</strong></p>
+          <p className="text-sm text-muted-foreground">{deleteTarget?.description} — <strong>{deleteTarget?.amountETB.toLocaleString()} ETB</strong></p>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete}>Delete</Button>
@@ -328,12 +328,12 @@ function ExpenseForm({ form, setForm, payers, categories }: FormProps) {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600 mb-1 block">Date</span>
-          <input type="date" value={form.date} onChange={f("date")} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <span className="text-xs font-semibold text-foreground/80 mb-1 block">Date</span>
+          <input type="date" value={form.date} onChange={f("date")} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600 mb-1 block">Category</span>
-          <select value={form.category} onChange={f("category")} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <span className="text-xs font-semibold text-foreground/80 mb-1 block">Category</span>
+          <select value={form.category} onChange={f("category")} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             {categories.map(c => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
@@ -341,34 +341,34 @@ function ExpenseForm({ form, setForm, payers, categories }: FormProps) {
         </label>
       </div>
       <label className="block">
-        <span className="text-xs font-semibold text-slate-600 mb-1 block">Description</span>
-        <input type="text" value={form.description} onChange={f("description")} placeholder="e.g. Kumulus DF sulphur fungicide" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        <span className="text-xs font-semibold text-foreground/80 mb-1 block">Description</span>
+        <input type="text" value={form.description} onChange={f("description")} placeholder="e.g. Kumulus DF sulphur fungicide" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600 mb-1 block">Amount (ETB)</span>
-          <input type="number" min="0" value={form.amountETB || ""} onChange={f("amountETB")} placeholder="0" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <span className="text-xs font-semibold text-foreground/80 mb-1 block">Amount (ETB)</span>
+          <input type="number" min="0" value={form.amountETB || ""} onChange={f("amountETB")} placeholder="0" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600 mb-1 block">Paid By</span>
-          <select value={form.paidBy} onChange={f("paidBy")} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <span className="text-xs font-semibold text-foreground/80 mb-1 block">Paid By</span>
+          <select value={form.paidBy} onChange={f("paidBy")} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600 mb-1 block">Vendor</span>
-          <input type="text" value={form.vendor ?? ""} onChange={f("vendor")} placeholder="Supplier name" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <span className="text-xs font-semibold text-foreground/80 mb-1 block">Vendor</span>
+          <input type="text" value={form.vendor ?? ""} onChange={f("vendor")} placeholder="Supplier name" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600 mb-1 block">Receipt Ref</span>
-          <input type="text" value={form.receiptRef ?? ""} onChange={f("receiptRef")} placeholder="e.g. AGR-2241" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <span className="text-xs font-semibold text-foreground/80 mb-1 block">Receipt Ref</span>
+          <input type="text" value={form.receiptRef ?? ""} onChange={f("receiptRef")} placeholder="e.g. AGR-2241" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
         </label>
       </div>
       <label className="block">
-        <span className="text-xs font-semibold text-slate-600 mb-1 block">Notes</span>
-        <textarea rows={2} value={form.note ?? ""} onChange={f("note")} placeholder="Optional note" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
+        <span className="text-xs font-semibold text-foreground/80 mb-1 block">Notes</span>
+        <textarea rows={2} value={form.note ?? ""} onChange={f("note")} placeholder="Optional note" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
       </label>
     </div>
   );

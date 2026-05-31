@@ -15,9 +15,9 @@ import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
 
 const STATUS_STYLE: Record<FertigationStatus, string> = {
-  applied:   "bg-emerald-100 text-emerald-700 border-emerald-200",
+  applied:   "bg-primary/15 text-primary border-primary/30",
   scheduled: "bg-blue-100 text-blue-700 border-blue-200",
-  skipped:   "bg-slate-100 text-slate-500 border-slate-200",
+  skipped:   "bg-muted text-muted-foreground border-border",
 };
 const METHOD_STYLE: Record<ApplicationMethod, string> = {
   drip:        "bg-blue-100 text-blue-700",
@@ -166,19 +166,19 @@ export default function FertigationPage() {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Valve <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Valve <span className="text-red-500">*</span></label>
             <select value={form.valveId}
               onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
               {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Bed (optional)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Bed (optional)</label>
             <select value={form.bedId}
               onChange={e => setForm(p => ({ ...p, bedId: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
               disabled={!form.valveId}>
               <option value="">— None —</option>
               {valveBeds(form.valveId).map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
@@ -186,7 +186,7 @@ export default function FertigationPage() {
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Fertilizer Type</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Fertilizer Type</label>
           <select value={fertilizerValues.includes(form.fertilizerType) ? form.fertilizerType : "Other"}
             onChange={e => {
               const picked = options.fertilizers.find(f => f.value === e.target.value);
@@ -196,7 +196,7 @@ export default function FertigationPage() {
                 activeIngredient: String(picked?.meta?.activeIngredient ?? p.activeIngredient),
               }));
             }}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
             {options.fertilizers.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
             <option value="Other">Other</option>
           </select>
@@ -204,7 +204,7 @@ export default function FertigationPage() {
             <input value={form.fertilizerType}
               onChange={e => setForm(p => ({ ...p, fertilizerType: e.target.value }))}
               placeholder="Enter fertilizer name..."
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm mt-1" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm mt-1" />
           )}
           {/* Flow 2: live stock check */}
           {stockItem && (
@@ -213,13 +213,13 @@ export default function FertigationPage() {
                 <span className={`font-semibold ${!hasEnough ? "text-red-700" : stockItem.currentQty <= stockItem.reorderLevel ? "text-amber-700" : "text-emerald-700"}`}>
                   {!hasEnough ? t.fertigation.insufficientStock : stockItem.currentQty <= stockItem.reorderLevel ? t.fertigation.lowStock : t.fertigation.stockOk}
                 </span>
-                <span className="text-slate-500 tabular-nums">{stockItem.currentQty.toFixed(2)} / {stockItem.maxCapacity} {stockItem.unit}</span>
+                <span className="text-muted-foreground tabular-nums">{stockItem.currentQty.toFixed(2)} / {stockItem.maxCapacity} {stockItem.unit}</span>
               </div>
               <div className="w-full bg-white/60 rounded-full h-1.5 overflow-hidden">
                 <div className={`h-full rounded-full ${!hasEnough ? "bg-red-500" : stockItem.currentQty <= stockItem.reorderLevel ? "bg-amber-400" : "bg-emerald-500"}`}
                   style={{ width: `${stockPct}%` }} />
               </div>
-              <div className="flex justify-between text-[10px] mt-1 text-slate-500">
+              <div className="flex justify-between text-[10px] mt-1 text-muted-foreground">
                 <span>{t.fertigation.needed}: <strong>{neededKg.toFixed(2)} kg</strong> ({form.dosageGPerL}g/L × {form.waterVolumeLiters}L)</span>
                 <span>{t.fertigation.afterUse}: {Math.max(0, stockItem.currentQty - neededKg).toFixed(2)} kg</span>
               </div>
@@ -227,79 +227,79 @@ export default function FertigationPage() {
           )}
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Active Ingredient</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Active Ingredient</label>
           <input value={form.activeIngredient}
             onChange={e => setForm(p => ({ ...p, activeIngredient: e.target.value }))}
             placeholder="e.g. Nitrogen, Phosphorus, Potassium"
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Dosage (g/L)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Dosage (g/L)</label>
             <input type="number" min={0.1} step={0.1} value={form.dosageGPerL}
               onChange={e => setForm(p => ({ ...p, dosageGPerL: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Volume (L)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Volume (L)</label>
             <input type="number" min={1} value={form.waterVolumeLiters}
               onChange={e => setForm(p => ({ ...p, waterVolumeLiters: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Cost (ETB)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Cost (ETB)</label>
             <input type="number" min={0} value={form.cost}
               onChange={e => setForm(p => ({ ...p, cost: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Application Date</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Application Date</label>
             <input type="date" value={form.applicationDate}
               onChange={e => setForm(p => ({ ...p, applicationDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Next Schedule</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Next Schedule</label>
             <input type="date" value={form.nextScheduleDate}
               onChange={e => setForm(p => ({ ...p, nextScheduleDate: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Method</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Method</label>
             <select value={form.applicationMethod}
               onChange={e => setForm(p => ({ ...p, applicationMethod: e.target.value as ApplicationMethod }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               {options.applicationMethods.map(m => <option key={m.value} value={m.value} className="capitalize">{m.label.replace("_", " ")}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Responsible Worker</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Responsible Worker</label>
             <select value={form.responsibleWorkerId}
               onChange={e => setForm(p => ({ ...p, responsibleWorkerId: e.target.value }))}
-              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
               <option value="">— Select —</option>
               {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Status</label>
           <select value={form.status}
             onChange={e => setForm(p => ({ ...p, status: e.target.value as FertigationStatus }))}
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
             {options.fertigationStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Notes</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Notes</label>
           <input value={form.notes}
             onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
             placeholder="Optional notes..."
-            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
         </div>
       </div>
     );
@@ -311,9 +311,9 @@ export default function FertigationPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Beaker className="size-5 text-violet-600" />
-            <h1 className="text-2xl font-bold text-slate-900">{t.fertigation.title}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{t.fertigation.title}</h1>
           </div>
-          <p className="text-slate-500 text-sm">{t.fertigation.subtitle}</p>
+          <p className="text-muted-foreground text-sm">{t.fertigation.subtitle}</p>
         </div>
         <Button onClick={openCreate} className="bg-violet-600 hover:bg-violet-700 gap-2">
           <Plus className="size-4" /> {t.fertigation.scheduleApplication}
@@ -322,9 +322,9 @@ export default function FertigationPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="text-2xl font-bold text-emerald-700 tabular-nums">{applied}</div>
-          <div className="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-0.5"><CheckCircle2 className="size-3" /> {t.common.applied}</div>
+        <Card className="p-4 bg-primary/10 border-primary/30">
+          <div className="text-2xl font-bold text-primary tabular-nums">{applied}</div>
+          <div className="text-xs text-primary font-medium flex items-center gap-1 mt-0.5"><CheckCircle2 className="size-3" /> {t.common.applied}</div>
         </Card>
         <Card className="p-4 bg-blue-50 border-blue-200">
           <div className="text-2xl font-bold text-blue-700 tabular-nums">{scheduled}</div>
@@ -341,17 +341,17 @@ export default function FertigationPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+      <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
         {(["all", "applied", "scheduled", "skipped"] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>
+            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${filter === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             {f}
           </button>
         ))}
       </div>
 
       {/* Table */}
-      <Card className="border border-slate-200 shadow-sm overflow-hidden">
+      <Card className="border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full pro-table">
             <thead>
@@ -371,12 +371,12 @@ export default function FertigationPage() {
                     <td>
                       <div>
                         <span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name}</span>
-                        {rec.bedId && <div className="text-[10px] font-mono text-slate-400">{rec.bedId}</div>}
+                        {rec.bedId && <div className="text-[10px] font-mono text-muted-foreground">{rec.bedId}</div>}
                       </div>
                     </td>
                     <td>
                       <div className="font-medium text-sm">{rec.fertilizerType}</div>
-                      <div className="text-[10px] text-slate-400 max-w-[160px] truncate">{rec.activeIngredient}</div>
+                      <div className="text-[10px] text-muted-foreground max-w-[160px] truncate">{rec.activeIngredient}</div>
                     </td>
                     <td>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${METHOD_STYLE[rec.applicationMethod]}`}>
@@ -390,7 +390,7 @@ export default function FertigationPage() {
                     </td>
                     <td className="tabular-nums text-xs">
                       <span className="flex items-center gap-1">
-                        <Calendar className="size-3 text-slate-400" />
+                        <Calendar className="size-3 text-muted-foreground" />
                         {new Date(rec.nextScheduleDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
                       </span>
                     </td>
@@ -399,8 +399,8 @@ export default function FertigationPage() {
                     <td><Badge className={`text-[10px] capitalize ${STATUS_STYLE[rec.status]}`}>{rec.status}</Badge></td>
                     <td>
                       <button onClick={() => openEdit(rec)}
-                        className="size-6 rounded bg-slate-100 hover:bg-slate-200 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Pencil className="size-3 text-slate-600" />
+                        className="size-6 rounded bg-muted hover:bg-accent grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Pencil className="size-3 text-muted-foreground" />
                       </button>
                     </td>
                   </tr>
@@ -432,7 +432,7 @@ export default function FertigationPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-slate-600" /> {t.common.edit} {t.fertigation.title}
+              <Pencil className="size-4 text-muted-foreground" /> {t.common.edit} {t.fertigation.title}
             </DialogTitle>
           </DialogHeader>
           <FertigationForm />

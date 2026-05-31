@@ -58,7 +58,7 @@ function buildIndex(beds: Bed[], farmers: Farmer[], valves: Valve[]): SearchResu
 }
 
 const TYPE_BADGE: Record<SearchResult["type"], string> = {
-  bed:    "bg-emerald-100 text-emerald-700",
+  bed:    "bg-primary/15 text-primary",
   farmer: "bg-blue-100 text-blue-700",
   valve:  "bg-amber-100 text-amber-700",
 };
@@ -262,7 +262,7 @@ export function Topbar() {
         {/* Role pill */}
         {user && (
           <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary border border-border text-[11px] font-medium text-foreground/80">
-            <span className={`size-1.5 rounded-full ${role === "manager" ? "bg-amber-500" : role === "supervisor" ? "bg-blue-500" : "bg-emerald-500"}`} />
+            <span className={`size-1.5 rounded-full ${role === "manager" ? "bg-amber-500" : role === "supervisor" ? "bg-blue-500" : "bg-primary"}`} />
             <span className="capitalize">{role}</span>
           </div>
         )}

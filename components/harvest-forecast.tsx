@@ -75,18 +75,18 @@ export function HarvestForecast({ beds, today, valves }: Props) {
     .sort((a, b) => a.daysAway - b.daysAway);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-emerald-600" />
-            <span className="font-semibold text-slate-900">7-Day Harvest Forecast</span>
+            <CalendarDays className="size-4 text-primary" />
+            <span className="font-semibold text-foreground">7-Day Harvest Forecast</span>
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">{readyNow} beds ready or ripening now</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">{readyNow} beds ready or ripening now</div>
         </div>
         <div className="text-right">
-          <div className="text-xl font-bold text-emerald-700 tabular-nums">{totalWeek.toFixed(0)} kg</div>
-          <div className="text-[11px] text-slate-400">est. this week</div>
+          <div className="text-xl font-bold text-primary tabular-nums">{totalWeek.toFixed(0)} kg</div>
+          <div className="text-[11px] text-muted-foreground">est. this week</div>
         </div>
       </div>
 
@@ -97,15 +97,15 @@ export function HarvestForecast({ beds, today, valves }: Props) {
             const pct = (day.kg / maxKg) * 100;
             return (
               <div key={day.dateStr} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                <div className="text-[10px] font-semibold text-slate-700 tabular-nums">
+                <div className="text-[10px] font-semibold text-foreground tabular-nums">
                   {day.kg > 0 ? `${day.kg}` : "—"}
                 </div>
                 <div className="w-full flex-1 flex items-end">
                   <div
                     className={`w-full rounded-t-md transition-all ${
-                      i === 0 ? "bg-emerald-500"
-                      : day.kg > 0 ? "bg-emerald-200"
-                      : "bg-slate-100"
+                      i === 0 ? "bg-primary"
+                      : day.kg > 0 ? "bg-primary/30"
+                      : "bg-muted"
                     }`}
                     style={{ height: `${Math.max(pct, day.kg > 0 ? 8 : 2)}%` }}
                   />
@@ -119,7 +119,7 @@ export function HarvestForecast({ beds, today, valves }: Props) {
         <div className="flex gap-2">
           {days.map((day, i) => (
             <div key={day.dateStr} className="flex-1 text-center min-w-0">
-              <div className={`text-[9px] truncate ${i === 0 ? "font-bold text-emerald-700" : "text-slate-400"}`}>
+              <div className={`text-[9px] truncate ${i === 0 ? "font-bold text-primary" : "text-muted-foreground"}`}>
                 {day.label}
               </div>
             </div>
@@ -127,9 +127,9 @@ export function HarvestForecast({ beds, today, valves }: Props) {
         </div>
 
         {readyNow > 0 && (
-          <div className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
-            <Wheat className="size-4 text-emerald-600 shrink-0" />
-            <div className="text-xs text-emerald-800">
+          <div className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 border border-primary/30">
+            <Wheat className="size-4 text-primary shrink-0" />
+            <div className="text-xs text-primary">
               <span className="font-bold">{readyNow} beds</span> ready to harvest or in final ripening today
             </div>
           </div>
@@ -138,35 +138,35 @@ export function HarvestForecast({ beds, today, valves }: Props) {
         {/* Per-bed upcoming schedule */}
         {upcoming.length > 0 && (
           <div className="mt-4">
-            <div className="text-xs font-semibold text-slate-600 mb-2">Upcoming by Bed (planted-date adjusted)</div>
-            <div className="divide-y divide-slate-50">
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Upcoming by Bed (planted-date adjusted)</div>
+            <div className="divide-y divide-border">
               {upcoming.slice(0, 6).map(({ bed, daysAway, harvestDate, valve }) => {
                 const expectedKg = Math.round(bed.lengthM * KG_PER_M_PER_DAY * HARVEST_WINDOW_DAYS * 10) / 10;
                 return (
                   <div key={bed.id} className="flex items-center gap-2 py-1.5 text-xs">
-                    <span className="font-mono font-bold text-slate-700 w-14 shrink-0">{bed.id}</span>
-                    <span className="text-slate-500 flex-1 truncate">{bed.variety}</span>
+                    <span className="font-mono font-bold text-foreground w-14 shrink-0">{bed.id}</span>
+                    <span className="text-muted-foreground flex-1 truncate">{bed.variety}</span>
                     {valve && (
                       <span className="text-[10px] font-semibold shrink-0" style={{ color: valve.color }}>
                         {valve.name.split(" ")[0]}
                       </span>
                     )}
                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                      daysAway === 0 ? "bg-emerald-100 text-emerald-700"
+                      daysAway === 0 ? "bg-primary/15 text-primary"
                       : daysAway <= 4 ? "bg-amber-100 text-amber-700"
-                      : "bg-slate-100 text-slate-600"
+                      : "bg-muted text-muted-foreground"
                     }`}>
                       {daysAway === 0 ? "Now"
                         : daysAway === 1 ? "Tomorrow"
                         : `${harvestDate.toLocaleDateString("en", { month: "short", day: "numeric" })}`}
                     </span>
-                    <span className="text-slate-400 shrink-0 w-14 text-right tabular-nums">~{expectedKg} kg</span>
+                    <span className="text-muted-foreground shrink-0 w-14 text-right tabular-nums">~{expectedKg} kg</span>
                   </div>
                 );
               })}
             </div>
             {upcoming.length > 6 && (
-              <div className="text-center text-[10px] text-slate-400 pt-2">
+              <div className="text-center text-[10px] text-muted-foreground pt-2">
                 +{upcoming.length - 6} more beds in next 30 days
               </div>
             )}

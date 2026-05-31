@@ -99,7 +99,7 @@ export function ManualReportDialog({ onReported }: Props) {
   }
 
   const severityColor =
-    severity > 60 ? "text-red-600" : severity > 30 ? "text-amber-600" : "text-emerald-600";
+    severity > 60 ? "text-red-600" : severity > 30 ? "text-amber-600" : "text-primary";
 
   return (
     <>
@@ -123,13 +123,13 @@ export function ManualReportDialog({ onReported }: Props) {
           <div className="space-y-4">
             {/* Bed selector */}
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+              <label className="text-xs font-semibold text-foreground/80 block mb-1.5">
                 Affected Bed <span className="text-red-500">*</span>
               </label>
               <select
                 value={bedId}
                 onChange={e => setBedId(e.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Select a bed…</option>
                 {bedsByValve.map(({ valve, beds }) => (
@@ -150,7 +150,7 @@ export function ManualReportDialog({ onReported }: Props) {
 
             {/* Disease type */}
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+              <label className="text-xs font-semibold text-foreground/80 block mb-1.5">
                 Disease Type <span className="text-red-500">*</span>
               </label>
               <div className="grid grid-cols-1 gap-1.5">
@@ -162,10 +162,10 @@ export function ManualReportDialog({ onReported }: Props) {
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-left text-sm transition-all ${
                       type === key
                         ? "border-red-500 bg-red-50 text-red-900"
-                        : "border-slate-200 hover:border-slate-300 text-slate-700"
+                        : "border-border hover:border-muted-foreground text-foreground"
                     }`}
                   >
-                    <span className={`size-2 rounded-full shrink-0 ${type === key ? "bg-red-500" : "bg-slate-300"}`} />
+                    <span className={`size-2 rounded-full shrink-0 ${type === key ? "bg-red-500" : "bg-muted-foreground/30"}`} />
                     {label}
                   </button>
                 ))}
@@ -188,7 +188,7 @@ export function ManualReportDialog({ onReported }: Props) {
                 onChange={e => setSeverity(Number(e.target.value))}
                 className="w-full accent-red-600"
               />
-              <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                 <span>Mild</span>
                 <span>Moderate</span>
                 <span>Severe</span>
@@ -210,7 +210,7 @@ export function ManualReportDialog({ onReported }: Props) {
                     </label>
                     {bedLen > 0 && (
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        pct > 60 ? "bg-red-100 text-red-700" : pct > 30 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                        pct > 60 ? "bg-red-100 text-red-700" : pct > 30 ? "bg-amber-100 text-amber-700" : "bg-primary/15 text-primary"
                       }`}>
                         {pct}% of {bedLen}m
                       </span>
@@ -225,14 +225,14 @@ export function ManualReportDialog({ onReported }: Props) {
                       value={infectedLengthM || ""}
                       placeholder={autoEst > 0 ? `${autoEst} (auto)` : "e.g. 12"}
                       onChange={e => setInfectedLengthM(Number(e.target.value))}
-                      className="w-28 border border-slate-200 rounded-md px-3 py-2 text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-28 border border-border rounded-md px-3 py-2 text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-red-500"
                     />
-                    <span className="text-sm text-slate-500">
+                    <span className="text-sm text-muted-foreground">
                       {bedLen > 0 ? `of ${bedLen}m total` : "metres infected"}
                     </span>
                   </div>
                   {autoEst > 0 && !infectedLengthM && (
-                    <p className="text-[10px] text-slate-400 mt-1 italic">
+                    <p className="text-[10px] text-muted-foreground mt-1 italic">
                       Auto-estimated from severity ({severity}%). Enter exact value if known.
                     </p>
                   )}
@@ -242,7 +242,7 @@ export function ManualReportDialog({ onReported }: Props) {
 
             {/* Notes */}
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">Observations (optional)</label>
+              <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Observations (optional)</label>
               <Textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
@@ -254,9 +254,9 @@ export function ManualReportDialog({ onReported }: Props) {
 
             {/* Photo upload */}
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">Photo (optional)</label>
+              <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Photo (optional)</label>
               {photo ? (
-                <div className="relative rounded-lg overflow-hidden border border-slate-200">
+                <div className="relative rounded-lg overflow-hidden border border-border">
                   <img src={photo} alt="Disease" className="w-full max-h-40 object-cover" />
                   <div className="absolute top-2 right-2 flex gap-1">
                     <button
@@ -277,10 +277,10 @@ export function ManualReportDialog({ onReported }: Props) {
                   </div>
                 </div>
               ) : (
-                <label className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors">
-                  <Upload className="size-5 text-slate-400" />
-                  <span className="text-xs text-slate-500">
-                    <span className="font-semibold text-slate-600">Click to upload</span> or take photo
+                <label className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-border bg-muted hover:bg-accent cursor-pointer transition-colors">
+                  <Upload className="size-5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">Click to upload</span> or take photo
                   </span>
                   <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
                 </label>

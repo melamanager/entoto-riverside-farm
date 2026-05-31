@@ -70,7 +70,7 @@ function TokenField({
   const masked = value.startsWith("••••");
   return (
     <div>
-      <label className="text-xs font-semibold text-slate-700 block mb-1">{label}</label>
+      <label className="text-xs font-semibold text-foreground/80 block mb-1">{label}</label>
       <div className="flex gap-2">
         <div className="relative flex-1">
           <input
@@ -78,24 +78,24 @@ function TokenField({
             value={value}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 bg-white"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring bg-card"
           />
           {!masked && (
             <button
               type="button"
               onClick={() => setShow(s => !s)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {show ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
             </button>
           )}
         </div>
       </div>
-      {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-muted-foreground mt-1">{hint}</p>}
       {masked && (
         <button
           type="button"
-          className="text-[11px] text-emerald-600 font-semibold mt-1 hover:underline"
+          className="text-[11px] text-primary font-semibold mt-1 hover:underline"
           onClick={() => onChange("")}
         >
           Click to replace token
@@ -219,7 +219,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400">
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
         <Loader2 className="size-5 animate-spin mr-2" /> Loading settings…
       </div>
     );
@@ -237,15 +237,15 @@ export default function SettingsPage() {
     <div className="p-6 md:p-8 max-w-[860px] mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-slate-900 grid place-items-center">
-            <Settings className="size-5 text-white" />
+          <div className="size-10 rounded-xl bg-foreground grid place-items-center">
+            <Settings className="size-5 text-background" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">System Settings</h1>
-            <p className="text-sm text-slate-500">Notifications, integrations &amp; API keys</p>
+            <h1 className="text-2xl font-bold text-foreground">System Settings</h1>
+            <p className="text-sm text-muted-foreground">Notifications, integrations &amp; API keys</p>
           </div>
         </div>
-        <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+        <Button onClick={save} disabled={saving} className="bg-primary hover:bg-primary/90 gap-2">
           {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
           Save all settings
         </Button>
@@ -259,12 +259,12 @@ export default function SettingsPage() {
               <MessageSquare className="size-4 text-green-700" />
             </div>
             <div>
-              <div className="font-bold text-slate-900">SMS Ethiopia</div>
-              <div className="text-xs text-slate-500">Disease alerts sent to supervisor phones</div>
+              <div className="font-bold text-foreground">SMS Ethiopia</div>
+              <div className="text-xs text-muted-foreground">Disease alerts sent to supervisor phones</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={smsMasked || smsConfigured ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}>
+            <Badge className={smsMasked || smsConfigured ? "bg-primary/15 text-primary border-primary/30" : "bg-muted text-muted-foreground border-border"}>
               {smsMasked || smsConfigured ? "Configured" : "Not set"}
             </Badge>
             <label className="flex items-center gap-1.5 cursor-pointer">
@@ -274,7 +274,7 @@ export default function SettingsPage() {
                 onChange={e => set("sms_enabled", e.target.checked ? "true" : "false")}
                 className="accent-emerald-600"
               />
-              <span className="text-xs font-semibold text-slate-600">Enabled</span>
+              <span className="text-xs font-semibold text-muted-foreground">Enabled</span>
             </label>
           </div>
         </div>
@@ -288,14 +288,14 @@ export default function SettingsPage() {
         />
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Base URL</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Base URL</label>
           <input
             type="text"
             value={settings.sms_base_url}
             onChange={e => set("sms_base_url", e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <p className="text-[11px] text-slate-400 mt-1">Adjust if SMS Ethiopia changes their API endpoint</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Adjust if SMS Ethiopia changes their API endpoint</p>
         </div>
 
         <div className="flex items-center gap-2 pt-1">
@@ -304,7 +304,7 @@ export default function SettingsPage() {
             value={testPhone}
             onChange={e => setTestPhone(e.target.value)}
             placeholder="+251911234567"
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+            className="border border-border rounded-lg px-3 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <Button
             variant="outline"
@@ -327,8 +327,8 @@ export default function SettingsPage() {
               <Bot className="size-4 text-blue-700" />
             </div>
             <div>
-              <div className="font-bold text-slate-900">Telegram Bot</div>
-              <div className="text-xs text-slate-500">Disease alerts sent to your Telegram chat</div>
+              <div className="font-bold text-foreground">Telegram Bot</div>
+              <div className="text-xs text-muted-foreground">Disease alerts sent to your Telegram chat</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -342,7 +342,7 @@ export default function SettingsPage() {
                 onChange={e => set("telegram_enabled", e.target.checked ? "true" : "false")}
                 className="accent-blue-600"
               />
-              <span className="text-xs font-semibold text-slate-600">Enabled</span>
+              <span className="text-xs font-semibold text-muted-foreground">Enabled</span>
             </label>
           </div>
         </div>
@@ -356,14 +356,14 @@ export default function SettingsPage() {
         />
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Chat ID</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Chat ID</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={settings.telegram_chat_id}
               onChange={e => set("telegram_chat_id", e.target.value)}
               placeholder="-1001234567890 or 987654321"
-              className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <Button
               variant="outline"
@@ -393,7 +393,7 @@ export default function SettingsPage() {
                 <button
                   key={c.id}
                   onClick={() => { set("telegram_chat_id", String(c.id)); setChatUpdates([]); }}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-white border border-blue-200 hover:border-blue-400 text-xs text-left transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-card border border-blue-200 hover:border-blue-400 text-xs text-left transition-colors"
                 >
                   <span className="font-mono text-blue-800 font-bold">{c.id}</span>
                   {c.type && <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">{c.type}</Badge>}
@@ -424,11 +424,11 @@ export default function SettingsPage() {
               <Cloud className="size-4 text-sky-700" />
             </div>
             <div>
-              <div className="font-bold text-slate-900">Tomorrow.io Weather</div>
-              <div className="text-xs text-slate-500">Live weather &amp; irrigation intelligence</div>
+              <div className="font-bold text-foreground">Tomorrow.io Weather</div>
+              <div className="text-xs text-muted-foreground">Live weather &amp; irrigation intelligence</div>
             </div>
           </div>
-          <Badge className={weatherMasked || weatherConfigured ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}>
+          <Badge className={weatherMasked || weatherConfigured ? "bg-primary/15 text-primary border-primary/30" : "bg-muted text-muted-foreground border-border"}>
             {weatherMasked || weatherConfigured ? "Configured" : "Not set"}
           </Badge>
         </div>
@@ -450,8 +450,8 @@ export default function SettingsPage() {
               <SlidersHorizontal className="size-4 text-violet-700" />
             </div>
             <div>
-              <div className="font-bold text-slate-900">Dropdown Options</div>
-              <div className="text-xs text-slate-500">Edit reusable lists used across farm forms</div>
+              <div className="font-bold text-foreground">Dropdown Options</div>
+              <div className="text-xs text-muted-foreground">Edit reusable lists used across farm forms</div>
             </div>
           </div>
           <Button onClick={saveDropdownOptions} disabled={savingOptions} size="sm" className="bg-violet-600 hover:bg-violet-700 gap-2">
@@ -461,11 +461,11 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">List</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">List</label>
           <select
             value={optionKey}
             onChange={e => setOptionKey(e.target.value as OptionKey)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
           >
             {OPTION_KEYS.map(key => (
               <option key={key} value={key}>{optionTitle(key)}</option>
@@ -474,35 +474,35 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Options</label>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Options</label>
           <textarea
             value={optionDraft}
             onChange={e => setOptionDraft(e.target.value)}
             rows={8}
             spellCheck={false}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <p className="text-[11px] text-slate-400 mt-1">Use one option per line. Write <span className="font-mono">value | label</span> when the saved value and display label differ.</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Use one option per line. Write <span className="font-mono">value | label</span> when the saved value and display label differ.</p>
         </div>
       </Card>
 
       {/* ── Status summary ────────────────────────────────────────────────────── */}
       <Card className="p-5">
-        <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Integration Status</div>
+        <div className="text-xs font-bold text-foreground uppercase tracking-widest mb-3">Integration Status</div>
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "SMS Ethiopia",    ok: smsMasked || !!smsConfigured,    detail: smsMasked || smsConfigured ? "Token set" : "Not configured" },
             { label: "Telegram",        ok: (tgTokenMasked || !!tgTokenConfigured) && tgChatConfigured, detail: !tgChatConfigured ? "Chat ID missing" : "Ready" },
             { label: "Tomorrow.io",     ok: weatherMasked || !!weatherConfigured, detail: weatherMasked || weatherConfigured ? "API key set" : "Using fallback" },
           ].map(s => (
-            <div key={s.label} className={`flex items-center gap-2.5 p-3 rounded-xl border ${s.ok ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+            <div key={s.label} className={`flex items-center gap-2.5 p-3 rounded-xl border ${s.ok ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}>
               {s.ok
-                ? <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                : <XCircle className="size-4 text-slate-400 shrink-0" />
+                ? <CheckCircle2 className="size-4 text-primary shrink-0" />
+                : <XCircle className="size-4 text-muted-foreground shrink-0" />
               }
               <div>
-                <div className={`text-xs font-bold ${s.ok ? "text-emerald-800" : "text-slate-600"}`}>{s.label}</div>
-                <div className="text-[10px] text-slate-500">{s.detail}</div>
+                <div className={`text-xs font-bold ${s.ok ? "text-primary" : "text-foreground/80"}`}>{s.label}</div>
+                <div className="text-[10px] text-muted-foreground">{s.detail}</div>
               </div>
             </div>
           ))}
@@ -510,7 +510,7 @@ export default function SettingsPage() {
       </Card>
 
       <div className="flex justify-end pt-2">
-        <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+        <Button onClick={save} disabled={saving} className="bg-primary hover:bg-primary/90 gap-2">
           {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
           Save all settings
         </Button>

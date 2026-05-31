@@ -22,14 +22,14 @@ import { useOptions } from "@/lib/use-options";
 const TODAY = new Date().toISOString().split("T")[0];
 
 const PRIORITY_STYLE: Record<FollowUpPriority, string> = {
-  low:    "bg-slate-100 text-slate-600 border-slate-200",
+  low:    "bg-muted text-muted-foreground border-border",
   normal: "bg-blue-100 text-blue-700 border-blue-200",
   urgent: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
 const STATUS_ICON = {
   pending: <Clock className="size-3.5 text-blue-500" />,
-  done:    <CheckCircle2 className="size-3.5 text-emerald-600" />,
+  done:    <CheckCircle2 className="size-3.5 text-primary" />,
   overdue: <AlertTriangle className="size-3.5 text-rose-600" />,
 };
 
@@ -38,7 +38,7 @@ const ENTITY_ICONS: Record<FollowUpEntityType, React.ReactNode> = {
   planting:    <Sprout className="size-4 text-emerald-600" />,
   fertigation: <Droplets className="size-4 text-violet-600" />,
   task:        <ListChecks className="size-4 text-amber-600" />,
-  general:     <FileText className="size-4 text-slate-500" />,
+  general:     <FileText className="size-4 text-muted-foreground" />,
 };
 
 function daysUntil(dueDate: string) {
@@ -252,10 +252,10 @@ export function FollowUpsSection() {
           { label: t.common.pending,     value: counts.pending, color: "text-blue-700",    bg: "bg-blue-50 border-blue-200",    tabKey: "pending" as FilterTab },
           { label: t.common.overdue,     value: counts.overdue, color: "text-rose-700",    bg: "bg-rose-50 border-rose-200",    tabKey: "overdue" as FilterTab },
           { label: t.followUps.dueToday, value: counts.today,   color: "text-amber-700",   bg: "bg-amber-50 border-amber-200",  tabKey: "today" as FilterTab },
-          { label: t.common.done,        value: counts.done,    color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", tabKey: "done" as FilterTab },
+          { label: t.common.done,        value: counts.done,    color: "text-primary", bg: "bg-primary/10 border-primary/30", tabKey: "done" as FilterTab },
         ].map(({ label, value, color, bg, tabKey }) => (
           <button key={label} onClick={() => setTab(tabKey)}
-            className={`rounded-xl border p-4 text-left transition-all hover:shadow-sm ${bg} ${tab === tabKey ? "ring-2 ring-offset-1 ring-slate-400" : ""}`}>
+            className={`rounded-xl border p-4 text-left transition-all hover:shadow-sm ${bg} ${tab === tabKey ? "ring-2 ring-offset-1 ring-primary/40" : ""}`}>
             <div className={`text-2xl font-bold tabular-nums ${color}`}>{value}</div>
             <div className={`text-xs font-medium mt-0.5 ${color}`}>{label}</div>
           </button>
@@ -264,24 +264,24 @@ export function FollowUpsSection() {
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
           {(["all", "pending", "overdue", "today", "done"] as FilterTab[]).map(f => (
             <button key={f} onClick={() => setTab(f)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all capitalize ${
-                tab === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"
+                tab === f ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}>
               {f === "today" ? t.followUps.dueToday : f}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1 ml-2">
-          <Filter className="size-3.5 text-slate-400" />
+          <Filter className="size-3.5 text-muted-foreground" />
           {[{ value: "all", label: t.followUps.allTypes, icon: undefined }, ...options.followUpEntityTypes].map(e => (
             <button key={e.value} onClick={() => setEntity(e.value as FollowUpEntityType | "all")}
               className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all capitalize ${
                 entityFilter === e.value
-                  ? "bg-slate-800 text-white border-slate-800"
-                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-card text-muted-foreground border-border hover:border-muted-foreground"
               }`}>
               {e.value === "all" ? e.label : `${e.icon ?? ""} ${e.label}`}
             </button>
@@ -298,7 +298,7 @@ export function FollowUpsSection() {
           const isOverdue = fu.status === "overdue";
           return (
             <Card key={fu.id} className={`p-4 transition-all ${
-              fu.status === "done" ? "opacity-60 bg-slate-50"
+              fu.status === "done" ? "opacity-60 bg-muted"
               : isOverdue ? "border-rose-300 bg-rose-50/30"
               : fu.priority === "urgent" ? "border-amber-300 bg-amber-50/20"
               : ""
@@ -308,19 +308,19 @@ export function FollowUpsSection() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2 flex-wrap">
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-slate-900 text-sm leading-tight">{fu.title}</div>
+                      <div className="font-semibold text-foreground text-sm leading-tight">{fu.title}</div>
                       {fu.description && (
-                        <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{fu.description}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{fu.description}</div>
                       )}
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <Badge className={`text-[10px] capitalize ${PRIORITY_STYLE[fu.priority]}`}>{fu.priority}</Badge>
-                        <span className="text-[10px] text-slate-400 capitalize">{entityLabel(fu.entityType)}</span>
-                        {fu.bedId && <span className="text-[10px] font-mono text-slate-400">{fu.bedId}</span>}
+                        <span className="text-[10px] text-muted-foreground capitalize">{entityLabel(fu.entityType)}</span>
+                        {fu.bedId && <span className="text-[10px] font-mono text-muted-foreground">{fu.bedId}</span>}
                         {valve && <span className="text-[10px] font-semibold" style={{ color: valve.color }}>{valve.name}</span>}
-                        {worker && <span className="text-[10px] text-slate-500">→ {worker.name.split(" ")[0]}</span>}
+                        {worker && <span className="text-[10px] text-muted-foreground">→ {worker.name.split(" ")[0]}</span>}
                       </div>
                       {fu.completionNote && (
-                        <div className="text-[11px] text-emerald-700 bg-emerald-50 rounded px-2 py-1 mt-2 italic">
+                        <div className="text-[11px] text-primary bg-primary/10 rounded px-2 py-1 mt-2 italic">
                           ✓ {fu.completionNote}
                         </div>
                       )}
@@ -329,19 +329,19 @@ export function FollowUpsSection() {
                       <div className="flex items-center gap-1 justify-end">
                         {STATUS_ICON[fu.status]}
                         <span className={`text-xs font-semibold capitalize ${
-                          fu.status === "done" ? "text-emerald-600"
+                          fu.status === "done" ? "text-primary"
                           : isOverdue ? "text-rose-600"
                           : "text-blue-600"
                         }`}>{fu.status}</span>
                       </div>
-                      <div className={`text-[11px] mt-0.5 ${isOverdue ? "text-rose-600 font-bold" : "text-slate-400"}`}>
+                      <div className={`text-[11px] mt-0.5 ${isOverdue ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
                         {fu.status === "done"
                           ? `Done ${fu.completedAt ? new Date(fu.completedAt).toLocaleDateString("en", { month: "short", day: "numeric" }) : ""}`
                           : isOverdue ? `${Math.abs(days)}${t.followUps.dOverdue}`
                           : days === 0 ? t.common.today
                           : `${t.followUps.dueIn} ${days}${t.followUps.dDays}`}
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[10px] text-muted-foreground">
                         {new Date(fu.dueDate).toLocaleDateString("en", { month: "short", day: "numeric" })}
                       </div>
                     </div>
@@ -352,8 +352,8 @@ export function FollowUpsSection() {
                     <Tooltip content="Mark as complete">
                       <button
                         onClick={() => { setDoneTarget(fu); setDoneNote(""); }}
-                        className="size-7 rounded-md bg-emerald-100 hover:bg-emerald-200 grid place-items-center transition-colors">
-                        <CheckCircle2 className="size-3.5 text-emerald-700" />
+                        className="size-7 rounded-md bg-primary/15 hover:bg-primary/25 grid place-items-center transition-colors">
+                        <CheckCircle2 className="size-3.5 text-primary" />
                       </button>
                     </Tooltip>
                   )}
@@ -368,8 +368,8 @@ export function FollowUpsSection() {
                   )}
                   <Tooltip content="Edit">
                     <button onClick={() => openEdit(fu)}
-                      className="size-7 rounded-md bg-slate-100 hover:bg-slate-200 grid place-items-center transition-colors">
-                      <Pencil className="size-3.5 text-slate-600" />
+                      className="size-7 rounded-md bg-muted hover:bg-accent grid place-items-center transition-colors">
+                      <Pencil className="size-3.5 text-muted-foreground" />
                     </button>
                   </Tooltip>
                 </div>
@@ -378,7 +378,7 @@ export function FollowUpsSection() {
           );
         })}
         {filtered.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
+          <div className="text-center py-12 text-muted-foreground">
             <Bell className="size-8 mx-auto mb-3 opacity-30" />
             <div className="font-medium">All clear</div>
             <div className="text-sm">No follow-ups match the current filter.</div>
@@ -391,19 +391,19 @@ export function FollowUpsSection() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" /> {t.followUps.markComplete}
+              <CheckCircle2 className="size-4 text-primary" /> {t.followUps.markComplete}
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">{doneTarget?.title}</p>
+          <p className="text-sm text-muted-foreground">{doneTarget?.title}</p>
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">{t.followUps.completionNote}</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">{t.followUps.completionNote}</label>
             <Textarea value={doneNote} onChange={e => setDoneNote(e.target.value)}
               placeholder="Describe what was done, any observations..."
               className="text-sm min-h-[80px]" />
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setDoneTarget(null)}>{t.common.cancel}</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={markDone}>{t.followUps.confirmDone}</Button>
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={markDone}>{t.followUps.confirmDone}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -422,33 +422,33 @@ export function FollowUpsSection() {
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Title <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-foreground/80 block mb-1">Title <span className="text-red-500">*</span></label>
                 <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                   placeholder="Describe the action needed..."
-                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Details</label>
+                <label className="text-xs font-semibold text-foreground/80 block mb-1">Details</label>
                 <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="Additional context, what to check, what to bring..."
                   className="text-sm min-h-[70px]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Category</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Category</label>
                   <select value={form.entityType}
                     onChange={e => setForm(p => ({ ...p, entityType: e.target.value as FollowUpEntityType }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     {options.followUpEntityTypes.map(e => (
                       <option key={e.value} value={e.value}>{e.icon ?? entityIcon(e.value as FollowUpEntityType)} {e.label}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Priority</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Priority</label>
                   <select value={form.priority}
                     onChange={e => setForm(p => ({ ...p, priority: e.target.value as FollowUpPriority }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white capitalize">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
                     {options.followUpPriorities.map(p => (
                       <option key={p.value} value={p.value}>{p.label}</option>
                     ))}
@@ -457,16 +457,16 @@ export function FollowUpsSection() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Due date</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Due date</label>
                   <input type="date" value={form.dueDate}
                     onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" />
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Assigned to <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Assigned to <span className="text-red-500">*</span></label>
                   <select value={form.assignedTo}
                     onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     <option value="">— Select —</option>
                     {farmers.map(f => <option key={f.id} value={f.id}>{f.name} ({f.role})</option>)}
                   </select>
@@ -474,17 +474,17 @@ export function FollowUpsSection() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Valve (optional)</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Valve (optional)</label>
                   <select value={form.valveId} onChange={e => setForm(p => ({ ...p, valveId: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     <option value="">— None —</option>
                     {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Bed (optional)</label>
+                  <label className="text-xs font-semibold text-foreground/80 block mb-1">Bed (optional)</label>
                   <select value={form.bedId} onChange={e => setForm(p => ({ ...p, bedId: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white">
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                     <option value="">— None —</option>
                     {beds.map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
                   </select>

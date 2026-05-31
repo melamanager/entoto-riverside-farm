@@ -89,7 +89,7 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
-      <Link href="/valves" className="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-900">
+      <Link href="/valves" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> All valves
       </Link>
 
@@ -100,16 +100,16 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
           </div>
           <div>
             <h1 className="text-2xl font-bold">{valve.name}</h1>
-            <p className="text-sm text-stone-500 flex items-center gap-1.5"><ValveIcon size={14} /> {valve.irrigationSchedule}</p>
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5"><ValveIcon size={14} /> {valve.irrigationSchedule}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Avatar className="size-10 ring-2 ring-emerald-200">
-            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">{supervisor?.avatar}</AvatarFallback>
+          <Avatar className="size-10 ring-2 ring-border">
+            <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">{supervisor?.avatar}</AvatarFallback>
           </Avatar>
           <div className="text-sm">
             <div className="font-medium">{supervisor?.name}</div>
-            <div className="text-xs text-stone-500">Supervisor</div>
+            <div className="text-xs text-muted-foreground">Supervisor</div>
           </div>
         </div>
       </div>
@@ -117,19 +117,19 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-stone-500"><Sprout className="size-3.5" /> Beds</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Sprout className="size-3.5" /> Beds</div>
           <div className="text-3xl font-bold mt-1">{vBeds.length}</div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-stone-500"><ValveIcon size={14} /> Plants</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><ValveIcon size={14} /> Plants</div>
           <div className="text-3xl font-bold mt-1">{vBeds.reduce((s,b)=>s+plantsInBed(b),0).toLocaleString()}</div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-stone-500"><Wheat className="size-3.5" /> Total harvest</div>
-          <div className="text-3xl font-bold mt-1">{totalKgValveValue.toFixed(1)}<span className="text-sm font-normal text-stone-500"> kg</span></div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Wheat className="size-3.5" /> Total harvest</div>
+          <div className="text-3xl font-bold mt-1">{totalKgValveValue.toFixed(1)}<span className="text-sm font-normal text-muted-foreground"> kg</span></div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-stone-500"><AlertTriangle className="size-3.5" /> Active alerts</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><AlertTriangle className="size-3.5" /> Active alerts</div>
           <div className="text-3xl font-bold mt-1 text-rose-600">{diseases.filter(d=>d.status!=="resolved").length}</div>
         </Card>
       </div>
@@ -148,16 +148,16 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
             {bedsRanked.map(({ b, kg }, i) => {
               const max = bedsRanked[0]?.kg || 1;
               return (
-                <Link href={`/beds/${b.id}`} key={b.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-stone-50">
-                  <div className="text-stone-400 font-mono text-xs w-5 text-center">#{i+1}</div>
+                <Link href={`/beds/${b.id}`} key={b.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent">
+                  <div className="text-muted-foreground font-mono text-xs w-5 text-center">#{i+1}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between text-sm">
                       <span className="font-mono font-semibold">{b.id}</span>
                       <span className="tabular-nums">{kg.toFixed(1)} kg</span>
                     </div>
-                    <div className="text-[11px] text-stone-500">{b.variety}</div>
-                    <div className="mt-1 h-1 rounded-full bg-stone-100 overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{width:`${(kg/max)*100||3}%`}} />
+                    <div className="text-[11px] text-muted-foreground">{b.variety}</div>
+                    <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{width:`${(kg/max)*100||3}%`}} />
                     </div>
                   </div>
                   <span className={`size-2.5 rounded-full ${b.health==="healthy"?"bg-emerald-500":b.health==="warning"?"bg-amber-500":"bg-rose-500"}`} />
@@ -172,13 +172,13 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
           <h3 className="font-bold mb-3">👥 Assigned farmers</h3>
           <div className="space-y-2">
             {[supervisor, ...valveFarmers].filter(Boolean).map(f => (
-              <div key={f!.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-stone-50">
+              <div key={f!.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent">
                 <Avatar className="size-10">
-                  <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">{f!.avatar}</AvatarFallback>
+                  <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">{f!.avatar}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="text-sm font-medium">{f!.name}</div>
-                  <div className="text-[11px] text-stone-500 capitalize">{f!.role} · {f!.phone}</div>
+                  <div className="text-[11px] text-muted-foreground capitalize">{f!.role} · {f!.phone}</div>
                 </div>
                 <Badge variant="outline" className="text-[10px]">Score {f!.performanceScore}</Badge>
               </div>
@@ -188,11 +188,11 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
       </div>
       {/* Activity log */}
       <Card className="p-5">
-        <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-800">
-          <Calendar className="size-4 text-slate-500" /> Zone Activity Log
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-foreground">
+          <Calendar className="size-4 text-muted-foreground" /> Zone Activity Log
         </h3>
         <div className="relative pl-7 space-y-3">
-          <div className="absolute left-2.5 top-1 bottom-1 w-px bg-slate-100" />
+          <div className="absolute left-2.5 top-1 bottom-1 w-px bg-border" />
           {log.slice(0, 25).map((entry, i) => {
             const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
             if (entry.kind === "harvest") {
@@ -201,13 +201,13 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
               const farmer = getFarmer(h.farmerId);
               return (
                 <div key={i} className="relative">
-                  <div className={`${iconClass} bg-emerald-100 border-emerald-400`}><Wheat className="size-2.5 text-emerald-700" /></div>
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-xs">
+                  <div className={`${iconClass} bg-primary/15 border-primary/40`}><Wheat className="size-2.5 text-primary" /></div>
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-emerald-800">Harvest — {Number(h.kg).toFixed(1)} kg · {bed?.id}</span>
-                      <span className="text-emerald-600 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                      <span className="font-semibold text-primary">Harvest — {Number(h.kg).toFixed(1)} kg · {bed?.id}</span>
+                      <span className="text-primary/70 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                     </div>
-                    <div className="text-emerald-600 mt-0.5">Grade {h.qualityGrade} · {bed?.variety} · {farmer?.name}</div>
+                    <div className="text-primary/70 mt-0.5">Grade {h.qualityGrade} · {bed?.variety} · {farmer?.name}</div>
                   </div>
                 </div>
               );
@@ -225,7 +225,7 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
                     </div>
                     <div className="text-red-600 mt-0.5 flex items-center gap-2">
                       Severity {d.severity}%
-                      {d.treatmentApplied && <span className="flex items-center gap-0.5 text-emerald-700"><CheckCircle2 className="size-2.5" /> Treated</span>}
+                      {d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}
                     </div>
                   </div>
                 </div>
@@ -267,7 +267,7 @@ export default function ValvePage({ params }: { params: Promise<{ id: string }> 
             }
             return null;
           })}
-          {log.length === 0 && <p className="text-sm text-slate-400">No activity recorded yet.</p>}
+          {log.length === 0 && <p className="text-sm text-muted-foreground">No activity recorded yet.</p>}
         </div>
       </Card>
     </div>

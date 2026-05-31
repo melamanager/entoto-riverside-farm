@@ -282,7 +282,7 @@ function aiAnswer(
 const SEVERITY_STYLES = {
   critical: { card: "border-red-200 bg-red-50/50",   badge: "bg-red-100 text-red-700", icon: "text-red-500",    dot: "bg-red-500"    },
   warning:  { card: "border-amber-200 bg-amber-50/50", badge: "bg-amber-100 text-amber-700", icon: "text-amber-500", dot: "bg-amber-500"  },
-  info:     { card: "border-emerald-200 bg-emerald-50/50", badge: "bg-emerald-100 text-emerald-700", icon: "text-emerald-600", dot: "bg-emerald-500" },
+  info:     { card: "border-primary/30 bg-primary/5", badge: "bg-primary/15 text-primary", icon: "text-primary", dot: "bg-primary" },
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -385,13 +385,13 @@ export default function AIPage() {
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
             <span className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 grid place-items-center shadow-lg">
               <Zap className="size-5 text-white" />
             </span>
             {t.ai.title}
           </h1>
-          <p className="text-stone-500 text-sm mt-0.5">{t.ai.subtitle}</p>
+          <p className="text-muted-foreground text-sm mt-0.5">{t.ai.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           {criticalCount > 0 && (
@@ -405,7 +405,7 @@ export default function AIPage() {
               {warningCount} warnings
             </Badge>
           )}
-          <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 gap-1">
+          <Badge className="bg-primary/10 text-primary border border-primary/30 gap-1">
             <Activity className="size-3" /> Live
           </Badge>
         </div>
@@ -418,10 +418,10 @@ export default function AIPage() {
           <div className="text-3xl font-bold text-amber-700 tabular-nums">{alerts.length}</div>
           <div className="text-[11px] text-amber-500 mt-0.5">{criticalCount} critical · {warningCount} warnings</div>
         </Card>
-        <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-          <div className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">7-Day Forecast</div>
-          <div className="text-3xl font-bold text-emerald-700 tabular-nums">{week1Forecast.toFixed(0)} <span className="text-base font-normal">kg</span></div>
-          <div className="text-[11px] text-emerald-500 mt-0.5">↑ projected harvest</div>
+        <Card className="p-4 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/30">
+          <div className="text-xs text-primary font-semibold uppercase tracking-wide mb-1">7-Day Forecast</div>
+          <div className="text-3xl font-bold text-primary tabular-nums">{week1Forecast.toFixed(0)} <span className="text-base font-normal">kg</span></div>
+          <div className="text-[11px] text-primary/70 mt-0.5">↑ projected harvest</div>
         </Card>
         <Card className="p-4 bg-gradient-to-br from-rose-50 to-pink-50 border-rose-200">
           <div className="text-xs text-rose-600 font-semibold uppercase tracking-wide mb-1">Disease Risk Beds</div>
@@ -441,15 +441,15 @@ export default function AIPage() {
         <div className="xl:col-span-2 space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <Zap className="size-4 text-amber-500" />
-            <h2 className="font-bold text-stone-900">Smart Alerts</h2>
-            <span className="text-xs text-stone-400 ml-auto">Model v2.1 · Updated just now</span>
+            <h2 className="font-bold text-foreground">Smart Alerts</h2>
+            <span className="text-xs text-muted-foreground ml-auto">Model v2.1 · Updated just now</span>
           </div>
 
           {alerts.length === 0 ? (
-            <Card className="p-8 text-center border-emerald-200 bg-emerald-50/40">
-              <CheckCircle2 className="size-10 mx-auto text-emerald-400 mb-2" />
-              <div className="font-semibold text-emerald-700">All clear — no active alerts</div>
-              <div className="text-sm text-stone-500 mt-1">Farm is operating normally. Next model scan in 15 minutes.</div>
+            <Card className="p-8 text-center border-primary/30 bg-primary/5">
+              <CheckCircle2 className="size-10 mx-auto text-primary mb-2" />
+              <div className="font-semibold text-primary">All clear — no active alerts</div>
+              <div className="text-sm text-muted-foreground mt-1">Farm is operating normally. Next model scan in 15 minutes.</div>
             </Card>
           ) : (
             alerts.map(alert => {
@@ -461,13 +461,13 @@ export default function AIPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <Badge className={`text-[10px] ${s.badge}`}>{alert.category}</Badge>
-                        <span className="font-semibold text-sm text-stone-900">{alert.title}</span>
-                        <span className="ml-auto text-[10px] text-stone-400 tabular-nums whitespace-nowrap">
+                        <span className="font-semibold text-sm text-foreground">{alert.title}</span>
+                        <span className="ml-auto text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">
                           <Sparkles className="size-3 inline mr-0.5 text-amber-400" />
                           {alert.confidence}% confidence
                         </span>
                       </div>
-                      <p className="text-xs text-stone-600 leading-relaxed">{alert.detail}</p>
+                      <p className="text-xs text-foreground/70 leading-relaxed">{alert.detail}</p>
                       <div className="mt-2">
                         <a href={alert.href}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-violet-800 transition-colors">
@@ -486,7 +486,7 @@ export default function AIPage() {
         <div className="space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <Bug className="size-4 text-rose-500" />
-            <h2 className="font-bold text-stone-900">Disease Risk Scores</h2>
+            <h2 className="font-bold text-foreground">Disease Risk Scores</h2>
           </div>
           <Card className="p-4">
             <div className="space-y-3">
@@ -495,8 +495,8 @@ export default function AIPage() {
                 const textColor = score >= 60 ? "text-red-600" : score >= 30 ? "text-amber-600" : "text-emerald-600";
                 return (
                   <div key={bed.id} className="flex items-center gap-3">
-                    <div className="font-mono text-xs font-bold text-stone-700 w-20 shrink-0">{bed.id}</div>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="font-mono text-xs font-bold text-foreground/80 w-20 shrink-0">{bed.id}</div>
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${score}%` }} />
                     </div>
                     <div className={`text-xs font-bold tabular-nums w-10 text-right ${textColor}`}>{score}%</div>
@@ -504,7 +504,7 @@ export default function AIPage() {
                 );
               })}
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-3 flex-wrap text-[10px] text-stone-400">
+            <div className="mt-4 pt-3 border-t border-border flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-500 inline-block" /> Critical ≥60</span>
               <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-500 inline-block" /> Warning ≥30</span>
               <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-500 inline-block" /> Healthy &lt;10</span>
@@ -516,9 +516,9 @@ export default function AIPage() {
       {/* ── Harvest Forecast Chart ────────────────────────────────────────── */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="size-4 text-emerald-600" />
-          <h2 className="font-bold text-stone-900">14-Day Harvest Forecast</h2>
-          <span className="text-xs text-stone-400 ml-2">Based on growth stage, health status & historical yield patterns</span>
+          <TrendingUp className="size-4 text-primary" />
+          <h2 className="font-bold text-foreground">14-Day Harvest Forecast</h2>
+          <span className="text-xs text-muted-foreground ml-2">Based on growth stage, health status & historical yield patterns</span>
         </div>
         <Card className="p-5">
           <div className="flex items-end gap-1.5 h-40">
@@ -526,28 +526,28 @@ export default function AIPage() {
               const heightPct = maxForecastKg > 0 ? (day.kg / maxForecastKg) * 100 : 0;
               const isPast = i === 0;
               const isToday = i === 0;
-              const color = day.confidence >= 85 ? "bg-emerald-500" : day.confidence >= 70 ? "bg-emerald-400" : "bg-emerald-300";
+              const color = day.confidence >= 85 ? "bg-primary" : day.confidence >= 70 ? "bg-primary/70" : "bg-primary/40";
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
                   {/* Tooltip */}
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                     {day.label}: {day.kg} kg<br />{day.confidence}% conf.
                   </div>
                   <div className="w-full rounded-t-sm" style={{ height: `${Math.max(heightPct, 2)}%` }}>
                     <div className={`w-full h-full rounded-t-sm ${color} ${i === 0 ? "opacity-50" : ""}`} />
                   </div>
-                  <div className={`text-[9px] text-stone-400 text-center leading-tight ${i % 2 === 0 ? "" : "invisible"}`}>
+                  <div className={`text-[9px] text-muted-foreground text-center leading-tight ${i % 2 === 0 ? "" : "invisible"}`}>
                     {day.label.split(" ")[1]}<br /><span className="text-[8px]">{day.label.split(" ")[0]}</span>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-[11px] text-stone-500 flex-wrap">
-            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-emerald-500 inline-block" /> High confidence (≥85%)</span>
-            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-emerald-400 inline-block" /> Medium (≥70%)</span>
-            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-emerald-300 inline-block" /> Lower confidence</span>
-            <span className="ml-auto font-semibold text-stone-700">
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground flex-wrap">
+            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary inline-block" /> High confidence (≥85%)</span>
+            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary/70 inline-block" /> Medium (≥70%)</span>
+            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary/40 inline-block" /> Lower confidence</span>
+            <span className="ml-auto font-semibold text-foreground/80">
               14-day total: ~{forecast.reduce((s, d) => s + d.kg, 0).toFixed(0)} kg projected
             </span>
           </div>
@@ -558,13 +558,13 @@ export default function AIPage() {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Bot className="size-4 text-amber-600" />
-          <h2 className="font-bold text-stone-900">Farm AI Assistant</h2>
-          <span className="text-xs text-stone-400 ml-2">Ask anything about your farm data</span>
+          <h2 className="font-bold text-foreground">Farm AI Assistant</h2>
+          <span className="text-xs text-muted-foreground ml-2">Ask anything about your farm data</span>
         </div>
 
         <Card className="overflow-hidden">
           {/* Quick questions */}
-          <div className="px-4 pt-3 pb-2 border-b border-slate-100 bg-slate-50/50 flex gap-2 flex-wrap">
+          <div className="px-4 pt-3 pb-2 border-b border-border bg-muted/50 flex gap-2 flex-wrap">
             {QUICK_QUESTIONS.map(q => (
               <button key={q} onClick={() => sendMessage(q)}
                 className="text-[11px] px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium">
@@ -577,15 +577,15 @@ export default function AIPage() {
           <div ref={chatRef} className="h-72 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
               <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`size-8 rounded-full grid place-items-center shrink-0 ${msg.role === "ai" ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-stone-200"}`}>
+                <div className={`size-8 rounded-full grid place-items-center shrink-0 ${msg.role === "ai" ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-muted"}`}>
                   {msg.role === "ai"
                     ? <Sparkles className="size-4 text-white" />
-                    : <Users className="size-4 text-stone-500" />}
+                    : <Users className="size-4 text-muted-foreground" />}
                 </div>
                 <div className={`max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
                   <div className={`rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     msg.role === "ai"
-                      ? "bg-white border border-slate-200 text-stone-800"
+                      ? "bg-card border border-border text-foreground"
                       : "bg-amber-600 text-white"
                   }`}>
                     {msg.text.split("\n").map((line, li) => {
@@ -610,7 +610,7 @@ export default function AIPage() {
                 <div className="size-8 rounded-full grid place-items-center bg-gradient-to-br from-amber-500 to-orange-600 shrink-0">
                   <Sparkles className="size-4 text-white" />
                 </div>
-                <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 flex items-center gap-1.5">
+                <div className="bg-card border border-border rounded-xl px-3.5 py-2.5 flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "0ms" }} />
                   <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "150ms" }} />
                   <span className="size-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "300ms" }} />
@@ -620,13 +620,13 @@ export default function AIPage() {
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-slate-200 flex gap-2">
+          <div className="p-3 border-t border-border flex gap-2">
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
               placeholder="Ask about harvest timing, disease risk, revenue forecast..."
-              className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="flex-1 text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-input text-foreground"
             />
             <Button onClick={() => sendMessage()}
               disabled={!input.trim() || typing}
