@@ -25,6 +25,7 @@ import {
   plantsInBed, todayKg, totalKgValve,
   VALVE_STATES, SOIL_READINGS, TANK_LEVELS, CAMERA_ALERTS,
 } from "@/lib/data";
+import { PACKAGING_RECORDS } from "@/lib/erp-data";
 import { DISEASE_LABELS } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
@@ -517,13 +518,13 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Harvest Forecast ────────────────────────────────────────────── */}
-      <HarvestForecast beds={beds} today={today} />
+      <HarvestForecast beds={beds} today={today} valves={VALVES} />
 
       {/* ── Ripeness Heatmap ────────────────────────────────────────────── */}
       <RipenessHeatmap beds={beds} valves={VALVES} />
 
       {/* ── Performance by Origin ───────────────────────────────────────── */}
-      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} />
+      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} packagingRecords={PACKAGING_RECORDS} />
 
       {/* ── Live Farm Map ───────────────────────────────────────────────── */}
       <Card className="border border-border bg-card overflow-hidden">
