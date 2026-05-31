@@ -6,6 +6,7 @@ import { Topbar } from "@/components/topbar";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
 import { LangProvider } from "@/lib/lang";
+import { ThemeProvider } from "@/lib/theme";
 import { MobileNav } from "@/components/mobile-nav";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -17,8 +18,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased dark`}>
       <body className="min-h-full bg-background text-foreground">
+        <ThemeProvider>
         <LangProvider>
         <AuthProvider>
           <div className="min-h-screen flex">
@@ -31,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </AuthProvider>
         </LangProvider>
+        </ThemeProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>

@@ -236,8 +236,8 @@ export default function DashboardPage() {
         {/* Irrigation Zones */}
         <Tooltip
           content={`${openValves} valve zone${openValves !== 1 ? "s" : ""} actively flowing at ${totalFlowLph.toLocaleString()} L/h combined. Each zone feeds multiple raised beds via drip tape.`}
-          side="bottom" maxWidth="240px">
-          <div className="rounded-xl border border-blue-500/20 bg-blue-500/8 p-4 hover:border-blue-500/40 transition-all cursor-default group">
+          side="bottom" maxWidth="240px" wrapperClassName="h-full w-full">
+          <div className="rounded-xl border border-blue-500/20 bg-blue-500/8 p-4 hover:border-blue-500/40 transition-all cursor-default group h-full flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
                 <ValveIcon size={11} /> Irrigation
@@ -252,8 +252,8 @@ export default function DashboardPage() {
         {/* Soil Health */}
         <Tooltip
           content={`${soilOptimal} beds in optimal soil range (moisture 55–80%, EC 1.5–2.5 mS/cm, pH 5.8–6.5). ${soilWarning} need attention, ${soilCritical} are critical.`}
-          side="bottom" maxWidth="250px">
-          <div className="rounded-xl border border-primary/20 bg-primary/8 p-4 hover:border-primary/40 transition-all cursor-default">
+          side="bottom" maxWidth="250px" wrapperClassName="h-full w-full">
+          <div className="rounded-xl border border-primary/20 bg-primary/8 p-4 hover:border-primary/40 transition-all cursor-default h-full flex flex-col justify-between">
             <div className="text-[10px] font-bold text-primary/80 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Sprout className="size-3" /> Soil Health
             </div>
@@ -276,8 +276,8 @@ export default function DashboardPage() {
         {/* Water Today */}
         <Tooltip
           content={`Total water applied today across all open zones. Main tank at ${mainTankPct}% capacity (${Math.round(TANK_LEVELS[0].currentL / 1000)} m³ remaining of ${TANK_LEVELS[0].capacityL / 1000} m³ total).`}
-          side="bottom" maxWidth="250px">
-          <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-4 hover:border-sky-500/40 transition-all cursor-default">
+          side="bottom" maxWidth="250px" wrapperClassName="h-full w-full">
+          <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-4 hover:border-sky-500/40 transition-all cursor-default h-full flex flex-col justify-between">
             <div className="text-[10px] font-bold text-sky-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Activity className="size-3" /> Water Today
             </div>
@@ -302,8 +302,8 @@ export default function DashboardPage() {
         {/* Field Staff */}
         <Tooltip
           content={`${FARMERS.filter(f => f.role === "supervisor").length} supervisors and ${FARMERS.filter(f => f.role === "farmer").length} farmers registered. ${presentToday} are present today.`}
-          side="bottom" maxWidth="230px">
-          <div className="rounded-xl border border-border bg-muted/40 p-4 hover:border-primary/30 transition-all cursor-default">
+          side="bottom" maxWidth="230px" wrapperClassName="h-full w-full">
+          <div className="rounded-xl border border-border bg-muted/40 p-4 hover:border-primary/30 transition-all cursor-default h-full flex flex-col justify-between">
             <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Users className="size-3" /> Field Staff
             </div>

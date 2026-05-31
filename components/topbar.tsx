@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, LogIn, X, AlertTriangle, Wheat, Droplets, ListChecks } from "lucide-react";
+import { Bell, Search, LogIn, X, AlertTriangle, Wheat, Droplets, ListChecks, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -10,6 +10,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import type { Notification, Bed, Farmer, Valve } from "@/lib/types";
 import { useLang } from "@/lib/lang";
+import { useTheme } from "@/lib/theme";
 import { EN, AM } from "@/lib/translations";
 
 const NOTIF_ICONS: Record<Notification["type"], React.ReactNode> = {
@@ -67,6 +68,7 @@ export function Topbar() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user } = useAuth();
+  const { theme, toggle } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -271,6 +273,15 @@ export function Topbar() {
         <div className="hidden lg:block text-xs text-muted-foreground px-2 border-r border-border">
           {new Date().toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}
         </div>
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggle}
+          className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </button>
 
         {/* ── Notifications bell ────────────────────────────────────────── */}
         <div className="relative" ref={notifRef}>

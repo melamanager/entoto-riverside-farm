@@ -9,9 +9,10 @@ interface TooltipProps {
   side?: "top" | "bottom" | "left" | "right";
   className?: string;
   maxWidth?: string;
+  wrapperClassName?: string;
 }
 
-export function Tooltip({ content, children, side = "top", className, maxWidth = "200px" }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", className, maxWidth = "200px", wrapperClassName }: TooltipProps) {
   const posClass = {
     top:    "bottom-full left-1/2 -translate-x-1/2 mb-2",
     bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
@@ -27,7 +28,7 @@ export function Tooltip({ content, children, side = "top", className, maxWidth =
   }[side];
 
   return (
-    <span className={cn("relative group/tip inline-flex items-center", className)}>
+    <span className={cn("relative group/tip inline-flex items-center", wrapperClassName, className)}>
       {children}
       <span
         role="tooltip"
