@@ -1104,7 +1104,7 @@ export default function IoTPage() {
                         <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1 cursor-help underline decoration-dotted decoration-slate-600"><Droplets className="size-2.5" /> Humidity</span>
                       </RichTooltip>
                       <span className="text-sm font-bold text-blue-600 dark:text-blue-300">{weather.humidityPct}%</span>
-2                    </div>
+                    </div>
                     <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
                       <div className="h-full bg-blue-400 rounded-full" style={{ width: `${weather.humidityPct}%`, transition: "width 0.5s" }} />
                     </div>
