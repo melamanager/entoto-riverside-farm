@@ -27,13 +27,14 @@ const METHODS: ApplicationMethod[] = ["drip", "foliar", "soil_drench"];
 const STATUSES: FertigationStatus[] = ["scheduled", "applied", "skipped"];
 
 const COMMON_FERTILIZERS = [
-  "NPK 20-20-20", "Calcium Nitrate", "Potassium Sulfate",
-  "Humic Acid", "Iron Chelate (EDTA-Fe)", "Magnesium Sulfate", "Other",
+  "Compost Tea (N-P-K)", "Banana Peel Tea (K + P)", "Neem Cake (Slow-Release N)",
+  "Bone Meal Drench (Ca + P)", "Worm Castings Drench", "Coffee Grounds Extract (Fe + N)",
+  "Wood Ash Drench (K + Ca)", "Epsom Salt Solution (Mg)", "Other",
 ];
 
 const EMPTY_FORM = {
   valveId: "", bedId: "",
-  fertilizerType: "NPK 20-20-20", activeIngredient: "Nitrogen, Phosphorus, Potassium",
+  fertilizerType: "Compost Tea (N-P-K)", activeIngredient: "Nitrogen, Phosphorus, Potassium (organic)",
   dosageGPerL: 2.5, waterVolumeLiters: 400,
   applicationDate: "2026-05-17", nextScheduleDate: "2026-05-24",
   responsibleWorkerId: "", applicationMethod: "drip" as ApplicationMethod,

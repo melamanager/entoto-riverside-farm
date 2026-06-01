@@ -214,7 +214,7 @@ function aiAnswer(q: string): string {
   if (ql.includes("disease") || ql.includes("sick") || ql.includes("infection") || ql.includes("mold")) {
     const open = diseases.filter(d => d.status !== "resolved");
     if (open.length === 0) return "Great news — no active disease problems right now! All reported issues have been treated. Keep doing weekly checks just in case.";
-    return `There are **${open.length} open disease report(s)**. The worst one is ${open[0].type.replace(/_/g, " ")} in ${open[0].bedId} — it's affected ${open[0].severity}% of that bed and hasn't been treated yet. I'd deal with that one first.`;
+    return `There are **${open.length} open disease report(s)**. The worst one is ${open[0].type.replace(/_/g, " ")} in ${open[0].bedId} — it's affected ${open[0].severity}% of that bed and hasn't been treated yet. I'd deal with that one first. Remember: this farm uses **100% organic inputs** — neem oil, garlic extract, Bordeaux mixture, coffee husk, or Trichoderma bio-inoculant depending on the disease type.`;
   }
   if (ql.includes("water") || ql.includes("thirst") || ql.includes("irrigat")) {
     const thirst = calcThirstForecast();
@@ -244,13 +244,13 @@ function aiAnswer(q: string): string {
   if (ql.includes("mold") || ql.includes("botrytis") || ql.includes("grey") || ql.includes("gray")) {
     const mold = calcMoldRisk();
     const level = mold.score > 60 ? "fairly high" : mold.score > 35 ? "moderate" : "low";
-    return `Gray mold risk is **${level}** right now (score: ${mold.score}/100). Humidity is at ${mold.humidity}% and there's a ${mold.dewGap}°C gap between air temperature and dew point. ${mold.score > 50 ? "I'd keep an eye on it and avoid wetting the leaves if possible." : "Nothing to worry about today."}`;
+    return `Gray mold risk is **${level}** right now (score: ${mold.score}/100). Humidity is at ${mold.humidity}% and there's a ${mold.dewGap}°C gap between air temperature and dew point. ${mold.score > 50 ? "I'd act now: spray **neem oil** (5 mL/L + 2 mL liquid soap) at dusk and follow up with **garlic extract** every 3 days. Remove all infected material and prune for better airflow." : "Nothing to worry about today — keep checking leaf undersides and maintain good airflow."}`;
   }
   if (ql.includes("recommend") || ql.includes("suggest") || ql.includes("what should") || ql.includes("advice") || ql.includes("today")) {
     const alerts = buildAlerts();
     const top = alerts.slice(0, 3);
-    if (top.length === 0) return "Farm looks good today! If I had to suggest anything: harvest ripe beds early morning while it's cool, and do a quick visual check of any beds that had warnings recently.";
-    return `My top suggestions for today:\n\n${top.map((a, i) => `**${i + 1}. ${a.title}** — ${a.action}`).join("\n")}`;
+    if (top.length === 0) return "Farm looks good today! If I had to suggest anything: harvest ripe beds early morning while it's cool, brew a batch of **compost tea** for a nutrient top-up, and do a quick visual check of any beds that had warnings recently.";
+    return `My top suggestions for today:\n\n${top.map((a, i) => `**${i + 1}. ${a.title}** — ${a.action}`).join("\n")}\n\nRemember: all treatments here use **organic inputs only** — compost tea, neem oil, banana peel tea, wood ash, and locally sourced Ethiopian organic materials.`;
   }
   if (ql.includes("season") || ql.includes("total") || ql.includes("how much") || ql.includes("kg")) {
     const byBed: Record<string, number> = {};
@@ -318,7 +318,7 @@ const AGENT_DEFS = [
         return `Flagged ${cameras[0].bedId} as high priority and sent an alert to the supervisor. Recommended: visual inspection within 2 hours.`;
       const diseases = DISEASES().filter(d => d.status !== "resolved" && !d.treatmentApplied);
       if (diseases.length > 0)
-        return `Sent a treatment reminder for ${diseases[0].bedId} to the assigned farmer. This is day ${Math.floor(Math.random() * 3) + 1} without treatment.`;
+        return `Sent an organic treatment reminder for ${diseases[0].bedId} to the assigned farmer — included the full organic protocol (neem oil / garlic extract / Bordeaux mixture / coffee husk depending on disease type). This is day ${Math.floor(Math.random() * 3) + 1} without treatment.`;
       return "Sent daily clear report to manager. No threats detected in any of the 12 beds.";
     },
   },
