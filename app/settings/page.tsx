@@ -1,518 +1,651 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  MessageSquare, Send, Cloud, Bot, Settings, CheckCircle2,
-  XCircle, Loader2, Eye, EyeOff, TestTube2, Info, SlidersHorizontal,
+  Settings, Bell, Cpu, Zap, Clock, Droplets, Camera, Radio,
+  Save, Wifi, WifiOff, Sliders, CalendarClock, Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useRouter } from "next/navigation";
-import { OPTION_DEFAULTS, type OptionKey, type SelectOption } from "@/lib/options";
-import { useOptions } from "@/lib/use-options";
+import { VALVES, VALVE_STATES, SOIL_READINGS, CAMERA_ALERTS, BEDS } from "@/lib/data";
 
-interface SettingsState {
-  sms_token:         string;
-  sms_base_url:      string;
-  sms_enabled:       string;
-  telegram_token:    string;
-  telegram_chat_id:  string;
-  telegram_enabled:  string;
-  weather_api_key:   string;
+type TabKey = "notifications" | "irrigation" | "iot" | "ai" | "farm";
+
+interface IrrigationConfig {
+  valveId: string;
+  morningTime: string;
+  eveningTime: string;
+  durationMin: number;
+  autoEnabled: boolean;
 }
 
-const DEFAULTS: SettingsState = {
-  sms_token:        "",
-  sms_base_url:     "https://api.smsethiopia.com/api/sms/send",
-  sms_enabled:      "true",
-  telegram_token:   "",
-  telegram_chat_id: "",
-  telegram_enabled: "true",
-  weather_api_key:  "",
+interface AIConfig {
+  diseaseConfidenceThreshold: number;
+  soilMoistureAlertPct: number;
+  workerAnomalySensitivity: "low" | "medium" | "high";
+  autoRunMorning: boolean;
+  autoRunEvening: boolean;
+  moldRiskAlertScore: number;
+}
+
+const INITIAL_IRRIGATION: IrrigationConfig[] = VALVES.map(v => ({
+  valveId: v.id,
+  morningTime: v.id === "valve-a" ? "06:00" : v.id === "valve-b" ? "06:30" : "07:00",
+  eveningTime: v.id === "valve-a" ? "17:00" : v.id === "valve-b" ? "17:30" : "18:00",
+  durationMin: v.id === "valve-c" ? 30 : 25,
+  autoEnabled: true,
+}));
+
+const INITIAL_AI: AIConfig = {
+  diseaseConfidenceThreshold: 70,
+  soilMoistureAlertPct: 45,
+  workerAnomalySensitivity: "medium",
+  autoRunMorning: true,
+  autoRunEvening: false,
+  moldRiskAlertScore: 60,
 };
 
-const OPTION_KEYS = Object.keys(OPTION_DEFAULTS) as OptionKey[];
+const CAMERA_CONFIG = CAMERA_ALERTS.map(ca => ({
+  id: ca.cameraId,
+  bedId: ca.bedId,
+  enabled: true,
+  lastSeen: ca.detectedAt,
+}));
 
-function optionTitle(key: string) {
-  return key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
-}
+const SENSOR_CONFIG = SOIL_READINGS().slice(0, 6).map((sr, i) => ({
+  id: `sensor-${i + 1}`,
+  bedId: sr.bedId,
+  type: "soil" as const,
+  online: sr.status !== "critical",
+  lastReading: sr.recordedAt,
+}));
 
-function serializeOptions(options: SelectOption[]) {
-  return options.map(o => o.label === o.value ? o.value : `${o.value} | ${o.label}`).join("\n");
-}
-
-function parseOptionsDraft(draft: string, current: SelectOption[]) {
-  return draft
-    .split("\n")
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => {
-      const [rawValue, rawLabel] = line.split("|").map(part => part.trim());
-      const existing = current.find(o => o.value === rawValue);
-      return {
-        ...existing,
-        value: rawValue,
-        label: rawLabel || existing?.label || rawValue,
-      };
-    });
-}
-
-function TokenField({
-  label, value, onChange, placeholder, hint,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; hint?: string;
-}) {
-  const [show, setShow] = useState(false);
-  const masked = value.startsWith("••••");
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div>
-      <label className="text-xs font-semibold text-foreground/80 block mb-1">{label}</label>
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <input
-            type={show || masked ? "text" : "password"}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring bg-card"
-          />
-          {!masked && (
-            <button
-              type="button"
-              onClick={() => setShow(s => !s)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {show ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-            </button>
-          )}
-        </div>
-      </div>
-      {hint && <p className="text-[11px] text-muted-foreground mt-1">{hint}</p>}
-      {masked && (
-        <button
-          type="button"
-          className="text-[11px] text-primary font-semibold mt-1 hover:underline"
-          onClick={() => onChange("")}
-        >
-          Click to replace token
-        </button>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted-foreground/30"}`}
+    >
+      <span className={`inline-block size-3.5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
+    </button>
   );
 }
 
 export default function SettingsPage() {
   const { isManager } = useAuth();
-  const router = useRouter();
-  const options = useOptions();
-  const [settings, setSettings] = useState<SettingsState>(DEFAULTS);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [optionKey, setOptionKey] = useState<OptionKey>("varieties");
-  const [optionDraft, setOptionDraft] = useState("");
-  const [savingOptions, setSavingOptions] = useState(false);
-  const [testPhone, setTestPhone] = useState("");
-  const [testing, setTesting]   = useState<string | null>(null);
-  const [chatUpdates, setChatUpdates] = useState<{ id: number; type?: string }[]>([]);
+  const [tab, setTab] = useState<TabKey>("irrigation");
 
-  useEffect(() => {
-    if (!isManager) { router.replace("/"); return; }
-    fetch("/api/settings").then(r => r.json()).then(data => {
-      setSettings(s => ({ ...s, ...data }));
-      setLoading(false);
-    });
-  }, [isManager, router]);
+  // Notifications state (stored in memory for demo)
+  const [smsEnabled, setSmsEnabled] = useState(true);
+  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [notifyDisease, setNotifyDisease] = useState(true);
+  const [notifyHarvest, setNotifyHarvest] = useState(true);
+  const [notifyIrrigation, setNotifyIrrigation] = useState(false);
+  const [notifyTasks, setNotifyTasks] = useState(true);
 
-  const selectedOptions = useMemo(() => options[optionKey] ?? [], [options, optionKey]);
+  // Irrigation state
+  const [irrigation, setIrrigation] = useState<IrrigationConfig[]>(INITIAL_IRRIGATION);
 
-  useEffect(() => {
-    setOptionDraft(serializeOptions(selectedOptions));
-  }, [selectedOptions]);
+  // AI config state
+  const [aiConfig, setAiConfig] = useState<AIConfig>(INITIAL_AI);
 
-  function set(key: keyof SettingsState, value: string) {
-    setSettings(s => ({ ...s, [key]: value }));
+  // IoT device enabled state
+  const [cameraEnabled, setCameraEnabled] = useState<Record<string, boolean>>(
+    Object.fromEntries(CAMERA_CONFIG.map(c => [c.id, c.enabled]))
+  );
+  const [sensorEnabled, setSensorEnabled] = useState<Record<string, boolean>>(
+    Object.fromEntries(SENSOR_CONFIG.map(s => [s.id, s.online]))
+  );
+
+  // Farm config
+  const [farmName, setFarmName] = useState("ENTOTO Riverside Farm");
+  const [altitudeM, setAltitudeM] = useState(2800);
+  const [targetKgPerM, setTargetKgPerM] = useState(0.38);
+  const [workStartTime, setWorkStartTime] = useState("06:00");
+  const [workEndTime, setWorkEndTime] = useState("17:00");
+
+  function saveAll() {
+    toast.success("Settings saved", { description: "All configuration changes applied successfully." });
   }
 
-  async function save() {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
-      if (res.ok) toast.success("Settings saved");
-      else toast.error("Failed to save settings");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const TABS = [
+    { key: "irrigation" as TabKey, label: "Irrigation Scheduler", icon: Droplets },
+    { key: "iot" as TabKey, label: "IoT Devices", icon: Cpu },
+    { key: "ai" as TabKey, label: "AI Settings", icon: Bot },
+    { key: "notifications" as TabKey, label: "Notifications", icon: Bell },
+    { key: "farm" as TabKey, label: "Farm Config", icon: Settings },
+  ];
 
-  async function saveDropdownOptions() {
-    const nextOptions = parseOptionsDraft(optionDraft, selectedOptions);
-    if (nextOptions.length === 0) {
-      toast.error("Add at least one option");
-      return;
-    }
-    setSavingOptions(true);
-    try {
-      const res = await fetch("/api/options", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [optionKey]: nextOptions }),
-      });
-      if (res.ok) toast.success(`${optionTitle(optionKey)} options saved`);
-      else toast.error("Failed to save dropdown options");
-    } finally {
-      setSavingOptions(false);
-    }
-  }
-
-  async function testChannel(channel: string) {
-    setTesting(channel);
-    try {
-      const body: Record<string, string> = { channel };
-      if (channel === "sms") body.phone = testPhone;
-      const res = await fetch("/api/settings/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        toast.success(`${channel === "sms" ? "SMS" : "Telegram"} test sent successfully`);
-      } else {
-        toast.error(`Test failed: ${data.error ?? data.body ?? JSON.stringify(data)}`);
-      }
-    } finally {
-      setTesting(null);
-    }
-  }
-
-  async function getChatId() {
-    setTesting("get_updates");
-    try {
-      const res = await fetch("/api/settings/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: "get_updates" }),
-      });
-      const data = await res.json();
-      if (data.result) {
-        const chats = data.result
-          .map((u: { message?: { chat?: { id: number; type?: string } } }) => u.message?.chat)
-          .filter(Boolean)
-          .filter((c: { id: number }, i: number, a: { id: number }[]) => a.findIndex(x => x.id === c.id) === i);
-        setChatUpdates(chats);
-        if (chats.length === 0) toast.info("No messages received yet. Send a message to your bot first.");
-      } else {
-        toast.error(`Failed: ${data.description ?? JSON.stringify(data)}`);
-      }
-    } finally {
-      setTesting(null);
-    }
-  }
-
-  if (loading) {
+  if (!isManager) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Loader2 className="size-5 animate-spin mr-2" /> Loading settings…
+      <div className="p-8 text-center text-muted-foreground">
+        <Settings className="size-12 mx-auto mb-3 opacity-20" />
+        <p>Settings are only available to managers.</p>
       </div>
     );
   }
 
-  const smsConfigured      = settings.sms_token && !settings.sms_token.startsWith("••••");
-  const smsMasked          = settings.sms_token?.startsWith("••••");
-  const tgTokenConfigured  = settings.telegram_token && !settings.telegram_token.startsWith("••••");
-  const tgTokenMasked      = settings.telegram_token?.startsWith("••••");
-  const tgChatConfigured   = !!settings.telegram_chat_id;
-  const weatherConfigured  = settings.weather_api_key && !settings.weather_api_key.startsWith("••••");
-  const weatherMasked      = settings.weather_api_key?.startsWith("••••");
-
   return (
-    <div className="p-6 md:p-8 max-w-[860px] mx-auto space-y-6">
+    <div className="p-6 md:p-8 max-w-[1200px] mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-foreground grid place-items-center">
-            <Settings className="size-5 text-background" />
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Settings className="size-5 text-primary" />
+            <h1 className="text-2xl font-bold">Settings & Configuration</h1>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">System Settings</h1>
-            <p className="text-sm text-muted-foreground">Notifications, integrations &amp; API keys</p>
-          </div>
+          <p className="text-sm text-muted-foreground">Manage irrigation schedules, IoT devices, AI agents, and farm settings</p>
         </div>
-        <Button onClick={save} disabled={saving} className="bg-primary hover:bg-primary/90 gap-2">
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-          Save all settings
+        <Button onClick={saveAll} className="gap-2">
+          <Save className="size-4" /> Save All Changes
         </Button>
       </div>
 
-      {/* ── SMS Ethiopia ──────────────────────────────────────────────────────── */}
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-green-100 grid place-items-center">
-              <MessageSquare className="size-4 text-green-700" />
-            </div>
-            <div>
-              <div className="font-bold text-foreground">SMS Ethiopia</div>
-              <div className="text-xs text-muted-foreground">Disease alerts sent to supervisor phones</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className={smsMasked || smsConfigured ? "bg-primary/15 text-primary border-primary/30" : "bg-muted text-muted-foreground border-border"}>
-              {smsMasked || smsConfigured ? "Configured" : "Not set"}
-            </Badge>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.sms_enabled === "true"}
-                onChange={e => set("sms_enabled", e.target.checked ? "true" : "false")}
-                className="accent-emerald-600"
-              />
-              <span className="text-xs font-semibold text-muted-foreground">Enabled</span>
-            </label>
-          </div>
-        </div>
-
-        <TokenField
-          label="API Token (format: API_KEY:SENDER_ID)"
-          value={settings.sms_token}
-          onChange={v => set("sms_token", v)}
-          placeholder="ZE6V155XK40ZZHHBM3NWD73MM5C8RVQT:759"
-          hint="Your SMS Ethiopia API key and sender ID separated by a colon"
-        />
-
-        <div>
-          <label className="text-xs font-semibold text-foreground/80 block mb-1">Base URL</label>
-          <input
-            type="text"
-            value={settings.sms_base_url}
-            onChange={e => set("sms_base_url", e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">Adjust if SMS Ethiopia changes their API endpoint</p>
-        </div>
-
-        <div className="flex items-center gap-2 pt-1">
-          <input
-            type="tel"
-            value={testPhone}
-            onChange={e => setTestPhone(e.target.value)}
-            placeholder="+251911234567"
-            className="border border-border rounded-lg px-3 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={testing === "sms" || !testPhone}
-            onClick={() => testChannel("sms")}
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-border overflow-x-auto pb-0">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+              tab === t.key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            {testing === "sms" ? <Loader2 className="size-3.5 animate-spin" /> : <TestTube2 className="size-3.5" />}
-            Send test SMS
-          </Button>
-        </div>
-      </Card>
+            <t.icon className="size-3.5" />
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* ── Telegram ──────────────────────────────────────────────────────────── */}
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-blue-100 grid place-items-center">
-              <Bot className="size-4 text-blue-700" />
+      {/* ── Irrigation Scheduler ────────────────────────────────────────────── */}
+      {tab === "irrigation" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarClock className="size-4 text-primary" />
+            <h2 className="font-semibold text-foreground">Irrigation Schedule — All Zones</h2>
+          </div>
+          {irrigation.map((cfg, i) => {
+            const valve = VALVES.find(v => v.id === cfg.valveId)!;
+            const state = VALVE_STATES.find(vs => vs.valveId === cfg.valveId);
+            return (
+              <Card key={cfg.valveId} className="p-5">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-lg grid place-items-center text-white text-sm font-bold shadow" style={{ background: valve.color }}>
+                      {valve.name.split(" ")[1]}
+                    </div>
+                    <div>
+                      <div className="font-semibold">{valve.name}</div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className={`size-1.5 rounded-full ${state?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`} />
+                        {state?.isOpen ? "Currently open" : "Currently closed"} · {state?.mode} mode
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Auto irrigation</span>
+                    <Toggle
+                      checked={cfg.autoEnabled}
+                      onChange={v => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, autoEnabled: v } : c))}
+                    />
+                  </div>
+                </div>
+
+                <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${!cfg.autoEnabled ? "opacity-50 pointer-events-none" : ""}`}>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Morning Start</label>
+                    <input
+                      type="time"
+                      value={cfg.morningTime}
+                      onChange={e => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, morningTime: e.target.value } : c))}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Evening Start</label>
+                    <input
+                      type="time"
+                      value={cfg.eveningTime}
+                      onChange={e => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, eveningTime: e.target.value } : c))}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Duration (min)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={5}
+                        max={120}
+                        value={cfg.durationMin}
+                        onChange={e => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, durationMin: Number(e.target.value) } : c))}
+                        className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-card text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <span className="text-sm text-muted-foreground">minutes</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1"><Clock className="size-3" /> Next: {state?.nextScheduledEvent}</span>
+                  <span>Today used: {state?.totalLitersToday?.toLocaleString()} L</span>
+                  <span>{state?.pressureBar} bar · {BEDS().filter(b => b.valveId === valve.id).length} beds</span>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── IoT Devices ─────────────────────────────────────────────────────── */}
+      {tab === "iot" && (
+        <div className="space-y-5">
+          {/* Cameras */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Camera className="size-4 text-primary" />
+              <h2 className="font-semibold">Cameras</h2>
+              <Badge variant="outline" className="text-[10px]">{Object.values(cameraEnabled).filter(Boolean).length} / {CAMERA_CONFIG.length} online</Badge>
             </div>
-            <div>
-              <div className="font-bold text-foreground">Telegram Bot</div>
-              <div className="text-xs text-muted-foreground">Disease alerts sent to your Telegram chat</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className={(tgTokenMasked || tgTokenConfigured) && tgChatConfigured ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-amber-100 text-amber-700 border-amber-200"}>
-              {(tgTokenMasked || tgTokenConfigured) && tgChatConfigured ? "Ready" : "Needs chat ID"}
-            </Badge>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.telegram_enabled === "true"}
-                onChange={e => set("telegram_enabled", e.target.checked ? "true" : "false")}
-                className="accent-blue-600"
-              />
-              <span className="text-xs font-semibold text-muted-foreground">Enabled</span>
-            </label>
-          </div>
-        </div>
-
-        <TokenField
-          label="Bot Token"
-          value={settings.telegram_token}
-          onChange={v => set("telegram_token", v)}
-          placeholder="1234567890:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          hint="From @BotFather on Telegram"
-        />
-
-        <div>
-          <label className="text-xs font-semibold text-foreground/80 block mb-1">Chat ID</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={settings.telegram_chat_id}
-              onChange={e => set("telegram_chat_id", e.target.value)}
-              placeholder="-1001234567890 or 987654321"
-              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 shrink-0"
-              disabled={testing === "get_updates"}
-              onClick={getChatId}
-            >
-              {testing === "get_updates" ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-              Get ID
-            </Button>
-          </div>
-          <div className="flex items-start gap-1.5 mt-1.5 p-2.5 rounded-lg bg-blue-50 border border-blue-100">
-            <Info className="size-3.5 text-blue-500 mt-0.5 shrink-0" />
-            <p className="text-[11px] text-blue-700">
-              Send any message to your bot on Telegram, then click <strong>Get ID</strong> to detect the chat ID automatically.
-              For group alerts, add the bot to the group first.
-            </p>
-          </div>
-        </div>
-
-        {chatUpdates.length > 0 && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-            <div className="text-xs font-semibold text-blue-800 mb-2">Detected chats — click to use:</div>
-            <div className="space-y-1">
-              {chatUpdates.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => { set("telegram_chat_id", String(c.id)); setChatUpdates([]); }}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-card border border-blue-200 hover:border-blue-400 text-xs text-left transition-colors"
-                >
-                  <span className="font-mono text-blue-800 font-bold">{c.id}</span>
-                  {c.type && <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">{c.type}</Badge>}
-                  <span className="ml-auto text-blue-500">Use this →</span>
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {CAMERA_CONFIG.map(cam => (
+                <Card key={cam.id} className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`size-8 rounded-lg grid place-items-center ${cameraEnabled[cam.id] ? "bg-emerald-100 dark:bg-emerald-950/40" : "bg-muted"}`}>
+                        <Camera className={`size-4 ${cameraEnabled[cam.id] ? "text-emerald-600" : "text-muted-foreground"}`} />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold">{cam.id}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Bed <Link href={`/beds/${cam.bedId}`} className="hover:text-primary font-mono">{cam.bedId}</Link>
+                        </div>
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={cameraEnabled[cam.id]}
+                      onChange={v => setCameraEnabled(p => ({ ...p, [cam.id]: v }))}
+                    />
+                  </div>
+                  <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1.5">
+                    {cameraEnabled[cam.id] ? <Wifi className="size-3 text-emerald-500" /> : <WifiOff className="size-3" />}
+                    Last active: {new Date(cam.lastSeen).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </Card>
               ))}
             </div>
           </div>
-        )}
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          disabled={testing === "telegram" || (!tgTokenConfigured && !tgTokenMasked) || !tgChatConfigured}
-          onClick={() => testChannel("telegram")}
-        >
-          {testing === "telegram" ? <Loader2 className="size-3.5 animate-spin" /> : <TestTube2 className="size-3.5" />}
-          Send test Telegram message
-        </Button>
-      </Card>
-
-      {/* ── Weather ───────────────────────────────────────────────────────────── */}
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-sky-100 grid place-items-center">
-              <Cloud className="size-4 text-sky-700" />
+          {/* Soil sensors */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Radio className="size-4 text-primary" />
+              <h2 className="font-semibold">Soil Sensors</h2>
+              <Badge variant="outline" className="text-[10px]">{Object.values(sensorEnabled).filter(Boolean).length} / {SENSOR_CONFIG.length} online</Badge>
             </div>
-            <div>
-              <div className="font-bold text-foreground">Tomorrow.io Weather</div>
-              <div className="text-xs text-muted-foreground">Live weather &amp; irrigation intelligence</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {SENSOR_CONFIG.map(sensor => {
+                const reading = SOIL_READINGS().find(sr => sr.bedId === sensor.bedId);
+                return (
+                  <Card key={sensor.id} className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="text-sm font-semibold">{sensor.id}</div>
+                        <div className="text-[11px] text-muted-foreground font-mono">{sensor.bedId}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Toggle
+                          checked={sensorEnabled[sensor.id]}
+                          onChange={v => setSensorEnabled(p => ({ ...p, [sensor.id]: v }))}
+                        />
+                      </div>
+                    </div>
+                    {reading && sensorEnabled[sensor.id] && (
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-muted-foreground">Moisture</span>
+                          <div className={`font-bold ${reading.moisturePct < 50 ? "text-amber-600" : "text-emerald-600"}`}>{reading.moisturePct}%</div>
+                        </div>
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-muted-foreground">Temp</span>
+                          <div className="font-bold">{reading.tempC}°C</div>
+                        </div>
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-muted-foreground">EC</span>
+                          <div className={`font-bold ${reading.ecMsCm > 2.5 ? "text-amber-600" : ""}`}>{reading.ecMsCm} mS</div>
+                        </div>
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-muted-foreground">pH</span>
+                          <div className={`font-bold ${reading.ph < 5.8 ? "text-amber-600" : ""}`}>{reading.ph}</div>
+                        </div>
+                      </div>
+                    )}
+                    <div className={`mt-2 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${
+                      reading?.status === "optimal" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                      : reading?.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                      : "bg-muted text-muted-foreground"
+                    }`}>
+                      <span className="size-1.5 rounded-full bg-current" />
+                      {sensorEnabled[sensor.id] ? (reading?.status ?? "unknown") : "offline"}
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           </div>
-          <Badge className={weatherMasked || weatherConfigured ? "bg-primary/15 text-primary border-primary/30" : "bg-muted text-muted-foreground border-border"}>
-            {weatherMasked || weatherConfigured ? "Configured" : "Not set"}
-          </Badge>
-        </div>
 
-        <TokenField
-          label="API Key"
-          value={settings.weather_api_key}
-          onChange={v => set("weather_api_key", v)}
-          placeholder="aa1bCmz9jxDoAT4lazNKw5PRNZwsmvLH"
-          hint="From tomorrow.io dashboard — free tier supports up to 500 calls/day"
-        />
-      </Card>
-
-      {/* ── Dynamic dropdowns ─────────────────────────────────────────────────── */}
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-violet-100 grid place-items-center">
-              <SlidersHorizontal className="size-4 text-violet-700" />
+          {/* Valve state panel */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Droplets className="size-4 text-primary" />
+              <h2 className="font-semibold">Valve Controllers</h2>
             </div>
-            <div>
-              <div className="font-bold text-foreground">Dropdown Options</div>
-              <div className="text-xs text-muted-foreground">Edit reusable lists used across farm forms</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {VALVE_STATES.map(vs => {
+                const valve = VALVES.find(v => v.id === vs.valveId)!;
+                return (
+                  <Card key={vs.valveId} className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="size-7 rounded-lg grid place-items-center text-white text-xs font-bold" style={{ background: valve.color }}>
+                        {valve.name.split(" ")[1]}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold">{valve.name}</div>
+                        <div className={`text-[10px] font-medium ${vs.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>
+                          {vs.isOpen ? "● Open" : "○ Closed"} · {vs.mode}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground space-y-0.5">
+                      <div>{vs.flowRateLph.toLocaleString()} L/h · {vs.pressureBar} bar</div>
+                      <div>{vs.totalLitersToday?.toLocaleString()} L used today</div>
+                      <div className="text-foreground/70">{vs.nextScheduledEvent}</div>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           </div>
-          <Button onClick={saveDropdownOptions} disabled={savingOptions} size="sm" className="bg-violet-600 hover:bg-violet-700 gap-2">
-            {savingOptions ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-            Save list
-          </Button>
         </div>
+      )}
 
-        <div>
-          <label className="text-xs font-semibold text-foreground/80 block mb-1">List</label>
-          <select
-            value={optionKey}
-            onChange={e => setOptionKey(e.target.value as OptionKey)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {OPTION_KEYS.map(key => (
-              <option key={key} value={key}>{optionTitle(key)}</option>
-            ))}
-          </select>
-        </div>
+      {/* ── AI Settings ──────────────────────────────────────────────────────── */}
+      {tab === "ai" && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Bot className="size-4 text-primary" />
+            <h2 className="font-semibold">AI Agent Configuration</h2>
+          </div>
 
-        <div>
-          <label className="text-xs font-semibold text-foreground/80 block mb-1">Options</label>
-          <textarea
-            value={optionDraft}
-            onChange={e => setOptionDraft(e.target.value)}
-            rows={8}
-            spellCheck={false}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">Use one option per line. Write <span className="font-mono">value | label</span> when the saved value and display label differ.</p>
-        </div>
-      </Card>
-
-      {/* ── Status summary ────────────────────────────────────────────────────── */}
-      <Card className="p-5">
-        <div className="text-xs font-bold text-foreground uppercase tracking-widest mb-3">Integration Status</div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "SMS Ethiopia",    ok: smsMasked || !!smsConfigured,    detail: smsMasked || smsConfigured ? "Token set" : "Not configured" },
-            { label: "Telegram",        ok: (tgTokenMasked || !!tgTokenConfigured) && tgChatConfigured, detail: !tgChatConfigured ? "Chat ID missing" : "Ready" },
-            { label: "Tomorrow.io",     ok: weatherMasked || !!weatherConfigured, detail: weatherMasked || weatherConfigured ? "API key set" : "Using fallback" },
-          ].map(s => (
-            <div key={s.label} className={`flex items-center gap-2.5 p-3 rounded-xl border ${s.ok ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}>
-              {s.ok
-                ? <CheckCircle2 className="size-4 text-primary shrink-0" />
-                : <XCircle className="size-4 text-muted-foreground shrink-0" />
-              }
-              <div>
-                <div className={`text-xs font-bold ${s.ok ? "text-primary" : "text-foreground/80"}`}>{s.label}</div>
-                <div className="text-[10px] text-muted-foreground">{s.detail}</div>
+          {/* Agent auto-run */}
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><Zap className="size-4 text-amber-500" /> Auto-Run Schedule</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium">Morning analysis (06:00)</div>
+                  <div className="text-[11px] text-muted-foreground">Run all AI agents at the start of each workday</div>
+                </div>
+                <Toggle checked={aiConfig.autoRunMorning} onChange={v => setAiConfig(p => ({ ...p, autoRunMorning: v }))} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium">Evening analysis (17:00)</div>
+                  <div className="text-[11px] text-muted-foreground">Run end-of-day forecasting and anomaly checks</div>
+                </div>
+                <Toggle checked={aiConfig.autoRunEvening} onChange={v => setAiConfig(p => ({ ...p, autoRunEvening: v }))} />
               </div>
             </div>
-          ))}
-        </div>
-      </Card>
+          </Card>
 
+          {/* Thresholds */}
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><Sliders className="size-4 text-blue-500" /> Alert Thresholds</h3>
+            <div className="space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-medium">Disease Detection Confidence</div>
+                    <div className="text-[11px] text-muted-foreground">Only alert when AI confidence exceeds this level</div>
+                  </div>
+                  <span className="text-sm font-bold text-primary tabular-nums">{aiConfig.diseaseConfidenceThreshold}%</span>
+                </div>
+                <input
+                  type="range" min={50} max={95} step={5}
+                  value={aiConfig.diseaseConfidenceThreshold}
+                  onChange={e => setAiConfig(p => ({ ...p, diseaseConfidenceThreshold: Number(e.target.value) }))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                  <span>More alerts (50%)</span>
+                  <span>Fewer, certain alerts (95%)</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-medium">Soil Moisture Alert Level</div>
+                    <div className="text-[11px] text-muted-foreground">Alert when soil moisture drops below this percentage</div>
+                  </div>
+                  <span className="text-sm font-bold text-amber-600 tabular-nums">{aiConfig.soilMoistureAlertPct}%</span>
+                </div>
+                <input
+                  type="range" min={30} max={70} step={5}
+                  value={aiConfig.soilMoistureAlertPct}
+                  onChange={e => setAiConfig(p => ({ ...p, soilMoistureAlertPct: Number(e.target.value) }))}
+                  className="w-full accent-amber-500"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                  <span>Alert at very dry (30%)</span>
+                  <span>Alert early (70%)</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-medium">Mold Risk Alert Score</div>
+                    <div className="text-[11px] text-muted-foreground">Alert when gray mold risk score exceeds this level</div>
+                  </div>
+                  <span className="text-sm font-bold text-red-600 tabular-nums">{aiConfig.moldRiskAlertScore}</span>
+                </div>
+                <input
+                  type="range" min={30} max={90} step={5}
+                  value={aiConfig.moldRiskAlertScore}
+                  onChange={e => setAiConfig(p => ({ ...p, moldRiskAlertScore: Number(e.target.value) }))}
+                  className="w-full accent-red-500"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                  <span>Alert often (30)</span>
+                  <span>Alert only critical (90)</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium mb-2">Worker Anomaly Sensitivity</div>
+                <div className="text-[11px] text-muted-foreground mb-2">How sensitive the AI is to unusual productivity patterns</div>
+                <div className="flex gap-2">
+                  {(["low", "medium", "high"] as const).map(level => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setAiConfig(p => ({ ...p, workerAnomalySensitivity: level }))}
+                      className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-all capitalize ${
+                        aiConfig.workerAnomalySensitivity === level
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Notifications ────────────────────────────────────────────────────── */}
+      {tab === "notifications" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Bell className="size-4 text-primary" />
+            <h2 className="font-semibold">Notification Channels</h2>
+          </div>
+
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4">Channel Settings</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 grid place-items-center">
+                    <span className="text-sm">📱</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">SMS Notifications</div>
+                    <div className="text-[11px] text-muted-foreground">Abebe Ethiopia SMS Gateway</div>
+                  </div>
+                </div>
+                <Toggle checked={smsEnabled} onChange={setSmsEnabled} />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-lg bg-sky-100 dark:bg-sky-950/40 grid place-items-center">
+                    <span className="text-sm">✈️</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Telegram Alerts</div>
+                    <div className="text-[11px] text-muted-foreground">@EntotoFarmBot</div>
+                  </div>
+                </div>
+                <Toggle checked={telegramEnabled} onChange={setTelegramEnabled} />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4">Alert Types</h3>
+            <div className="space-y-3">
+              {[
+                { label: "Disease alerts", sub: "When a new disease is detected or severity increases", val: notifyDisease, set: setNotifyDisease },
+                { label: "Harvest ready", sub: "When AI detects ripe fruit or beds reach harvest stage", val: notifyHarvest, set: setNotifyHarvest },
+                { label: "Irrigation events", sub: "Valve open/close, schedule changes, overrides", val: notifyIrrigation, set: setNotifyIrrigation },
+                { label: "Task reminders", sub: "Pending tasks and overdue assignments", val: notifyTasks, set: setNotifyTasks },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium">{item.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{item.sub}</div>
+                  </div>
+                  <Toggle checked={item.val} onChange={item.set} />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Farm Configuration ───────────────────────────────────────────────── */}
+      {tab === "farm" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Settings className="size-4 text-primary" />
+            <h2 className="font-semibold">Farm Configuration</h2>
+          </div>
+
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4">General Info</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Farm Name</label>
+                <input
+                  type="text"
+                  value={farmName}
+                  onChange={e => setFarmName(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Altitude (m)</label>
+                <input
+                  type="number"
+                  value={altitudeM}
+                  onChange={e => setAltitudeM(Number(e.target.value))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Target Yield (kg/m)</label>
+                <input
+                  type="number"
+                  step={0.01}
+                  value={targetKgPerM}
+                  onChange={e => setTargetKgPerM(Number(e.target.value))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Used for efficiency calculations across all beds</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4">Work Hours</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Shift Start</label>
+                <input
+                  type="time"
+                  value={workStartTime}
+                  onChange={e => setWorkStartTime(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Shift End</label>
+                <input
+                  type="time"
+                  value={workEndTime}
+                  onChange={e => setWorkEndTime(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-3">System Info</h3>
+            <div className="space-y-2 text-sm">
+              {[
+                ["Location", "Entoto Mountain, Addis Ababa, Ethiopia 🇪🇹"],
+                ["Total Area", "4.2 ha"],
+                ["Established", "September 2025"],
+                ["Owner", "Entoto Agro PLC"],
+                ["ERP Version", "v2.0 — Live Demo"],
+                ["Data Mode", "Static / In-memory (demo branch)"],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
+                  <span className="text-muted-foreground">{k}</span>
+                  <span className="font-medium text-foreground">{v}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Save button footer */}
       <div className="flex justify-end pt-2">
-        <Button onClick={save} disabled={saving} className="bg-primary hover:bg-primary/90 gap-2">
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-          Save all settings
+        <Button onClick={saveAll} className="gap-2 min-w-[180px]">
+          <Save className="size-4" /> Save Changes
         </Button>
       </div>
     </div>

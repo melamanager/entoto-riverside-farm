@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,38 +22,29 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import {
+  DISEASES as DATA_DISEASES,
+  BEDS as DATA_BEDS,
+  FARMERS as DATA_FARMERS,
+  VALVES as DATA_VALVES,
+} from "@/lib/data";
 
 export default function DiseasesPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
-  const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
-  const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [beds, setBeds] = useState<Bed[]>([]);
-  const [valves, setValves] = useState<Valve[]>([]);
-
-  useEffect(() => {
-    fetch("/api/diseases").then(r => r.json()).then(setDiseases);
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
-    fetch("/api/beds").then(r => r.json()).then(setBeds);
-    fetch("/api/valves").then(r => r.json()).then(setValves);
-  }, []);
+  const [diseases, setDiseases] = useState<DiseaseReport[]>(() => DATA_DISEASES());
+  const farmers: Farmer[] = DATA_FARMERS;
+  const beds: Bed[] = DATA_BEDS();
+  const valves: Valve[] = DATA_VALVES;
 
   function refreshDiseases() {
-    fetch("/api/diseases").then(r => r.json()).then(setDiseases);
+    // static data — already in state
   }
 
-  function getBed(bedId: string): Bed | undefined {
-    return beds.find(b => b.id === bedId);
-  }
-
-  function getFarmer(farmerId: string): Farmer | undefined {
-    return farmers.find(f => f.id === farmerId);
-  }
-
-  function getValve(valveId: string): Valve | undefined {
-    return valves.find(v => v.id === valveId);
-  }
+  function getBed(bedId: string): Bed | undefined { return beds.find(b => b.id === bedId); }
+  function getFarmer(farmerId: string): Farmer | undefined { return farmers.find(f => f.id === farmerId); }
+  function getValve(valveId: string): Valve | undefined { return valves.find(v => v.id === valveId); }
 
   // Manager: write recommendation dialog
   const [recommendOpen, setRecommendOpen] = useState(false);
@@ -101,9 +92,8 @@ export default function DiseasesPage() {
     setRecommendOpen(true);
   }
 
-  async function sendRecommendation() {
+  function sendRecommendation() {
     if (!recommendTarget) return;
-
     const patchBody = {
       status: "notified" as const,
       managerNotified: true,
@@ -112,38 +102,9 @@ export default function DiseasesPage() {
       managerRecommendation: recommendation,
       requiresImageProof: requireImage,
     };
-
-    await fetch(`/api/diseases/${recommendTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patchBody),
-    });
-
     setDiseases(prev => prev.map(d =>
       d.id === recommendTarget.id ? { ...d, ...patchBody } : d
     ));
-
-    // Flow 1: auto-create a task for the valve's supervisor
-    const bed = getBed(recommendTarget.bedId);
-    const valve = bed ? getValve(bed.valveId) : null;
-    const supervisorId = valve?.supervisorId ?? "";
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: `Treat ${DISEASE_LABELS[recommendTarget.type]} — ${recommendTarget.bedId}`,
-        description: recommendation,
-        assignedTo: supervisorId,
-        createdBy: user?.id ?? "",
-        bedId: recommendTarget.bedId,
-        status: "pending",
-        priority: recommendTarget.severity > 60 ? "high" : "medium",
-        category: "disease",
-        createdAt: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-      }),
-    });
-
     toast.success("Recommendation sent", {
       description: `📱 SMS & Telegram sent to supervisor. Task auto-created.${requireImage ? " Photo proof required." : ""}`,
       duration: 5000,
@@ -165,13 +126,8 @@ export default function DiseasesPage() {
     confirmResolve(d.id);
   }
 
-  async function confirmResolve(id: string) {
-    await fetch(`/api/diseases/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "resolved" }),
-    });
-    setDiseases(prev => prev.map(d => d.id === id ? { ...d, status: "resolved" } : d));
+  function confirmResolve(id: string) {
+    setDiseases(prev => prev.map(d => d.id === id ? { ...d, status: "resolved" as const } : d));
     setProofReviewTarget(null);
     toast.success("Disease marked as resolved");
   }
@@ -194,9 +150,8 @@ export default function DiseasesPage() {
     reader.readAsDataURL(file);
   }
 
-  async function submitTreatment() {
+  function submitTreatment() {
     if (!confirmTarget || !user) return;
-
     const patchBody = {
       status: "treating" as const,
       treatmentApplied: true,
@@ -205,17 +160,9 @@ export default function DiseasesPage() {
       treatmentNote: treatmentNote || "Treatment applied per manager's recommendation.",
       proofImageUrl: proofImage ?? undefined,
     };
-
-    await fetch(`/api/diseases/${confirmTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patchBody),
-    });
-
     setDiseases(prev => prev.map(d =>
       d.id === confirmTarget.id ? { ...d, ...patchBody } : d
     ));
-
     toast.success("Treatment confirmed", {
       description: "Record saved. Manager will be notified to verify and close.",
     });
