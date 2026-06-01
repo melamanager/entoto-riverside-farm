@@ -214,7 +214,7 @@ function aiAnswer(q: string): string {
   if (ql.includes("disease") || ql.includes("sick") || ql.includes("infection") || ql.includes("mold")) {
     const open = diseases.filter(d => d.status !== "resolved");
     if (open.length === 0) return "Great news — no active disease problems right now! All reported issues have been treated. Keep doing weekly checks just in case.";
-    return `There are **${open.length} open disease report(s)**. The worst one is ${open[0].type.replace(/_/g, " ")} in ${open[0].bedId} — it's affected ${open[0].severity}% of that bed and hasn't been treated yet. I'd deal with that one first. Remember: this farm uses **100% organic inputs** — neem oil, garlic extract, Bordeaux mixture, coffee husk, or Trichoderma bio-inoculant depending on the disease type.`;
+    return `There are **${open.length} open disease report(s)**. The worst one is ${open[0].type.replace(/_/g, " ")} in ${open[0].bedId} — it's affected ${open[0].severity}% of that bed and hasn't been treated yet. I'd deal with that one first. This farm uses **household natural inputs only** — lemon juice spray, garlic-lemon blend, ginger tea, wood ash tea, double-strength coffee drench, milk spray, and banana peel tea. No packaged chemicals.`;
   }
   if (ql.includes("water") || ql.includes("thirst") || ql.includes("irrigat")) {
     const thirst = calcThirstForecast();
@@ -250,7 +250,7 @@ function aiAnswer(q: string): string {
     const alerts = buildAlerts();
     const top = alerts.slice(0, 3);
     if (top.length === 0) return "Farm looks good today! If I had to suggest anything: harvest ripe beds early morning while it's cool, brew a batch of **compost tea** for a nutrient top-up, and do a quick visual check of any beds that had warnings recently.";
-    return `My top suggestions for today:\n\n${top.map((a, i) => `**${i + 1}. ${a.title}** — ${a.action}`).join("\n")}\n\nRemember: all treatments here use **organic inputs only** — compost tea, neem oil, banana peel tea, wood ash, and locally sourced Ethiopian organic materials.`;
+    return `My top suggestions for today:\n\n${top.map((a, i) => `**${i + 1}. ${a.title}** — ${a.action}`).join("\n")}\n\nRemember: all treatments use **household natural inputs** — lemon juice, garlic-lemon blend, wood ash tea, coffee drench, banana peel tea, ginger tea, milk spray. Everything made fresh from locally sourced ingredients.`;
   }
   if (ql.includes("season") || ql.includes("total") || ql.includes("how much") || ql.includes("kg")) {
     const byBed: Record<string, number> = {};
@@ -318,7 +318,7 @@ const AGENT_DEFS = [
         return `Flagged ${cameras[0].bedId} as high priority and sent an alert to the supervisor. Recommended: visual inspection within 2 hours.`;
       const diseases = DISEASES().filter(d => d.status !== "resolved" && !d.treatmentApplied);
       if (diseases.length > 0)
-        return `Sent an organic treatment reminder for ${diseases[0].bedId} to the assigned farmer — included the full organic protocol (neem oil / garlic extract / Bordeaux mixture / coffee husk depending on disease type). This is day ${Math.floor(Math.random() * 3) + 1} without treatment.`;
+        return `Sent a treatment reminder for ${diseases[0].bedId} to the assigned farmer — included the full natural protocol (lemon juice spray / garlic-lemon blend / wood ash tea / coffee drench depending on disease type). This is day ${Math.floor(Math.random() * 3) + 1} without treatment.`;
       return "Sent daily clear report to manager. No threats detected in any of the 12 beds.";
     },
   },

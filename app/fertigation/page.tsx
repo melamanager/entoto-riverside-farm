@@ -27,9 +27,9 @@ const METHODS: ApplicationMethod[] = ["drip", "foliar", "soil_drench"];
 const STATUSES: FertigationStatus[] = ["scheduled", "applied", "skipped"];
 
 const COMMON_FERTILIZERS = [
-  "Compost Tea (N-P-K)", "Banana Peel Tea (K + P)", "Neem Cake (Slow-Release N)",
-  "Bone Meal Drench (Ca + P)", "Worm Castings Drench", "Coffee Grounds Extract (Fe + N)",
-  "Wood Ash Drench (K + Ca)", "Epsom Salt Solution (Mg)", "Other",
+  "Compost Tea (N-P-K)", "Banana Peel Tea (K + P)", "Coffee Grounds Extract (Fe + N)",
+  "Bone Meal Drench (Ca + P)", "Worm Castings Drench", "Wood Ash Drench (K + Ca)",
+  "Banana Peel Ash Tea (Mg + K)", "Lemon Juice Spray (Antifungal)", "Other",
 ];
 
 const EMPTY_FORM = {
