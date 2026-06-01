@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Leaf, Sprout, Cpu, Brain, Droplets, Bug, Camera, Wind,
   ArrowRight, ArrowDown, Check, X, ShieldCheck, Zap, TrendingUp,
-  Bot, Gauge, CloudSun, FlaskConical, Recycle, Globe, Quote,
+  Bot, Gauge, CloudSun, FlaskConical, Recycle, Globe,
   CircleDollarSign, Clock, AlertTriangle, Sparkles, MapPin,
 } from "lucide-react";
 
@@ -108,7 +108,7 @@ export default function PitchPage() {
           <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary mb-8">
               <Sparkles className="size-3.5" />
-              Ethiopia&rsquo;s first AI-managed organic strawberry farm
+              Smart IoT · AI Disease Detection · Organic Treatments
             </div>
           </Reveal>
           <Reveal delay={80}>
@@ -146,14 +146,14 @@ export default function PitchPage() {
             </div>
           </Reveal>
 
-          {/* hero stat strip */}
+          {/* hero capability strip */}
           <Reveal delay={340}>
             <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-border bg-border max-w-4xl mx-auto">
               {[
-                { v: <CountUp to={4.2} decimals={1} suffix=" ha" />, l: "Cultivated at 2,800 m" },
-                { v: <CountUp to={21} />, l: "Smart-monitored beds" },
-                { v: <CountUp to={100} suffix="%" />, l: "Organic inputs" },
-                { v: <CountUp to={3} />, l: "Autonomous AI agents" },
+                { v: "Real-time", l: "Sensor-to-alert pipeline" },
+                { v: "14-day", l: "Harvest yield forecast" },
+                { v: "0.70+", l: "AI disease confidence threshold" },
+                { v: "LoRa + 4G", l: "Field network connectivity" },
               ].map((s, i) => (
                 <div key={i} className="bg-card px-4 py-6">
                   <div className="text-2xl md:text-3xl font-black text-primary">{s.v}</div>
@@ -360,21 +360,24 @@ export default function PitchPage() {
             ))}
           </div>
 
-          {/* Testimonial */}
+          {/* How it improves */}
           <Reveal delay={200}>
-            <div className="mt-12 max-w-3xl mx-auto rounded-3xl border border-border bg-card p-8 md:p-10 relative">
-              <Quote className="size-8 text-primary/30 mb-4" />
-              <p className="text-lg md:text-xl font-medium leading-relaxed mb-6">
-                &ldquo;We used to find disease when it was already a crisis. Now the system
-                tells a farmer to spray lemon juice at dusk before I&rsquo;ve even finished my
-                coffee — and the spray <em>is</em> coffee.&rdquo;
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="size-11 rounded-full bg-primary grid place-items-center font-bold text-primary-foreground">NH</div>
-                <div>
-                  <div className="font-semibold text-sm">Nuredin Hassen</div>
-                  <div className="text-xs text-muted-foreground">Farm Manager · Entoto Agro PLC</div>
-                </div>
+            <div className="mt-12 max-w-3xl mx-auto rounded-3xl border border-border bg-gradient-to-br from-primary/8 via-card to-card p-8 md:p-10">
+              <div className="text-xs font-bold uppercase tracking-widest text-primary mb-5">How the system improves your farm</div>
+              <div className="grid sm:grid-cols-3 gap-6">
+                {[
+                  { icon: Bug, t: "Catch disease early", d: "AI cameras flag infections at confidence 0.70+ — days before visible spread. The system sends a household-natural treatment recipe instantly." },
+                  { icon: Droplets, t: "Water only what needs it", d: "Soil moisture per zone drives valve decisions automatically. No more fixed timers soaking beds that are already wet." },
+                  { icon: TrendingUp, t: "Plan harvest in advance", d: "14-day per-bed yield forecast gives you time to arrange labour, packaging and buyers before the berries are ready." },
+                ].map((item, i) => (
+                  <div key={i} className="flex flex-col gap-3">
+                    <div className="size-10 rounded-xl bg-primary/10 grid place-items-center">
+                      <item.icon className="size-5 text-primary" />
+                    </div>
+                    <div className="font-semibold text-sm">{item.t}</div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.d}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </Reveal>
@@ -488,8 +491,9 @@ export default function PitchPage() {
               See it running, live.
             </h2>
             <p className="mx-auto max-w-xl text-muted-foreground mb-10">
-              No login wall, no setup. Open the dashboard and watch the farm think —
-              valves, sensors, AI agents and the organic advisor, all in motion.
+              Open the interactive demo and see how the system works —
+              AI disease scouting, organic treatment recommendations,
+              smart irrigation and harvest forecasting, all in one place.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
@@ -508,7 +512,7 @@ export default function PitchPage() {
               </Link>
             </div>
             <div className="mt-10 text-xs text-muted-foreground">
-              ENTOTO Riverside Farm · Entoto Mountain, Addis Ababa · 2,800 m · 4.2 ha · 100% organic
+              ENTOTO Riverside Farm · Entoto Mountain, Addis Ababa · Smart Organic Operations
             </div>
           </Reveal>
         </div>
