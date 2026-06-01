@@ -1633,7 +1633,7 @@ export default function IoTPage() {
           0%   { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
-      `}`}</style>
+      `}</style>
     </div>
   );
 }
