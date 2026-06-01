@@ -24,7 +24,7 @@ import type {
 } from "@/lib/types";
 import { toast } from "sonner";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────────────────
 
 function jitter(val: number, range: number) {
   return Math.round((val + (Math.random() - 0.5) * range * 2) * 10) / 10;
@@ -46,7 +46,7 @@ function windDir(deg: number) {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
-// ─── Sparkline SVG ───────────────────────────────────────────────────────────
+// ─── Sparkline SVG ────────────────────────────────────────────────────────────────────────
 
 function Sparkline({ data, color = "#10b981", h = 40 }: { data: number[]; color?: string; h?: number }) {
   if (data.length < 2) return null;
@@ -61,7 +61,7 @@ function Sparkline({ data, color = "#10b981", h = 40 }: { data: number[]; color?
   );
 }
 
-// ─── Wind Compass ─────────────────────────────────────────────────────────────
+// ─── Wind Compass ─────────────────────────────────────────────────────────────────────────
 
 function WindCompass({ deg, kph }: { deg: number; kph: number }) {
   const rad = (deg * Math.PI) / 180;
@@ -69,37 +69,37 @@ function WindCompass({ deg, kph }: { deg: number; kph: number }) {
   const tip = { x: cx + Math.sin(rad) * arrowLen, y: cy - Math.cos(rad) * arrowLen };
   const base = { x: cx - Math.sin(rad) * 10, y: cy + Math.cos(rad) * 10 };
   return (
-    <svg viewBox="0 0 100 100" className="w-full h-full">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r={r - 10} fill="none" stroke="white" strokeOpacity="0.05" strokeWidth="1" />
+    <svg viewBox="0 0 100 100" className="w-full h-full text-foreground">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="1" />
+      <circle cx={cx} cy={cy} r={r - 10} fill="none" stroke="currentColor" strokeOpacity="0.07" strokeWidth="1" />
       {["N","E","S","W"].map((d, i) => {
         const a = i * 90 * Math.PI / 180;
         const tx = cx + Math.sin(a) * (r + 7);
         const ty = cy - Math.cos(a) * (r + 7);
-        return <text key={d} x={tx} y={ty} textAnchor="middle" dominantBaseline="central" fontSize="7" fill="white" fillOpacity="0.4" fontWeight="600">{d}</text>;
+        return <text key={d} x={tx} y={ty} textAnchor="middle" dominantBaseline="central" fontSize="7" fill="currentColor" fillOpacity="0.5" fontWeight="600">{d}</text>;
       })}
       {[...Array(12)].map((_, i) => {
         const a = i * 30 * Math.PI / 180;
         const x1 = cx + Math.sin(a) * (r - 2), y1 = cy - Math.cos(a) * (r - 2);
         const x2 = cx + Math.sin(a) * (r - 7), y2 = cy - Math.cos(a) * (r - 7);
-        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="white" strokeOpacity="0.15" strokeWidth="0.8" />;
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeOpacity="0.2" strokeWidth="0.8" />;
       })}
       <line x1={base.x} y1={base.y} x2={tip.x} y2={tip.y} stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx={tip.x} cy={tip.y} r="3" fill="#10b981" />
-      <circle cx={cx} cy={cy} r="4" fill="#0d1117" stroke="#10b981" strokeWidth="1.5" />
-      <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" fontSize="5.5" fill="white" fillOpacity="0.6">{kph}</text>
+      <circle cx={cx} cy={cy} r="4" className="fill-card" stroke="#10b981" strokeWidth="1.5" />
+      <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" fontSize="5.5" fill="currentColor" fillOpacity="0.6">{kph}</text>
     </svg>
   );
 }
 
-// ─── Circular Gauge ───────────────────────────────────────────────────────────
+// ─── Circular Gauge ────────────────────────────────────────────────────────────────────────
 
 function CircularGauge({ pct, color, label, sublabel }: { pct: number; color: string; label: string; sublabel: string }) {
   const r = 52, cx = 60, cy = 60, circ = 2 * Math.PI * r;
   const filled = (pct / 100) * circ;
   return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="white" strokeOpacity="0.06" strokeWidth="10" />
+    <svg viewBox="0 0 120 120" className="w-full h-full text-foreground">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeOpacity="0.1" strokeWidth="10" />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeOpacity="0.15" strokeWidth="10" />
       <circle
         cx={cx} cy={cy} r={r}
@@ -109,14 +109,14 @@ function CircularGauge({ pct, color, label, sublabel }: { pct: number; color: st
         transform={`rotate(-90 ${cx} ${cy})`}
         style={{ transition: "stroke-dasharray 0.6s ease" }}
       />
-      <text x={cx} y={cy - 6} textAnchor="middle" fontSize="18" fontWeight="700" fill="white">{pct}%</text>
-      <text x={cx} y={cy + 11} textAnchor="middle" fontSize="8" fill="white" fillOpacity="0.5">{label}</text>
-      <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fill="white" fillOpacity="0.35">{sublabel}</text>
+      <text x={cx} y={cy - 6} textAnchor="middle" fontSize="18" fontWeight="700" fill="currentColor">{pct}%</text>
+      <text x={cx} y={cy + 11} textAnchor="middle" fontSize="8" fill="currentColor" fillOpacity="0.6">{label}</text>
+      <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fill="currentColor" fillOpacity="0.5">{sublabel}</text>
     </svg>
   );
 }
 
-// ─── Sensor info definitions ─────────────────────────────────────────────────
+// ─── Sensor info definitions ────────────────────────────────────────────────────────────────
 
 function soilMoistureInfo(current: number): SensorInfo {
   return {
@@ -268,7 +268,7 @@ function drainRateInfo(lph: number): SensorInfo {
   };
 }
 
-// ─── Flow Meter Bar ───────────────────────────────────────────────────────────
+// ─── Flow Meter Bar ────────────────────────────────────────────────────────────────────────
 
 function FlowBar({ lph, maxLph = 2400, color }: { lph: number; maxLph?: number; color: string }) {
   const pct = Math.min((lph / maxLph) * 100, 100);
@@ -288,7 +288,7 @@ function FlowBar({ lph, maxLph = 2400, color }: { lph: number; maxLph?: number; 
   );
 }
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
+// ─── Tabs ─────────────────────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: "irrigation", label: "Irrigation", icon: Droplets },
@@ -299,7 +299,7 @@ const TABS = [
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page ───────────────────────────────────────────────────────────────────────────
 
 export default function IoTPage() {
   const [tab, setTab] = useState<TabId>("irrigation");
@@ -411,16 +411,16 @@ export default function IoTPage() {
           <div className="flex items-center gap-3">
             {/* Live status pills */}
             <div className="hidden sm:flex items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-400">
                 <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {openValves} valve{openValves !== 1 ? "s" : ""} open
               </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-700 dark:text-blue-400">
                 <Activity className="size-2.5" />
                 {totalFlowLph.toLocaleString()} L/h
               </span>
               {newAlertsCount > 0 && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-[11px] text-red-400">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-[11px] text-red-700 dark:text-red-400">
                   <AlertTriangle className="size-2.5" />
                   {newAlertsCount} new alert{newAlertsCount !== 1 ? "s" : ""}
                 </span>
@@ -475,10 +475,10 @@ export default function IoTPage() {
             {/* Summary row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Active Valves", value: `${openValves} / ${valves.length}`, icon: Droplets, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20" },
-                { label: "Total Flow", value: `${totalFlowLph.toLocaleString()} L/h`, icon: Activity, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
-                { label: "Water Today", value: fmtL(valveStates.reduce((s, v) => s + v.totalLitersToday, 0)), icon: Waves, color: "text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/20" },
-                { label: "Pressure (avg)", value: `${(valveStates.reduce((s, v) => s + v.pressureBar, 0) / valveStates.length).toFixed(1)} bar`, icon: Gauge, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
+                { label: "Active Valves", value: `${openValves} / ${valves.length}`, icon: Droplets, color: "text-cyan-600 dark:text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20" },
+                { label: "Total Flow", value: `${totalFlowLph.toLocaleString()} L/h`, icon: Activity, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+                { label: "Water Today", value: fmtL(valveStates.reduce((s, v) => s + v.totalLitersToday, 0)), icon: Waves, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/20" },
+                { label: "Pressure (avg)", value: `${(valveStates.reduce((s, v) => s + v.pressureBar, 0) / valveStates.length).toFixed(1)} bar`, icon: Gauge, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
               ].map(s => (
                 <div key={s.label} className={cn("p-4 rounded-xl border", s.bg)}>
                   <div className="flex items-center gap-2 mb-1">
@@ -500,7 +500,7 @@ export default function IoTPage() {
                   <div key={valve.id} className={cn(
                     "rounded-2xl border p-5 space-y-4 transition-all",
                     isOpen
-                      ? "bg-gradient-to-br from-emerald-950/30 to-background border-emerald-500/30"
+                      ? "bg-gradient-to-br from-emerald-100/60 dark:from-emerald-950/30 to-background border-emerald-500/30"
                       : "bg-card border-border"
                   )}>
                     {/* Header */}
@@ -518,10 +518,10 @@ export default function IoTPage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <Badge className={cn("text-[10px] font-bold border-0", isOpen ? "bg-emerald-500/20 text-emerald-300" : "bg-muted/40 text-muted-foreground")}>
+                        <Badge className={cn("text-[10px] font-bold border-0", isOpen ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" : "bg-muted/40 text-muted-foreground")}>
                           {isOpen ? "OPEN" : "CLOSED"}
                         </Badge>
-                        <Badge className={cn("text-[9px] border-0", vs.mode === "manual" ? "bg-amber-500/15 text-amber-400" : "bg-blue-500/15 text-blue-400")}>
+                        <Badge className={cn("text-[9px] border-0", vs.mode === "manual" ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400")}>
                           {vs.mode === "manual" ? "MANUAL" : "AUTO"}
                         </Badge>
                       </div>
@@ -543,7 +543,7 @@ export default function IoTPage() {
                         <RichTooltip info={flowRateInfo(vs.flowRateLph)} side="top">
                           <div className="w-full">
                             <div className="text-[9px] text-muted-foreground/60 uppercase tracking-wider mb-1 underline decoration-dotted decoration-slate-600 cursor-help">Flow Rate</div>
-                            <div className={cn("text-base font-bold font-mono", isOpen ? "text-emerald-300" : "text-muted-foreground/60")}>
+                            <div className={cn("text-base font-bold font-mono", isOpen ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground/60")}>
                               {isOpen ? `${vs.flowRateLph.toLocaleString()}` : "—"}
                               {isOpen && <span className="text-[10px] text-muted-foreground font-normal ml-0.5">L/h</span>}
                             </div>
@@ -580,8 +580,8 @@ export default function IoTPage() {
                       className={cn(
                         "w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all border",
                         isOpen
-                          ? "bg-red-500/15 border-red-500/30 text-red-300 hover:bg-red-500/25"
-                          : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25"
+                          ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/25"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/25"
                       )}
                     >
                       {isOpen
@@ -610,8 +610,8 @@ export default function IoTPage() {
                     <div key={ev.id} className="px-5 py-3 flex items-center gap-3">
                       <div className={cn("size-7 rounded-full grid place-items-center shrink-0", ev.action === "open" ? "bg-emerald-500/15" : "bg-red-500/15")}>
                         {ev.action === "open"
-                          ? <ArrowUp className="size-3 text-emerald-400" />
-                          : <ArrowDown className="size-3 text-red-400" />
+                          ? <ArrowUp className="size-3 text-emerald-600 dark:text-emerald-400" />
+                          : <ArrowDown className="size-3 text-red-600 dark:text-red-400" />
                         }
                       </div>
                       <div className="flex-1 min-w-0">
@@ -710,7 +710,7 @@ export default function IoTPage() {
                                   <Droplets className="size-2.5 text-blue-400" />
                                   <span className="text-[8px] text-muted-foreground/60 underline decoration-dotted cursor-help">Moisture</span>
                                 </div>
-                                <div className="text-sm font-bold text-blue-300 font-mono">{r.moisturePct.toFixed(0)}%</div>
+                                <div className="text-sm font-bold text-blue-600 dark:text-blue-300 font-mono">{r.moisturePct.toFixed(0)}%</div>
                                 <div className="h-1 bg-muted/40 rounded-full mt-1 overflow-hidden">
                                   <div className="h-full bg-blue-400 rounded-full" style={{ width: `${r.moisturePct}%`, transition: "width 0.5s" }} />
                                 </div>
@@ -723,7 +723,7 @@ export default function IoTPage() {
                                   <Thermometer className="size-2.5 text-orange-400" />
                                   <span className="text-[8px] text-muted-foreground/60 underline decoration-dotted cursor-help">Soil Temp</span>
                                 </div>
-                                <div className="text-sm font-bold text-orange-300 font-mono">{r.tempC.toFixed(1)}°</div>
+                                <div className="text-sm font-bold text-orange-600 dark:text-orange-300 font-mono">{r.tempC.toFixed(1)}°</div>
                               </div>
                             </RichTooltip>
                             {/* EC */}
@@ -733,7 +733,7 @@ export default function IoTPage() {
                                   <Zap className="size-2.5 text-purple-400" />
                                   <span className="text-[8px] text-muted-foreground/60 underline decoration-dotted cursor-help">EC</span>
                                 </div>
-                                <div className={cn("text-sm font-bold font-mono", r.ecMsCm > 2.5 ? "text-amber-300" : "text-purple-300")}>{r.ecMsCm.toFixed(1)}</div>
+                                <div className={cn("text-sm font-bold font-mono", r.ecMsCm > 2.5 ? "text-amber-600 dark:text-amber-300" : "text-purple-600 dark:text-purple-300")}>{r.ecMsCm.toFixed(1)}</div>
                                 <div className="text-[8px] text-muted-foreground/50">mS/cm</div>
                               </div>
                             </RichTooltip>
@@ -744,7 +744,7 @@ export default function IoTPage() {
                                   <Activity className="size-2.5 text-green-400" />
                                   <span className="text-[8px] text-muted-foreground/60 underline decoration-dotted cursor-help">pH</span>
                                 </div>
-                                <div className={cn("text-sm font-bold font-mono", r.ph < 5.8 ? "text-amber-300" : "text-green-300")}>{r.ph.toFixed(1)}</div>
+                                <div className={cn("text-sm font-bold font-mono", r.ph < 5.8 ? "text-amber-600 dark:text-amber-300" : "text-green-600 dark:text-green-300")}>{r.ph.toFixed(1)}</div>
                               </div>
                             </RichTooltip>
                           </div>
@@ -806,7 +806,7 @@ export default function IoTPage() {
                             <div className="cursor-help">
                               <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1 underline decoration-dotted decoration-slate-600">Flow Rate</div>
                               <div className={cn("flex items-center gap-1.5 text-base font-bold font-mono",
-                                isDraining ? "text-red-300" : isFilling ? "text-emerald-300" : "text-muted-foreground")}>
+                                isDraining ? "text-red-600 dark:text-red-300" : isFilling ? "text-emerald-600 dark:text-emerald-300" : "text-muted-foreground")}>
                                 {isDraining && <ArrowDown className="size-4" />}
                                 {isFilling && <ArrowUp className="size-4" />}
                                 {tank.fillRateLph !== 0 ? `${Math.abs(tank.fillRateLph).toLocaleString()} L/h` : "Static"}
@@ -867,17 +867,17 @@ export default function IoTPage() {
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Withdrawn Today</div>
-                  <div className="text-xl font-bold text-red-400">
+                  <div className="text-xl font-bold text-red-600 dark:text-red-400">
                     {fmtL(valveStates.reduce((s, v) => s + v.totalLitersToday, 0))}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Rainfall Captured</div>
-                  <div className="text-xl font-bold text-blue-400">{fmtL(Math.round(WEATHER_CURRENT.rainfallMm24h * 420))}</div>
+                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{fmtL(Math.round(WEATHER_CURRENT.rainfallMm24h * 420))}</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Net Balance</div>
-                  <div className={cn("text-xl font-bold", true ? "text-emerald-400" : "text-red-400")}>
+                  <div className={cn("text-xl font-bold", true ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                     {fmtL(Math.round(WEATHER_CURRENT.rainfallMm24h * 420) - valveStates.reduce((s, v) => s + v.totalLitersToday, 0))}
                   </div>
                 </div>
@@ -898,7 +898,7 @@ export default function IoTPage() {
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors capitalize",
                     alertFilter === f
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      ? "bg-cyan-100 text-cyan-700 border border-cyan-300 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30"
                       : "bg-muted/25 text-muted-foreground border border-border hover:text-foreground/70"
                   )}
                 >
@@ -915,7 +915,7 @@ export default function IoTPage() {
                   : alert.alertType === "ripeness" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                   : "bg-purple-500/20 text-purple-300 border-purple-500/30";
                 const statusColor = alert.status === "new" ? "bg-red-500 text-foreground"
-                  : alert.status === "reviewed" ? "bg-blue-500/20 text-blue-300"
+                  : alert.status === "reviewed" ? "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
                   : "bg-white/10 text-muted-foreground";
 
                 return (
@@ -1011,7 +1011,7 @@ export default function IoTPage() {
                         <Button
                           size="sm"
                           onClick={() => markCameraAlert(alert.id, "actioned")}
-                          className="w-full h-7 text-[10px] bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30"
+                          className="w-full h-7 text-[10px] bg-cyan-100 hover:bg-cyan-200 text-cyan-700 border border-cyan-300 dark:bg-cyan-600/20 dark:hover:bg-cyan-600/30 dark:text-cyan-300 dark:border-cyan-500/30"
                         >
                           <CheckCircle2 className="size-3 mr-1" /> Mark Actioned
                         </Button>
@@ -1030,7 +1030,7 @@ export default function IoTPage() {
             {/* Hero row */}
             <div className="grid md:grid-cols-3 gap-5">
               {/* Temperature card */}
-              <div className="md:col-span-1 rounded-2xl border border-border bg-gradient-to-br from-sky-950/50 to-background p-6 space-y-4">
+              <div className="md:col-span-1 rounded-2xl border border-border bg-gradient-to-br from-sky-100/50 dark:from-sky-950/50 to-background p-6 space-y-4">
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-wider">
                   <CloudSun className="size-3" />
                   Temperature · Entoto 2800m
@@ -1089,7 +1089,7 @@ export default function IoTPage() {
                       <RichTooltip info={solarInfo(weather.solarWm2)} side="left">
                         <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1 cursor-help underline decoration-dotted decoration-slate-600"><Sun className="size-2.5" /> Solar Radiation</span>
                       </RichTooltip>
-                      <span className="text-sm font-bold text-amber-300">{weather.solarWm2} W/m²</span>
+                      <span className="text-sm font-bold text-amber-600 dark:text-amber-300">{weather.solarWm2} W/m²</span>
                     </div>
                     <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
                       <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(weather.solarWm2 / 900) * 100}%`, transition: "width 0.5s" }} />
@@ -1103,8 +1103,8 @@ export default function IoTPage() {
                       <RichTooltip info={humidityInfo(weather.humidityPct)} side="left">
                         <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1 cursor-help underline decoration-dotted decoration-slate-600"><Droplets className="size-2.5" /> Humidity</span>
                       </RichTooltip>
-                      <span className="text-sm font-bold text-blue-300">{weather.humidityPct}%</span>
-                    </div>
+                      <span className="text-sm font-bold text-blue-600 dark:text-blue-300">{weather.humidityPct}%</span>
+2                    </div>
                     <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
                       <div className="h-full bg-blue-400 rounded-full" style={{ width: `${weather.humidityPct}%`, transition: "width 0.5s" }} />
                     </div>
@@ -1119,12 +1119,12 @@ export default function IoTPage() {
             {/* Stats grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { label: "Humidity",     value: `${weather.humidityPct}%`,           icon: Droplets,    color: "text-blue-400",   info: humidityInfo(weather.humidityPct) },
-                { label: "Dew Point",    value: `${weather.dewPointC.toFixed(1)}°C`,  icon: Thermometer, color: "text-cyan-400",   info: dewPointInfo(weather.dewPointC) },
-                { label: "Pressure",     value: `${weather.pressureHpa} hPa`,         icon: Gauge,       color: "text-indigo-400", info: pressureHpaInfo(weather.pressureHpa) },
-                { label: "UV Index",     value: `${weather.uvIndex}`,                 icon: Sun,         color: "text-amber-400",  info: uvInfo(weather.uvIndex) },
-                { label: "Rainfall 24h", value: `${weather.rainfallMm24h} mm`,        icon: CloudRain,   color: "text-blue-400",   info: rainfallInfo(weather.rainfallMm24h) },
-                { label: "Solar",        value: `${weather.solarWm2} W/m²`,           icon: Zap,         color: "text-yellow-400", info: solarInfo(weather.solarWm2) },
+                { label: "Humidity",     value: `${weather.humidityPct}%`,           icon: Droplets,    color: "text-blue-600 dark:text-blue-400",   info: humidityInfo(weather.humidityPct) },
+                { label: "Dew Point",    value: `${weather.dewPointC.toFixed(1)}°C`,  icon: Thermometer, color: "text-cyan-600 dark:text-cyan-400",   info: dewPointInfo(weather.dewPointC) },
+                { label: "Pressure",     value: `${weather.pressureHpa} hPa`,         icon: Gauge,       color: "text-indigo-600 dark:text-indigo-400", info: pressureHpaInfo(weather.pressureHpa) },
+                { label: "UV Index",     value: `${weather.uvIndex}`,                 icon: Sun,         color: "text-amber-600 dark:text-amber-400",  info: uvInfo(weather.uvIndex) },
+                { label: "Rainfall 24h", value: `${weather.rainfallMm24h} mm`,        icon: CloudRain,   color: "text-blue-600 dark:text-blue-400",   info: rainfallInfo(weather.rainfallMm24h) },
+                { label: "Solar",        value: `${weather.solarWm2} W/m²`,           icon: Zap,         color: "text-yellow-600 dark:text-yellow-400", info: solarInfo(weather.solarWm2) },
               ].map(s => (
                 <RichTooltip key={s.label} info={s.info} side="top">
                   <div className="bg-card border border-border rounded-xl p-4 w-full cursor-help hover:border-border/50 transition-colors">
@@ -1156,11 +1156,11 @@ export default function IoTPage() {
                     {WEATHER_HISTORY.filter((_, i) => i % 3 === 0).map((row) => (
                       <tr key={row.time} className="hover:bg-muted/15 transition-colors">
                         <td className="px-4 py-2.5 font-mono text-muted-foreground">{row.time}</td>
-                        <td className="px-4 py-2.5 font-mono text-blue-300">{row.tempC.toFixed(1)}</td>
-                        <td className="px-4 py-2.5 font-mono text-sky-300">{row.humidityPct}</td>
-                        <td className="px-4 py-2.5 font-mono text-purple-300">{row.windKph}</td>
-                        <td className="px-4 py-2.5 font-mono text-indigo-300">{row.rainfallMm > 0 ? row.rainfallMm.toFixed(1) : "—"}</td>
-                        <td className="px-4 py-2.5 font-mono text-amber-300">{row.solarWm2 > 0 ? row.solarWm2 : "—"}</td>
+                        <td className="px-4 py-2.5 font-mono text-blue-600 dark:text-blue-300">{row.tempC.toFixed(1)}</td>
+                        <td className="px-4 py-2.5 font-mono text-sky-600 dark:text-sky-300">{row.humidityPct}</td>
+                        <td className="px-4 py-2.5 font-mono text-purple-600 dark:text-purple-300">{row.windKph}</td>
+                        <td className="px-4 py-2.5 font-mono text-indigo-600 dark:text-indigo-300">{row.rainfallMm > 0 ? row.rainfallMm.toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2.5 font-mono text-amber-600 dark:text-amber-300">{row.solarWm2 > 0 ? row.solarWm2 : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1176,7 +1176,7 @@ export default function IoTPage() {
               <span>Protocol: <span className="text-muted-foreground">WeatherLink API · 2 min interval</span></span>
               <span className="ml-auto flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-emerald-400">Online</span>
+                <span className="text-emerald-600 dark:text-emerald-400">Online</span>
               </span>
             </div>
           </div>
