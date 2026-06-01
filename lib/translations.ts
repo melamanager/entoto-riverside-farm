@@ -44,7 +44,7 @@ export const EN = {
   },
   // ── Mobile nav tabs ─────────────────────────────────────────────────────────
   tabs: {
-    home: "Home", map: "Map", diseases: "Diseases", tasks: "Tasks", more: "More",
+    home: "Home", iot: "IoT", diseases: "Diseases", tasks: "Tasks", more: "More",
     switchAccount: "Switch Account", signOut: "Sign Out",
   },
   // ── Common UI ───────────────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ export const AM: Stringify<typeof EN> = {
     iotControl:      "IoT ቁጥጥር ማዕከል",
   },
   tabs: {
-    home: "ዋና", map: "ካርታ", diseases: "በሽታ", tasks: "ስራ", more: "ተጨማሪ",
+    home: "ዋና", iot: "IoT", diseases: "በሽታ", tasks: "ስራ", more: "ተጨማሪ",
     switchAccount: "መለያ ቀይር", signOut: "ውጣ",
   },
   common: {

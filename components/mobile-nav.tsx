@@ -87,10 +87,10 @@ const ROLE_COLORS = {
   farmer:     { bg: "bg-primary",     badge: "bg-primary/15 text-primary border-primary/30" },
 };
 
-const PRIMARY_TAB_KEYS = ["home", "map", "diseases", "tasks"] as const;
+const PRIMARY_TAB_KEYS = ["home", "iot", "diseases", "tasks"] as const;
 const PRIMARY_TABS = [
   { href: "/",           tabKey: "home",     managerIcon: LayoutDashboard, supervisorHref: "/supervisor", supervisorIcon: ShieldCheck },
-  { href: "/map",        tabKey: "map",      icon: Map         },
+  { href: "/iot",        tabKey: "iot",      icon: Cpu         },
   { href: "/diseases",   tabKey: "diseases", icon: Bug         },
   { href: "/tasks",      tabKey: "tasks",    icon: ListChecks  },
 ] as const;
