@@ -34,9 +34,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
   const soilReadings = SOIL_READINGS().filter(sr => beds.some(b => b.id === sr.bedId));
   const cameraAlerts = CAMERA_ALERTS.filter(ca => beds.some(b => b.id === ca.bedId));
 
-  function getFarmer(farmerId: string) {
-    return FARMERS.find(f => f.id === farmerId);
-  }
+  function getFarmer(farmerId: string) { return FARMERS.find(f => f.id === farmerId); }
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
@@ -106,9 +104,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-muted/40 rounded-xl p-3 border border-border">
               <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Status</div>
-              <div className={`text-sm font-bold ${valveState.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>
-                {valveState.isOpen ? "● Open" : "○ Closed"}
-              </div>
+              <div className={`text-sm font-bold ${valveState.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>{valveState.isOpen ? "● Open" : "○ Closed"}</div>
               <div className="text-[9px] text-muted-foreground mt-0.5 capitalize">{valveState.mode} mode</div>
             </div>
             <div className="bg-muted/40 rounded-xl p-3 border border-border">
@@ -123,9 +119,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
             </div>
             <div className="bg-muted/40 rounded-xl p-3 border border-border">
               <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Avg Soil Moisture</div>
-              <div className={`text-sm font-bold tabular-nums ${avgSoilMoisture >= 60 ? "text-emerald-600" : avgSoilMoisture >= 40 ? "text-amber-600" : "text-red-600"}`}>
-                {avgSoilMoisture}%
-              </div>
+              <div className={`text-sm font-bold tabular-nums ${avgSoilMoisture >= 60 ? "text-emerald-600" : avgSoilMoisture >= 40 ? "text-amber-600" : "text-red-600"}`}>{avgSoilMoisture}%</div>
               <div className="text-[9px] text-muted-foreground mt-0.5">{warningSoil} beds need attention</div>
             </div>
             <div className="bg-muted/40 rounded-xl p-3 border border-border">
@@ -150,11 +144,16 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
             {cameraAlerts.map(ca => (
               <div key={ca.id} className={`rounded-xl p-3 border border-border bg-gradient-to-br ${ca.bgGradient}`}>
                 <div className="flex items-start justify-between mb-1.5">
-                  <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${ca.alertType === "disease" ? "bg-red-900/80 text-red-200" : ca.alertType === "ripeness" ? "bg-emerald-900/80 text-emerald-200" : ca.alertType === "pest" ? "bg-amber-900/80 text-amber-200" : "bg-slate-900/80 text-slate-200"}`}>{ca.alertType}</span>
-                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ca.status === "new" ? "bg-red-900/60 text-red-300" : ca.status === "reviewed" ? "bg-amber-900/60 text-amber-300" : "bg-emerald-900/60 text-emerald-300"}`}>{ca.status}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                    ca.alertType === "disease" ? "bg-red-900/80 text-red-200" : ca.alertType === "ripeness" ? "bg-emerald-900/80 text-emerald-200"
+                    : ca.alertType === "pest" ? "bg-amber-900/80 text-amber-200" : "bg-slate-900/80 text-slate-200"}`}>{ca.alertType}</span>
+                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                    ca.status === "new" ? "bg-red-900/60 text-red-300" : ca.status === "reviewed" ? "bg-amber-900/60 text-amber-300" : "bg-emerald-900/60 text-emerald-300"}`}>{ca.status}</span>
                 </div>
                 <div className="text-xs font-bold text-white">{ca.label}</div>
-                <div className="text-[10px] text-white/70 mt-0.5"><Link href={`/beds/${ca.bedId}`} className="hover:underline">{ca.bedId}</Link> · {Math.round(ca.confidence * 100)}% confidence</div>
+                <div className="text-[10px] text-white/70 mt-0.5">
+                  <Link href={`/beds/${ca.bedId}`} className="hover:underline">{ca.bedId}</Link> · {Math.round(ca.confidence * 100)}% confidence
+                </div>
                 <div className="text-[10px] text-white/60 mt-1 leading-snug line-clamp-2">{ca.description}</div>
               </div>
             ))}
@@ -162,7 +161,10 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
         </Card>
       )}
 
-      <Card className="p-5"><h3 className="font-bold mb-3">Harvest trend — 14 days</h3><HarvestChart data={chartData} /></Card>
+      <Card className="p-5">
+        <h3 className="font-bold mb-3">Harvest trend — 14 days</h3>
+        <HarvestChart data={chartData} />
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
@@ -175,9 +177,21 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
                 <Link href={`/beds/${b.id}`} key={b.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent">
                   <div className="text-muted-foreground font-mono text-xs w-5 text-center">#{i + 1}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between text-sm"><span className="font-mono font-semibold">{b.id}</span><span className="tabular-nums">{kg.toFixed(1)} kg</span></div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-2">{b.variety}{soil && (<span className={`text-[9px] px-1 rounded ${soil.status === "optimal" ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" : "text-amber-600 bg-amber-50 dark:bg-amber-950/30"}`}>💧 {soil.moisturePct}%</span>)}</div>
-                    <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary rounded-full" style={{ width: `${(kg / max) * 100 || 3}%` }} /></div>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-mono font-semibold">{b.id}</span>
+                      <span className="tabular-nums">{kg.toFixed(1)} kg</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                      {b.variety}
+                      {soil && (
+                        <span className={`text-[9px] px-1 rounded ${soil.status === "optimal" ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" : "text-amber-600 bg-amber-50 dark:bg-amber-950/30"}`}>
+                          💧 {soil.moisturePct}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${(kg / max) * 100 || 3}%` }} />
+                    </div>
                   </div>
                   <span className={`size-2.5 rounded-full ${b.health === "healthy" ? "bg-emerald-500" : b.health === "warning" ? "bg-amber-500" : "bg-rose-500"}`} />
                 </Link>
@@ -185,13 +199,17 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
             })}
           </div>
         </Card>
+
         <Card className="p-5">
           <h3 className="font-bold mb-3">👥 Assigned farmers</h3>
           <div className="space-y-2">
             {[supervisor, ...valveFarmers].filter(Boolean).map(f => (
               <div key={f!.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent">
                 <Avatar className="size-10"><AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">{f!.avatar}</AvatarFallback></Avatar>
-                <div className="flex-1"><div className="text-sm font-medium">{f!.name}</div><div className="text-[11px] text-muted-foreground capitalize">{f!.role} · {f!.phone}</div></div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{f!.name}</div>
+                  <div className="text-[11px] text-muted-foreground capitalize">{f!.role} · {f!.phone}</div>
+                </div>
                 <Badge variant="outline" className="text-[10px]">Score {f!.performanceScore}</Badge>
               </div>
             ))}
@@ -204,7 +222,11 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
           <h3 className="font-bold mb-3 flex items-center gap-2"><Droplets className="size-4 text-blue-500" /> Soil Sensor Readings</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead><tr className="text-muted-foreground border-b border-border"><th className="text-left py-2 pr-4">Bed</th><th className="text-right py-2 pr-4">Moisture</th><th className="text-right py-2 pr-4">Temp</th><th className="text-right py-2 pr-4">EC</th><th className="text-right py-2 pr-4">pH</th><th className="text-right py-2">Status</th></tr></thead>
+              <thead><tr className="text-muted-foreground border-b border-border">
+                <th className="text-left py-2 pr-4">Bed</th><th className="text-right py-2 pr-4">Moisture</th>
+                <th className="text-right py-2 pr-4">Temp</th><th className="text-right py-2 pr-4">EC</th>
+                <th className="text-right py-2 pr-4">pH</th><th className="text-right py-2">Status</th>
+              </tr></thead>
               <tbody>
                 {soilReadings.map(sr => (
                   <tr key={sr.bedId} className="border-b border-border/50 hover:bg-accent/30">
@@ -213,7 +235,12 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
                     <td className="py-1.5 pr-4 text-right tabular-nums">{sr.tempC}°C</td>
                     <td className="py-1.5 pr-4 text-right tabular-nums"><span className={sr.ecMsCm > 2.5 ? "text-amber-600 font-bold" : ""}>{sr.ecMsCm}</span></td>
                     <td className="py-1.5 pr-4 text-right tabular-nums"><span className={sr.ph < 5.8 ? "text-amber-600 font-bold" : ""}>{sr.ph}</span></td>
-                    <td className="py-1.5 text-right"><span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${sr.status === "optimal" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : sr.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"}`}>{sr.status}</span></td>
+                    <td className="py-1.5 text-right">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                        sr.status === "optimal" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                        : sr.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                        : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"}`}>{sr.status}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -232,22 +259,54 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
               const h = entry.data as HarvestRecord;
               const bed = beds.find(b => b.id === h.bedId);
               const farmer = getFarmer(h.farmerId);
-              return (<div key={i} className="relative"><div className={`${iconClass} bg-primary/15 border-primary/40`}><Wheat className="size-2.5 text-primary" /></div><div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 text-xs"><div className="flex items-center justify-between"><span className="font-semibold text-primary">Harvest — {Number(h.kg).toFixed(1)} kg · {bed?.id}</span><span className="text-primary/70 tabular-nums">{new Date(h.date).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div><div className="text-primary/70 mt-0.5">Grade {h.qualityGrade} · {bed?.variety} · {farmer?.name}</div></div></div>);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-primary/15 border-primary/40`}><Wheat className="size-2.5 text-primary" /></div>
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between"><span className="font-semibold text-primary">Harvest — {Number(h.kg).toFixed(1)} kg · {bed?.id}</span><span className="text-primary/70 tabular-nums">{new Date(h.date).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div>
+                    <div className="text-primary/70 mt-0.5">Grade {h.qualityGrade} · {bed?.variety} · {farmer?.name}</div>
+                  </div>
+                </div>
+              );
             }
             if (entry.kind === "disease") {
               const d = entry.data as DiseaseReport;
               const bed = beds.find(b => b.id === d.bedId);
-              return (<div key={i} className="relative"><div className={`${iconClass} bg-red-100 border-red-400 dark:bg-red-950/40`}><Bug className="size-2.5 text-red-700" /></div><div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs dark:bg-red-950/20 dark:border-red-900/40"><div className="flex items-center justify-between"><span className="font-semibold text-red-800 dark:text-red-400">{DISEASE_LABELS[d.type]} · {bed?.id}</span><span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div><div className="text-red-600 dark:text-red-500 mt-0.5 flex items-center gap-2">Severity {d.severity}%{d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}</div></div></div>);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-red-100 border-red-400 dark:bg-red-950/40`}><Bug className="size-2.5 text-red-700" /></div>
+                  <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs dark:bg-red-950/20 dark:border-red-900/40">
+                    <div className="flex items-center justify-between"><span className="font-semibold text-red-800 dark:text-red-400">{DISEASE_LABELS[d.type]} · {bed?.id}</span><span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div>
+                    <div className="text-red-600 dark:text-red-500 mt-0.5 flex items-center gap-2">Severity {d.severity}%{d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}</div>
+                  </div>
+                </div>
+              );
             }
             if (entry.kind === "fertigation") {
               const f = entry.data as FertigationRecord;
               const worker = getFarmer(f.responsibleWorkerId);
-              return (<div key={i} className="relative"><div className={`${iconClass} bg-blue-100 border-blue-400 dark:bg-blue-950/40`}><Droplets className="size-2.5 text-blue-700" /></div><div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs dark:bg-blue-950/20 dark:border-blue-900/40"><div className="flex items-center justify-between"><span className="font-semibold text-blue-800 dark:text-blue-400">{f.fertilizerType}</span><span className="text-blue-500 tabular-nums">{new Date(f.applicationDate).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div><div className="text-blue-600 dark:text-blue-500 mt-0.5">{f.dosageGPerL}g/L · {f.waterVolumeLiters}L · {f.applicationMethod} · {worker?.name}{f.notes ? ` — ${f.notes}` : ""}</div></div></div>);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-blue-100 border-blue-400 dark:bg-blue-950/40`}><Droplets className="size-2.5 text-blue-700" /></div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs dark:bg-blue-950/20 dark:border-blue-900/40">
+                    <div className="flex items-center justify-between"><span className="font-semibold text-blue-800 dark:text-blue-400">{f.fertilizerType}</span><span className="text-blue-500 tabular-nums">{new Date(f.applicationDate).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div>
+                    <div className="text-blue-600 dark:text-blue-500 mt-0.5">{f.dosageGPerL}g/L · {f.waterVolumeLiters}L · {f.applicationMethod} · {worker?.name}{f.notes ? ` — ${f.notes}` : ""}</div>
+                  </div>
+                </div>
+              );
             }
             if (entry.kind === "packaging") {
               const p = entry.data as PackagingRecord;
               const packer = getFarmer(p.packedBy);
-              return (<div key={i} className="relative"><div className={`${iconClass} bg-amber-100 border-amber-400 dark:bg-amber-950/40`}><Package className="size-2.5 text-amber-700" /></div><div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs dark:bg-amber-950/20 dark:border-amber-900/40"><div className="flex items-center justify-between"><span className="font-semibold text-amber-800 dark:text-amber-400">{p.batchNumber} · {p.purpose} · {p.variety}</span><span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div><div className="text-amber-700 dark:text-amber-500 mt-0.5">{p.packedKg}kg · {p.cartonCount} cartons · {p.plateCount} plates{p.lostKg > 0 ? ` · ${p.lostKg.toFixed(1)} kg lost` : ""} · {packer?.name}</div></div></div>);
+              return (
+                <div key={i} className="relative">
+                  <div className={`${iconClass} bg-amber-100 border-amber-400 dark:bg-amber-950/40`}><Package className="size-2.5 text-amber-700" /></div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs dark:bg-amber-950/20 dark:border-amber-900/40">
+                    <div className="flex items-center justify-between"><span className="font-semibold text-amber-800 dark:text-amber-400">{p.batchNumber} · {p.purpose} · {p.variety}</span><span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en", { day: "numeric", month: "short" })}</span></div>
+                    <div className="text-amber-700 dark:text-amber-500 mt-0.5">{p.packedKg}kg · {p.cartonCount} cartons · {p.plateCount} plates{p.lostKg > 0 ? ` · ${p.lostKg.toFixed(1)} kg lost` : ""} · {packer?.name}</div>
+                  </div>
+                </div>
+              );
             }
             return null;
           })}
