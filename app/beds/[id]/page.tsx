@@ -1,0 +1,465 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, Package, Bug, Droplets, CheckCircle2, TrendingUp, Camera, Gauge } from "lucide-react";
+import { AIDetectDialog } from "@/components/ai-detect-dialog";
+import { BedQR } from "@/components/bed-qr";
+import { HarvestChart } from "@/components/harvest-chart";
+import {
+  getBed, getValve, getFarmer, harvestsForBed, diseasesForBed,
+  plantsInBed, totalKgBed, FARMERS,
+  SOIL_READINGS, VALVE_STATES, CAMERA_ALERTS,
+} from "@/lib/data";
+import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
+import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
+
+const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
+
+const STAGE_DAYS_FROM_PLANTED: Record<string, number> = {
+  planted: 0, vegetative: 14, flowering: 28, fruiting: 38, ripening: 52, harvest: 56,
+};
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+export default async function BedPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const bed = getBed(id);
+  if (!bed) notFound();
+
+  const valve = getValve(bed.valveId)!;
+  const farmer = getFarmer(bed.farmerId)!;
+  const harvests = harvestsForBed(bed.id).sort((a,b) => b.date.localeCompare(a.date));
+  const diseases = diseasesForBed(bed.id);
+  const totalKg = totalKgBed(bed.id);
+  const plants = plantsInBed(bed);
+  const stageIdx = STAGES.indexOf(bed.stage);
+
+  // IoT data
+  const soilReading = SOIL_READINGS().find(sr => sr.bedId === bed.id);
+  const valveState = VALVE_STATES.find(vs => vs.valveId === bed.valveId);
+  const bedCameraAlerts = CAMERA_ALERTS.filter(ca => ca.bedId === bed.id);
+
+  const series: Record<string, number> = {};
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date("2026-05-17");
+    d.setDate(d.getDate() - i);
+    series[d.toISOString().split("T")[0]] = 0;
+  }
+  harvests.forEach(h => { if (series[h.date] !== undefined) series[h.date] += h.kg; });
+  const chartData = Object.entries(series).map(([date, kg]) => ({
+    date: new Date(date).toLocaleDateString("en", { month: "short", day: "numeric" }),
+    kg: Math.round(kg * 10) / 10,
+  }));
+
+  const yieldPerMeter = totalKg / bed.lengthM;
+  const yieldPerPlant = totalKg / plants;
+
+  const KG_PER_M_TARGET = 0.38;
+  const plannedHarvestStart = addDays(bed.plantedDate, 56);
+  const harvestsSorted = [...harvests].sort((a, b) => a.date.localeCompare(b.date));
+  const actualHarvestStart = harvestsSorted[0]?.date ?? null;
+  const plannedKgPerPick = Math.round(bed.lengthM * KG_PER_M_TARGET * 10) / 10;
+  const avgKgPerPick = harvests.length > 0 ? Math.round((totalKg / harvests.length) * 10) / 10 : 0;
+  const gradeACount = harvests.filter(h => h.qualityGrade === "A").length;
+  const gradeAPct = harvests.length > 0 ? Math.round((gradeACount / harvests.length) * 100) : 0;
+  const gradeATarget = 75;
+  const yieldEfficiency = KG_PER_M_TARGET > 0 ? Math.round((yieldPerMeter / KG_PER_M_TARGET) * 100) : 0;
+
+  type LogEntry = { date: string; kind: "harvest"|"disease"|"fertigation"|"packaging"|"stage"; data: unknown };
+  const stageHistory = STAGES.slice(0, stageIdx + 1).map(s => ({
+    date: addDays(bed.plantedDate, STAGE_DAYS_FROM_PLANTED[s]),
+    kind: "stage" as const,
+    data: s,
+  }));
+  const log: LogEntry[] = [
+    ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
+    ...diseases.map(d => ({ date: d.reportedAt.slice(0,10), kind: "disease" as const, data: d })),
+    ...FERTIGATION_RECORDS
+      .filter(f => f.valveId === bed.valveId && f.status === "applied")
+      .map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
+    ...PACKAGING_RECORDS
+      .filter(p => p.valveId === bed.valveId && p.variety === bed.variety)
+      .map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
+    ...stageHistory,
+  ].sort((a,b) => b.date.localeCompare(a.date));
+
+  return (
+    <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
+      <Link href="/beds" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" /> All beds
+      </Link>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-6 flex-wrap">
+        <div className="flex items-center gap-4">
+          <div className="size-14 rounded-2xl grid place-items-center text-2xl shadow-lg" style={{background:`linear-gradient(135deg, ${valve.color}, ${valve.color}dd)`}}>
+            <span>🛏</span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold font-mono">{bed.id}</h1>
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Link href={`/valves/${valve.id}`} className="hover:underline" style={{color: valve.color}}>{valve.name}</Link>
+              <span>·</span>
+              <span>{bed.variety}</span>
+              <span>·</span>
+              <span>{bed.origin}</span>
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge className={`${bed.health==="healthy"?"bg-primary/15 text-primary":bed.health==="warning"?"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400":"bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"} capitalize`}>● {bed.health}</Badge>
+          <Badge variant="outline">{GROWTH_STAGE_LABELS[bed.stage]}</Badge>
+          <AIDetectDialog bedId={bed.id} />
+        </div>
+      </div>
+
+      {/* Bed Summary */}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3">Bed Summary</div>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          {[
+            { icon: "🌾", label: "Total Yield",   value: `${totalKg.toFixed(1)} kg`,           sub: `${harvests.length} picks` },
+            { icon: "📏", label: "Efficiency",     value: `${yieldPerMeter.toFixed(2)} kg/m`,   sub: "yield per metre" },
+            { icon: "🌱", label: "Age",            value: `${Math.floor((new Date("2026-05-20").getTime() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
+            { icon: "📊", label: "Stage",          value: GROWTH_STAGE_LABELS[bed.stage],       sub: `${stageIdx + 1} of ${STAGES.length}` },
+            { icon: "⭐", label: "Grade A",         value: `${gradeAPct}%`,                      sub: `${gradeACount}/${harvests.length} picks` },
+            { icon: "💚", label: "Health",          value: bed.health.charAt(0).toUpperCase() + bed.health.slice(1), sub: diseases.length > 0 ? `${diseases.length} issue${diseases.length > 1 ? "s" : ""}` : "No issues" },
+          ].map(kpi => (
+            <div key={kpi.label} className="bg-muted/40 rounded-xl p-3 border border-border">
+              <div className="text-lg mb-1">{kpi.icon}</div>
+              <div className="text-foreground font-bold text-sm tabular-nums leading-tight">{kpi.value}</div>
+              <div className="text-muted-foreground text-[9px] mt-0.5 uppercase tracking-wide">{kpi.label}</div>
+              <div className="text-muted-foreground text-[9px]">{kpi.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* IoT Live Panel */}
+      {(soilReading || valveState || bedCameraAlerts.length > 0) && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="size-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Live IoT — {bed.id}</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            {soilReading && (
+              <>
+                <div className="bg-muted/40 rounded-xl p-3 border border-border">
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Soil Moisture</div>
+                  <div className={`text-sm font-bold tabular-nums ${soilReading.moisturePct < 50 ? "text-amber-600" : soilReading.moisturePct < 40 ? "text-red-600" : "text-emerald-600"}`}>
+                    {soilReading.moisturePct}%
+                  </div>
+                  <div className="mt-1 h-1.5 rounded-full bg-border overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${soilReading.moisturePct >= 60 ? "bg-emerald-500" : soilReading.moisturePct >= 40 ? "bg-amber-500" : "bg-red-500"}`}
+                      style={{ width: `${soilReading.moisturePct}%` }} />
+                  </div>
+                  <div className="text-[9px] text-muted-foreground mt-0.5">Target: 60–80%</div>
+                </div>
+                <div className="bg-muted/40 rounded-xl p-3 border border-border">
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Soil Temp</div>
+                  <div className="text-sm font-bold tabular-nums text-foreground">{soilReading.tempC}°C</div>
+                  <div className="text-[9px] text-muted-foreground mt-0.5">EC {soilReading.ecMsCm} mS/cm</div>
+                </div>
+                <div className="bg-muted/40 rounded-xl p-3 border border-border">
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">pH Level</div>
+                  <div className={`text-sm font-bold tabular-nums ${soilReading.ph < 5.8 ? "text-amber-600" : "text-foreground"}`}>{soilReading.ph}</div>
+                  <div className="text-[9px] text-muted-foreground mt-0.5">Optimal: 5.8–6.5</div>
+                </div>
+              </>
+            )}
+            {valveState && (
+              <div className="bg-muted/40 rounded-xl p-3 border border-border">
+                <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Valve {valve.name}</div>
+                <div className={`text-sm font-bold ${valveState.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>
+                  {valveState.isOpen ? "● Open" : "○ Closed"}
+                </div>
+                <div className="text-[9px] text-muted-foreground mt-0.5">
+                  {valveState.isOpen ? `${valveState.flowRateLph.toLocaleString()} L/h` : valveState.nextScheduledEvent}
+                </div>
+              </div>
+            )}
+          </div>
+          {bedCameraAlerts.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <Camera className="size-3" /> Camera Alerts
+              </div>
+              {bedCameraAlerts.map(ca => (
+                <div key={ca.id} className={`rounded-xl p-3 border border-border/50 bg-gradient-to-r ${ca.bgGradient}`}>
+                  <div className="flex items-start justify-between mb-1">
+                    <span className="text-xs font-bold text-white">{ca.label}</span>
+                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ca.status === "new" ? "bg-red-900/60 text-red-300" : "bg-amber-900/60 text-amber-300"}`}>
+                      {ca.status}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-white/70">{Math.round(ca.confidence * 100)}% confidence · {new Date(ca.detectedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</div>
+                  <div className="text-[10px] text-white/60 mt-1 leading-snug">{ca.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Info grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><MapPin className="size-3.5" /> Length</div>
+          <div className="text-2xl font-bold mt-1">{bed.lengthM}<span className="text-sm text-muted-foreground"> m</span></div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Sprout className="size-3.5" /> Plants</div>
+          <div className="text-2xl font-bold mt-1">{plants}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{bed.plantsPerMeter}/m</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Calendar className="size-3.5" /> Planted</div>
+          <div className="text-base font-bold mt-1">{new Date(bed.plantedDate).toLocaleDateString("en",{year:"numeric",month:"short",day:"numeric"})}</div>
+          <div className="text-[10px] text-muted-foreground">{Math.floor((Date.now()-new Date(bed.plantedDate).getTime())/86400000)} days ago</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5"><User className="size-3.5" /> Farmer</div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <Avatar className="size-7"><AvatarFallback className="bg-primary/15 text-primary text-[10px] font-semibold">{farmer.avatar}</AvatarFallback></Avatar>
+            <div className="text-sm font-medium truncate">{farmer.name}</div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Growth progress */}
+      <Card className="p-5">
+        <h3 className="font-bold mb-3">🌿 Growth progress</h3>
+        <div className="relative">
+          <div className="flex justify-between mb-2">
+            {STAGES.map((s, i) => (
+              <div key={s} className="flex flex-col items-center gap-1 flex-1">
+                <div className={`size-7 rounded-full grid place-items-center text-[10px] font-bold ${i<=stageIdx?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground"}`}>
+                  {i+1}
+                </div>
+                <span className={`text-[10px] text-center leading-tight ${i<=stageIdx?"text-primary font-medium":"text-muted-foreground"}`}>{GROWTH_STAGE_LABELS[s]}</span>
+              </div>
+            ))}
+          </div>
+          <div className="absolute top-3.5 left-0 right-0 h-0.5 bg-muted -z-10">
+            <div className="h-full bg-primary" style={{width:`${(stageIdx/(STAGES.length-1))*100}%`}} />
+          </div>
+        </div>
+      </Card>
+
+      {/* Planned vs Achievement */}
+      <Card className="p-5">
+        <h3 className="font-bold mb-4 flex items-center gap-2">
+          <TrendingUp className="size-4 text-blue-500" /> Planned vs Achievement
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "Harvest Start", planned: new Date(plannedHarvestStart).toLocaleDateString("en",{month:"short",day:"numeric"}), actual: actualHarvestStart?new Date(actualHarvestStart).toLocaleDateString("en",{month:"short",day:"numeric"}):"Not yet", good: actualHarvestStart!==null&&actualHarvestStart<=plannedHarvestStart },
+            { label: "Avg kg / Pick",  planned: `${plannedKgPerPick} kg`, actual: `${avgKgPerPick} kg`, good: avgKgPerPick>=plannedKgPerPick },
+            { label: "Grade A Rate",  planned: `${gradeATarget}%`, actual: `${gradeAPct}%`, good: gradeAPct>=gradeATarget },
+            { label: "Yield Efficiency", planned: "100%", actual: `${yieldEfficiency}%`, good: yieldEfficiency>=100 },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl border border-border p-3">
+              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">{item.label}</div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Planned</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{item.planned}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Actual</span>
+                  <span className={`text-xs font-bold ${item.actual==="Not yet"?"text-muted-foreground":item.good?"text-primary":"text-red-500"}`}>{item.actual}</span>
+                </div>
+              </div>
+              {item.actual!=="Not yet" && (
+                <div className={`mt-2 text-[10px] font-semibold ${item.good?"text-primary":"text-red-500"}`}>
+                  {item.good?"↑ On track":"↓ Below target"}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Health + Harvest analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold">🍓 Harvest history</h3>
+            <div className="text-right">
+              <div className="text-xl font-bold">{totalKg.toFixed(1)}<span className="text-sm font-normal text-muted-foreground"> kg total</span></div>
+              <div className="text-[11px] text-muted-foreground tabular-nums">{yieldPerMeter.toFixed(2)} kg/m · {(yieldPerPlant*1000).toFixed(0)}g/plant</div>
+            </div>
+          </div>
+          <HarvestChart data={chartData} />
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-muted-foreground"><tr><th className="text-left py-1">Date</th><th className="text-right py-1">KG</th><th className="text-right py-1">Grade</th></tr></thead>
+              <tbody>
+                {harvests.slice(0,6).map(h => (
+                  <tr key={h.id} className="border-t border-border">
+                    <td className="py-1.5">{new Date(h.date).toLocaleDateString("en",{month:"short",day:"numeric",year:"numeric"})}</td>
+                    <td className="py-1.5 text-right tabular-nums">{h.kg.toFixed(1)}</td>
+                    <td className="py-1.5 text-right"><Badge variant="outline" className="text-[10px]">Grade {h.qualityGrade}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <div className="space-y-4">
+          <Card className="p-5">
+            <h3 className="font-bold mb-2">🩺 Health</h3>
+            {diseases.length === 0 ? (
+              <div className="text-sm text-primary flex items-center gap-2">
+                <span className="size-2 rounded-full bg-primary" />
+                No active issues detected.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {diseases.map(d => (
+                  <div key={d.id} className="border border-border rounded-lg p-3 bg-rose-50/50 dark:bg-rose-950/20">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-sm">{DISEASE_LABELS[d.type]}</div>
+                      <Badge variant="destructive" className="text-[10px]">{d.severity}%</Badge>
+                    </div>
+                    <Progress value={d.severity} className="my-2 h-1.5" />
+                    <div className="text-[11px] text-muted-foreground">💊 {d.suggestedTreatment}</div>
+                    <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
+                      <span>AI confidence {d.aiConfidence}%</span>
+                      <Badge variant={d.treatmentApplied?"default":"outline"} className="text-[10px]">
+                        {d.treatmentApplied ? "✓ Treated" : "Pending treatment"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+          <Card className="p-5 flex flex-col items-center">
+            <h3 className="font-bold mb-3 self-start">📷 QR Sticker</h3>
+            <BedQR bedId={bed.id} />
+            <div className="text-[11px] text-muted-foreground mt-2 text-center">Print and stick on bed marker. Scanning opens this profile.</div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Activity log */}
+      <Card className="p-5">
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-foreground">
+          <Calendar className="size-4 text-muted-foreground" /> Activity Log
+        </h3>
+        {log.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+        ) : (
+          <div className="relative pl-7 space-y-3">
+            <div className="absolute left-2.5 top-1 bottom-1 w-px bg-border" />
+            {log.slice(0, 20).map((entry, i) => {
+              const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
+              if (entry.kind === "harvest") {
+                const h = entry.data as ReturnType<typeof harvestsForBed>[0];
+                const f = getFarmer(h.farmerId);
+                return (
+                  <div key={i} className="relative">
+                    <div className={`${iconClass} bg-primary/15 border-primary/40`}><Wheat className="size-2.5 text-primary" /></div>
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-primary">Harvest — {h.kg.toFixed(1)} kg</span>
+                        <span className="text-primary/70 tabular-nums">{new Date(h.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                      </div>
+                      <div className="text-primary/70 mt-0.5">Grade {h.qualityGrade} · {f?.name}</div>
+                    </div>
+                  </div>
+                );
+              }
+              if (entry.kind === "disease") {
+                const d = entry.data as ReturnType<typeof diseasesForBed>[0];
+                return (
+                  <div key={i} className="relative">
+                    <div className={`${iconClass} bg-red-100 border-red-400 dark:bg-red-950/40`}><Bug className="size-2.5 text-red-700" /></div>
+                    <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs dark:bg-red-950/20 dark:border-red-900/40">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-red-800 dark:text-red-400">{DISEASE_LABELS[d.type]}</span>
+                        <span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                      </div>
+                      <div className="text-red-600 dark:text-red-500 mt-0.5 flex items-center gap-2">
+                        Severity {d.severity}%
+                        {d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              if (entry.kind === "fertigation") {
+                const f = entry.data as typeof FERTIGATION_RECORDS[0];
+                const worker = getFarmer(f.responsibleWorkerId);
+                return (
+                  <div key={i} className="relative">
+                    <div className={`${iconClass} bg-blue-100 border-blue-400 dark:bg-blue-950/40`}><Droplets className="size-2.5 text-blue-700" /></div>
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs dark:bg-blue-950/20 dark:border-blue-900/40">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-blue-800 dark:text-blue-400">{f.fertilizerType}</span>
+                        <span className="text-blue-500 tabular-nums">{new Date(f.applicationDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                      </div>
+                      <div className="text-blue-600 dark:text-blue-500 mt-0.5">{f.dosageGPerL}g/L · {f.waterVolumeLiters}L · {f.applicationMethod} · {worker?.name}{f.notes ? ` — ${f.notes}` : ""}</div>
+                    </div>
+                  </div>
+                );
+              }
+              if (entry.kind === "packaging") {
+                const p = entry.data as typeof PACKAGING_RECORDS[0];
+                const packer = getFarmer(p.packedBy);
+                return (
+                  <div key={i} className="relative">
+                    <div className={`${iconClass} bg-amber-100 border-amber-400 dark:bg-amber-950/40`}><Package className="size-2.5 text-amber-700" /></div>
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs dark:bg-amber-950/20 dark:border-amber-900/40">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-amber-800 dark:text-amber-400">{p.batchNumber} · {p.purpose} · {p.variety}</span>
+                        <span className="text-amber-600 tabular-nums">{new Date(p.packedDate).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                      </div>
+                      <div className="text-amber-700 dark:text-amber-500 mt-0.5">
+                        {p.packedKg}kg · {p.cartonCount} cartons · {p.plateCount} plates{p.lostKg > 0 ? ` · ${p.lostKg.toFixed(1)} kg lost` : ""} · {packer?.name}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              if (entry.kind === "stage") {
+                const s = entry.data as string;
+                const isCurrentStage = s === bed.stage;
+                return (
+                  <div key={`stage-${s}`} className="relative">
+                    <div className={`${iconClass} ${isCurrentStage?"bg-primary border-primary/70":"bg-muted border-border"}`}>
+                      <Sprout className={`size-2.5 ${isCurrentStage?"text-primary-foreground":"text-muted-foreground"}`} />
+                    </div>
+                    <div className={`border rounded-lg px-3 py-2 text-xs ${isCurrentStage?"bg-primary/10 border-primary/30":"bg-muted/30 border-border"}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-semibold ${isCurrentStage?"text-primary":"text-foreground"}`}>
+                          Stage: {GROWTH_STAGE_LABELS[s as typeof STAGES[number]]}
+                          {isCurrentStage && <span className="ml-1.5 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Current</span>}
+                        </span>
+                        <span className={`tabular-nums text-[10px] ${isCurrentStage?"text-primary/70":"text-muted-foreground"}`}>
+                          {new Date(entry.date).toLocaleDateString("en",{day:"numeric",month:"short",year:"numeric"})}
+                        </span>
+                      </div>
+                      <div className={`mt-0.5 text-[10px] ${isCurrentStage?"text-primary/70":"text-muted-foreground"}`}>
+                        {STAGE_DAYS_FROM_PLANTED[s]} days from planting
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
