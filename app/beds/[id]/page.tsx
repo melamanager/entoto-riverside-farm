@@ -186,6 +186,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
               </div>
             )}
           </div>
+
           {bedCameraAlerts.length > 0 && (
             <div className="space-y-2">
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
@@ -313,6 +314,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
             </table>
           </div>
         </Card>
+
         <div className="space-y-4">
           <Card className="p-5">
             <h3 className="font-bold mb-2">🩺 Health</h3>
@@ -342,6 +344,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
               </div>
             )}
           </Card>
+
           <Card className="p-5 flex flex-col items-center">
             <h3 className="font-bold mb-3 self-start">📷 QR Sticker</h3>
             <BedQR bedId={bed.id} />
