@@ -8,7 +8,7 @@ import {
   FileBarChart, CalendarCheck, LogOut, Check, ChevronRight,
   Shield, UserCircle2, Package, ShoppingCart,
   DollarSign, Beaker, BarChart3,
-  CalendarDays, Zap, Languages, Warehouse, Settings,
+  CalendarDays, Zap, Languages, Warehouse, Settings, Cpu,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { ValveIcon } from "@/components/valve-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-/* ── All nav items (mirrors sidebar) ────────────────────────────────── */
+/* ── All nav items (mirrors sidebar) ─────────────────────────────────────── */
 const NAV_GROUPS = [
   {
     label: "Overview",
@@ -75,6 +75,7 @@ const NAV_GROUPS = [
     label: "Intelligence",
     items: [
       { href: "/ai",       label: "AI Alerts & Forecast", icon: Zap,      roles: ["manager", "supervisor"] },
+      { href: "/iot",      label: "IoT Control",           icon: Cpu,      roles: ["manager", "supervisor"] },
       { href: "/settings", label: "Settings",              icon: Settings, roles: ["manager"] },
     ],
   },
@@ -127,7 +128,7 @@ export function MobileNav() {
 
   return (
     <>
-      {/* ── Bottom tab bar ─────────────────────────────────────────── */}
+      {/* ── Bottom tab bar ──────────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur-sm border-t border-border">
         <div className="flex items-stretch h-16">
           {PRIMARY_TABS.map(tab => {
@@ -170,7 +171,7 @@ export function MobileNav() {
         </div>
       </nav>
 
-      {/* ── More drawer ────────────────────────────────────────────── */}
+      {/* ── More drawer ────────────────────────────────────────────────── */}
       {drawerOpen && (
         <>
           {/* Backdrop */}
@@ -218,7 +219,6 @@ export function MobileNav() {
                 {NAV_GROUPS.map(group => {
                   const visible = group.items.filter(i =>
                     i.roles.includes(role) &&
-                    // de-duplicate: supervisor item in Overview is different from People
                     !(i.href === "/supervisor" && i.label === "Supervisor View" && isSupervisor)
                   );
                   if (visible.length === 0) return null;
@@ -310,7 +310,7 @@ export function MobileNav() {
                   onClick={toggle}
                   className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-muted border border-border text-sm font-semibold text-foreground/80 hover:bg-accent transition-colors"
                 >
-                  <span className="flex items-center gap-2"><Languages className="size-4 text-muted-foreground" />{isAm ? "ቋንቋ" : "Language"}</span>
+                  <span className="flex items-center gap-2"><Languages className="size-4 text-muted-foreground" />{isAm ? "ቀንቀጋ" : "Language"}</span>
                   <div className="flex items-center gap-1 text-xs">
                     <span className={cn("px-2 py-0.5 rounded font-bold", !isAm ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>EN</span>
                     <span className={cn("px-2 py-0.5 rounded font-bold", isAm ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>አማ</span>
