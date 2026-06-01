@@ -94,3 +94,69 @@ curl -I http://localhost:3000/login
 ```
 
 GitHub Actions run status: `https://github.com/melamanager/entoto-riverside-farm/actions`
+
+---
+
+## Demo Branch
+
+- Branch: `demo` — static/client-side only, no DB, no AUTH_SECRET
+- Data comes from `lib/data.ts` and `lib/erp-data.ts` (static fixtures)
+- Deployed to Vercel: `https://entoto-riverside-farm.vercel.app`
+- Auto-deploy on push via `.github/workflows/deploy-vercel.yml` (calls deploy hook)
+
+## Pushing Large Files (>20 KB) — CRITICAL
+
+**Never use background agents or `mcp__github__push_files` for files over ~20 KB.** They stall because the full content must travel through the agent context window as a JSON string parameter.
+
+**Always use git plumbing instead:**
+
+```bash
+# 1. Write your file to /tmp/myfile.tsx  (already done)
+
+# 2. Create a blob
+BLOB=$(git hash-object -w /tmp/myfile.tsx)
+
+# 3. Build updated subtrees bottom-up using Python (avoids grep tab issues)
+python3 - << 'EOF'
+import subprocess
+
+demo_tip = subprocess.run(['git','rev-parse','origin/demo'], capture_output=True, text=True).stdout.strip()
+# ... navigate tree, replace entry, call git mktree
+EOF
+
+# 4. Create the commit (signing works from the main repo, NOT from a worktree)
+NEW_COMMIT=$(git commit-tree $NEW_ROOT_TREE -p $DEMO_TIP -m "your message")
+
+# 5. Push
+git push origin $NEW_COMMIT:refs/heads/demo
+```
+
+**Key rules:**
+- `git commit-tree` signing **works** from `/home/user/entoto-riverside-farm` (main worktree)
+- `git commit-tree` signing **fails** in `git worktree add` worktrees — do not use worktrees for commits
+- Build trees bottom-up: `iot/` → `app/` → root. Use Python not bash grep to avoid duplicate entries
+- Use `git ls-tree | python3` to replace a single entry without duplicating it
+
+## Vercel Deploy (demo branch)
+
+```bash
+# Trigger build
+curl -s -X POST "https://api.vercel.com/v1/integrations/deploy/prj_b5QmNZ0U1lMroyv2nRmh8FPUWFRg/sNyTA0fQmb"
+
+# Poll until READY (check every 15s)
+VERCEL_TOKEN="vcp_..."
+until curl -s "https://api.vercel.com/v6/deployments?projectId=prj_b5QmNZ0U1lMroyv2nRmh8FPUWFRg&limit=1" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" | python3 -c "
+import sys,json; d=json.load(sys.stdin)
+dep=d['deployments'][0]; print(dep['readyState'], dep['uid'])
+" | grep -q "^READY"; do sleep 15; done
+
+# Assign production alias
+DEPLOY_ID="dpl_..."
+curl -s -X POST "https://api.vercel.com/v2/deployments/$DEPLOY_ID/aliases" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"alias":"entoto-riverside-farm.vercel.app"}'
+```
+
+The deploy hook triggers a new build from the `demo` branch HEAD. The alias step makes it live at the production URL. Total time from push to live: ~15–30 seconds.
