@@ -218,13 +218,13 @@ export function ATTENDANCE(): AttendanceRecord[] {
 }
 
 export const TASKS: Task[] = [
-  { id: "t-001", title: "Apply Kumulus DF to A-BED-06", description: "Mix 2g/L water, spray entire bed evenly including underside of leaves. Wear full PPE.", assignedTo: "f-001", createdBy: "f-008", bedId: "A-BED-06", status: "in_progress", priority: "high", category: "disease", createdAt: "2026-05-16T08:00:00Z", dueDate: "2026-05-17" },
+  { id: "t-001", title: "Apply lemon juice spray to A-BED-06", description: "Squeeze 3 tbsp fresh lemon juice into 1L water, add drop of cooking oil. Spray entire bed at dusk, covering leaf undersides thoroughly.", assignedTo: "f-001", createdBy: "f-008", bedId: "A-BED-06", status: "in_progress", priority: "high", category: "disease", createdAt: "2026-05-16T08:00:00Z", dueDate: "2026-05-17" },
   { id: "t-002", title: "Harvest Grade-A berries — Valve A", description: "Pick all ripe grade-A berries from beds A-04 and A-05. Use clean baskets.", assignedTo: "f-002", createdBy: "f-008", status: "pending", priority: "medium", category: "harvest", createdAt: "2026-05-17T05:30:00Z", dueDate: "2026-05-17" },
   { id: "t-003", title: "Inspect Valve B drip lines", description: "Check pressure and clogging in sections B-BED-03 to B-BED-04. Log PSI readings.", assignedTo: "f-003", createdBy: "f-006", status: "pending", priority: "medium", category: "irrigation", createdAt: "2026-05-17T06:00:00Z", dueDate: "2026-05-18" },
-  { id: "t-004", title: "Fertilizer application — Valve C", description: "Apply NPK 19-19-19 at 3kg per bed via drip fertigation.", assignedTo: "f-005", createdBy: "f-007", status: "done", priority: "low", category: "general", createdAt: "2026-05-15T07:00:00Z", dueDate: "2026-05-16", completedAt: "2026-05-16T14:30:00Z", progressNote: "Applied to all 6 beds. Readings logged." },
+  { id: "t-004", title: "Compost tea fertigation — Valve C", description: "Brew compost tea (1kg mature compost in 10L water, 24h steep, strained). Apply 3L per bed via drip fertigation.", assignedTo: "f-005", createdBy: "f-007", status: "done", priority: "low", category: "general", createdAt: "2026-05-15T07:00:00Z", dueDate: "2026-05-16", completedAt: "2026-05-16T14:30:00Z", progressNote: "Applied to all 6 beds. Readings logged." },
   { id: "t-005", title: "AI photo inspection of infected beds", description: "Take close-up photos of A-BED-06, B-BED-05 for AI re-analysis and upload to system.", assignedTo: "f-006", createdBy: "f-008", status: "in_progress", priority: "high", category: "disease", createdAt: "2026-05-17T07:00:00Z", dueDate: "2026-05-17" },
   { id: "t-006", title: "Take daily attendance — Valve A+B workers", description: "Record morning attendance for all farmers in Valve A and Valve B zones by 06:30.", assignedTo: "f-006", createdBy: "f-008", status: "done", priority: "medium", category: "general", createdAt: "2026-05-17T06:00:00Z", dueDate: "2026-05-17", completedAt: "2026-05-17T06:28:00Z" },
-  { id: "t-007", title: "Treat B-BED-05 root rot — apply Trichoderma", description: "Reduce drip timer by 40%. Mix Trichoderma at 5g/L. Apply 200ml to each root zone.", assignedTo: "f-003", createdBy: "f-006", bedId: "B-BED-05", status: "pending", priority: "high", category: "disease", createdAt: "2026-05-17T08:00:00Z", dueDate: "2026-05-17" },
+  { id: "t-007", title: "Treat B-BED-05 root rot — coffee drench + compost tea", description: "Reduce drip timer by 40%. Brew double-strength coffee, cool and dilute 1:4. Pour 2L per bed as root zone drench. Follow with compost tea foliar spray.", assignedTo: "f-003", createdBy: "f-006", bedId: "B-BED-05", status: "pending", priority: "high", category: "disease", createdAt: "2026-05-17T08:00:00Z", dueDate: "2026-05-17" },
 ];
 
 export const NOTIFICATIONS: Notification[] = [
@@ -238,16 +238,16 @@ export const NOTIFICATIONS: Notification[] = [
 
 // ---- Expenses ----
 export const EXPENSES: Expense[] = [
-  { id: "exp-001", date: "2026-05-01", category: "chemicals",  description: "Kumulus DF sulphur fungicide (5 kg)",        amountETB: 1250,  paidBy: "f-008", vendor: "Agro Supply Co.",     receiptRef: "AGR-2241" },
+  { id: "exp-001", date: "2026-05-01", category: "chemicals",  description: "Fresh lemons + garlic bulbs (organic spray batch)", amountETB: 180,   paidBy: "f-008", vendor: "Shola Market Addis",  receiptRef: "SHM-0041" },
   { id: "exp-002", date: "2026-05-02", category: "fuel",        description: "Diesel for water pump — 40 L",              amountETB: 2800,  paidBy: "f-008", vendor: "Total Ethiopia",      receiptRef: "TOT-0551" },
   { id: "exp-003", date: "2026-05-04", category: "packaging",   description: "250g clamshell punnets × 2000",              amountETB: 5400,  paidBy: "f-006", vendor: "PackEthio Ltd.",      receiptRef: "PKE-3312" },
-  { id: "exp-004", date: "2026-05-05", category: "chemicals",   description: "Trichoderma harzianum biocontrol (1 kg)",   amountETB: 980,   paidBy: "f-008", vendor: "Agro Supply Co.",     receiptRef: "AGR-2255" },
+  { id: "exp-004", date: "2026-05-05", category: "chemicals",   description: "Mature compost (fermented tea base, 20 kg)", amountETB: 0,     paidBy: "f-008", vendor: "On-Farm Compost Pile", receiptRef: undefined },
   { id: "exp-005", date: "2026-05-06", category: "repairs",     description: "Drip-line emitter replacements — Valve B",  amountETB: 760,   paidBy: "f-006", vendor: "IrriTech Ethiopia",   receiptRef: "IRT-0098" },
   { id: "exp-006", date: "2026-05-08", category: "labour",      description: "Casual labour for bed prep — 10 workers",  amountETB: 3200,  paidBy: "f-008", vendor: "Day Labour Pool",     receiptRef: undefined  },
   { id: "exp-007", date: "2026-05-09", category: "seeds",       description: "Albion runner plants × 500",                amountETB: 7500,  paidBy: "f-008", vendor: "California Nursery",  receiptRef: "CAL-4401" },
   { id: "exp-008", date: "2026-05-10", category: "fuel",        description: "Petrol for motorbike deliveries",           amountETB: 650,   paidBy: "f-006", vendor: "Total Ethiopia",      receiptRef: "TOT-0571" },
   { id: "exp-009", date: "2026-05-12", category: "equipment",   description: "Knapsack sprayer (16 L) — replacement",    amountETB: 1800,  paidBy: "f-008", vendor: "FarmTools Addis",    receiptRef: "FTA-0212" },
-  { id: "exp-010", date: "2026-05-13", category: "chemicals",   description: "NPK 19-19-19 fertiliser (25 kg)",           amountETB: 2100,  paidBy: "f-008", vendor: "Agro Supply Co.",     receiptRef: "AGR-2280" },
+  { id: "exp-010", date: "2026-05-13", category: "chemicals",   description: "Banana peel powder + coffee grounds (organic feed batch)", amountETB: 120, paidBy: "f-008", vendor: "Shola Market Addis", receiptRef: "SHM-0055" },
   { id: "exp-011", date: "2026-05-14", category: "packaging",   description: "Cardboard export boxes × 500",              amountETB: 3750,  paidBy: "f-006", vendor: "PackEthio Ltd.",      receiptRef: "PKE-3340" },
   { id: "exp-012", date: "2026-05-15", category: "repairs",     description: "Pump seal replacement & labour",            amountETB: 1450,  paidBy: "f-008", vendor: "AquaService",        receiptRef: "AQS-0077" },
   { id: "exp-013", date: "2026-05-16", category: "fuel",        description: "Diesel for generator — 20 L",               amountETB: 1400,  paidBy: "f-006", vendor: "Total Ethiopia",      receiptRef: "TOT-0589" },
@@ -449,7 +449,7 @@ export const CAMERA_ALERTS: CameraAlert[] = [
     detectedAt: "2026-05-31T05:48:22",
     status: "new",
     bgGradient: "from-red-900/60 to-red-700/40",
-    description: "White powdery coating detected on 3 leaves. Confidence 94%. Recommend sulfur spray within 24h.",
+    description: "White powdery coating detected on 3 leaves. Confidence 94%. Recommend lemon juice spray (3 tbsp/L) at dusk within 24h.",
   },
   {
     id: "ca-002",
