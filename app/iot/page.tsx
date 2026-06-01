@@ -12,6 +12,7 @@ import {
   RefreshCw, Activity, ChevronRight, ArrowUp, ArrowDown,
   CircleDot, ToggleLeft, ToggleRight, Eye, Sprout,
   Navigation, CloudRain, CloudSun,
+  Leaf, Brain, Sparkles,
 } from "lucide-react";
 import {
   VALVES, VALVE_STATES, SOIL_READINGS, TANK_LEVELS,
@@ -24,7 +25,7 @@ import type {
 } from "@/lib/types";
 import { toast } from "sonner";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function jitter(val: number, range: number) {
   return Math.round((val + (Math.random() - 0.5) * range * 2) * 10) / 10;
@@ -46,7 +47,7 @@ function windDir(deg: number) {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
-// ─── Sparkline SVG ────────────────────────────────────────────────────────────────────────
+// ─── Sparkline SVG ───────────────────────────────────────────────────────────
 
 function Sparkline({ data, color = "#10b981", h = 40 }: { data: number[]; color?: string; h?: number }) {
   if (data.length < 2) return null;
@@ -61,7 +62,7 @@ function Sparkline({ data, color = "#10b981", h = 40 }: { data: number[]; color?
   );
 }
 
-// ─── Wind Compass ─────────────────────────────────────────────────────────────────────────
+// ─── Wind Compass ─────────────────────────────────────────────────────────────
 
 function WindCompass({ deg, kph }: { deg: number; kph: number }) {
   const rad = (deg * Math.PI) / 180;
@@ -92,7 +93,7 @@ function WindCompass({ deg, kph }: { deg: number; kph: number }) {
   );
 }
 
-// ─── Circular Gauge ────────────────────────────────────────────────────────────────────────
+// ─── Circular Gauge ───────────────────────────────────────────────────────────
 
 function CircularGauge({ pct, color, label, sublabel }: { pct: number; color: string; label: string; sublabel: string }) {
   const r = 52, cx = 60, cy = 60, circ = 2 * Math.PI * r;
@@ -116,7 +117,7 @@ function CircularGauge({ pct, color, label, sublabel }: { pct: number; color: st
   );
 }
 
-// ─── Sensor info definitions ────────────────────────────────────────────────────────────────
+// ─── Sensor info definitions ─────────────────────────────────────────────────
 
 function soilMoistureInfo(current: number): SensorInfo {
   return {
@@ -268,7 +269,7 @@ function drainRateInfo(lph: number): SensorInfo {
   };
 }
 
-// ─── Flow Meter Bar ────────────────────────────────────────────────────────────────────────
+// ─── Flow Meter Bar ───────────────────────────────────────────────────────────
 
 function FlowBar({ lph, maxLph = 2400, color }: { lph: number; maxLph?: number; color: string }) {
   const pct = Math.min((lph / maxLph) * 100, 100);
@@ -288,7 +289,303 @@ function FlowBar({ lph, maxLph = 2400, color }: { lph: number; maxLph?: number; 
   );
 }
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Organic Advisor ─────────────────────────────────────────────────────────
+
+interface OrgTreatment {
+  name: string;
+  description: string;
+  application: string;
+  localTip: string;
+}
+
+interface AdvisorRec {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  category: string;
+  title: string;
+  diagnosis: string;
+  affectedBeds: string[];
+  treatments: OrgTreatment[];
+  timeline: string;
+}
+
+function generateAdvisorRecs(soilReadings: SoilReading[], weather: WeatherCurrent): AdvisorRec[] {
+  const recs: AdvisorRec[] = [];
+  const lowPh   = soilReadings.filter(r => r.ph < 5.8);
+  const highPh  = soilReadings.filter(r => r.ph > 6.8);
+  const lowEc   = soilReadings.filter(r => r.ecMsCm < 1.0);
+  const highEc  = soilReadings.filter(r => r.ecMsCm > 2.5);
+  const dryBeds = soilReadings.filter(r => r.moisturePct < 50);
+  const wetBeds = soilReadings.filter(r => r.moisturePct > 85);
+
+  if (highEc.length > 0) {
+    recs.push({
+      id: "high-ec",
+      severity: highEc.some(r => r.ecMsCm > 3.0) ? "critical" : "warning",
+      category: "Soil Salinity",
+      title: "High Salt Stress — EC Elevated",
+      diagnosis: `${highEc.length} bed(s) show EC above 2.5 mS/cm. Salt accumulation restricts water uptake and causes leaf tip burn.`,
+      affectedBeds: highEc.map(r => r.bedId),
+      treatments: [
+        {
+          name: "Deep Flush Irrigation",
+          description: "Dilutes and leaches excess salts below the root zone",
+          application: "Apply 2× normal irrigation volume slowly — allow full drainage through raised beds. Repeat in 48h.",
+          localTip: "Use borehole water (lower dissolved solids than municipal supply)"
+        },
+        {
+          name: "Coffee Husk Mulch",
+          description: "Reduces surface evaporation that concentrates salts at the root zone",
+          application: "Apply 5–8 cm of coffee husk or teff straw around plants. Keeps soil temperature stable too.",
+          localTip: "Coffee husk (ye-buna koret) is free from local coffee processors near Entoto"
+        },
+        {
+          name: "Gypsum (Calcium Sulfate)",
+          description: "Displaces sodium ions and improves soil structure without affecting pH",
+          application: "Broadcast 200–300 g/m² and water in well. Works within 2–4 weeks.",
+          localTip: "Available from agricultural supply shops in Addis Ababa (Merkato area)"
+        }
+      ],
+      timeline: "Act within 24–48h to prevent leaf tip burn"
+    });
+  }
+
+  if (lowEc.length > 0) {
+    recs.push({
+      id: "low-ec",
+      severity: lowEc.length > 3 ? "warning" : "info",
+      category: "Nutrient Deficiency",
+      title: "Low Nutrient Levels — Organic Fertigation Needed",
+      diagnosis: `${lowEc.length} bed(s) have EC below 1.0 mS/cm. Insufficient nutrients will limit fruit development and cause slow growth.`,
+      affectedBeds: lowEc.map(r => r.bedId),
+      treatments: [
+        {
+          name: "Banana Peel Tea (K + P)",
+          description: "High in potassium and phosphorus — essential for fruit development and root growth",
+          application: "Soak 4–6 banana peels in 5 L water for 48h. Dilute 1:4 with clean water, apply as soil drench weekly.",
+          localTip: "Collect peels from market stalls (ye-muz qerda) — available year-round in Addis"
+        },
+        {
+          name: "Compost Tea (Broad-Spectrum N-P-K)",
+          description: "Delivers nitrogen, phosphorus, potassium plus beneficial microbes and trace minerals",
+          application: "Steep mature compost in water (1:10 ratio) for 24h with gentle aeration. Apply 2 L per bed directly to soil.",
+          localTip: "Use farm compost; add crushed dried coffee cherry skins for extra nitrogen and microbes"
+        },
+        {
+          name: "Worm Castings Drench",
+          description: "Highly bioavailable nutrients with natural plant growth hormones and beneficial bacteria",
+          application: "Mix 500 g worm castings in 10 L water, steep 12h, apply 2 L per bed monthly.",
+          localTip: "Start a vermicompost bin using kitchen scraps and coffee pulp — self-sustaining within 6 weeks"
+        },
+        {
+          name: "Neem Cake (N + Pest Deterrent)",
+          description: "Slow-release nitrogen (4–6%) plus natural pest deterrent compounds (azadirachtin)",
+          application: "Work 50–100 g/m² into top 5 cm of soil. Re-apply monthly.",
+          localTip: "Available from organic farming suppliers in Addis — doubles as nematode and whitefly control"
+        }
+      ],
+      timeline: "Begin organic fertigation within 3–5 days"
+    });
+  }
+
+  if (lowPh.length > 0) {
+    recs.push({
+      id: "low-ph",
+      severity: lowPh.some(r => r.ph < 5.2) ? "critical" : "warning",
+      category: "Soil pH — Too Acidic",
+      title: "Acidic Soil — Phosphorus Lockout Risk",
+      diagnosis: `${lowPh.length} bed(s) have pH below 5.8. Below 5.5, phosphorus and calcium become chemically unavailable and manganese toxicity can develop.`,
+      affectedBeds: lowPh.map(r => r.bedId),
+      treatments: [
+        {
+          name: "Wood Ash Amendment",
+          description: "Rich in calcium carbonate and potassium — raises pH while adding macronutrients",
+          application: "Broadcast 100–150 g/m², work shallowly into top 3 cm, water in well. Re-test pH in 2 weeks.",
+          localTip: "Collect from the farm cooking fire or eucalyptus charcoal production — completely free and always available"
+        },
+        {
+          name: "Crushed Eggshell Amendment",
+          description: "Pure calcium carbonate — slow-release pH buffer with added calcium for fruit firmness",
+          application: "Finely grind dried eggshells. Apply 200 g/m² as surface dressing with light incorporation. Effect over 4–6 weeks.",
+          localTip: "Collect from the farm kitchen or local injera restaurants (tej bet) — ask to save shells daily"
+        },
+        {
+          name: "Dolomitic Lime",
+          description: "Strongest organic pH raiser — provides both calcium and magnesium in a single application",
+          application: "Apply 300 g/m², incorporate to 10 cm depth. Most effective when applied 4–6 weeks before next crop cycle.",
+          localTip: "Available at agricultural cooperatives (ye-limat derejet) across the Oromia region"
+        }
+      ],
+      timeline: "Amend soil this week — pH shift takes 2–4 weeks"
+    });
+  }
+
+  if (highPh.length > 0) {
+    recs.push({
+      id: "high-ph",
+      severity: highPh.some(r => r.ph > 7.2) ? "warning" : "info",
+      category: "Soil pH — Too Alkaline",
+      title: "Alkaline Soil — Iron & Zinc Deficiency Risk",
+      diagnosis: `${highPh.length} bed(s) have pH above 6.8. Above 7.0, iron, zinc, and manganese become unavailable — expect interveinal chlorosis (yellowing between leaf veins).`,
+      affectedBeds: highPh.map(r => r.bedId),
+      treatments: [
+        {
+          name: "Coffee Grounds Amendment",
+          description: "Mildly acidic (pH 6.0–6.5), adds nitrogen, feeds beneficial soil microbes",
+          application: "Mix 100–200 g/m² of spent grounds into top 5 cm weekly. Combine with mulch for best results.",
+          localTip: "Ethiopia is the birthplace of coffee — spent grounds from the farm kitchen are precious. Never discard them!"
+        },
+        {
+          name: "Lemon / Citrus Peel Compost",
+          description: "Organic acids from citrus peels gradually lower pH while adding micronutrients",
+          application: "Compost lemon or orange peels for 3–4 weeks, then apply 500 g/m² as top dressing monthly.",
+          localTip: "Lemon trees (ye-lomi) grow throughout Addis and Entoto — collect peels from local markets or kitchens"
+        },
+        {
+          name: "Pine Needle Mulch",
+          description: "Gradually acidifies soil as needles decompose while suppressing weeds",
+          application: "Apply 5–8 cm layer around plants, keep away from crowns. Replace quarterly as needles break down.",
+          localTip: "Harvest from the Entoto pine forest plantation directly above the farm — free and abundant"
+        },
+        {
+          name: "Elemental Sulfur",
+          description: "Soil bacteria convert sulfur to sulfuric acid — most effective and precise pH reducer",
+          application: "Apply 30–50 g/m² and water in well. pH drop develops over 4–8 weeks as microbes activate.",
+          localTip: "Certified organic grades available from agricultural chemical suppliers in Addis"
+        }
+      ],
+      timeline: "Start amendments this week — pH shift takes 3–6 weeks"
+    });
+  }
+
+  const botrytisRisk = weather.humidityPct > 78 && weather.dewPointC > 11;
+  if (botrytisRisk) {
+    recs.push({
+      id: "botrytis",
+      severity: weather.humidityPct > 85 ? "critical" : "warning",
+      category: "Disease Prevention",
+      title: `Gray Mold Risk (Botrytis) — Humidity ${weather.humidityPct}%`,
+      diagnosis: `Current humidity ${weather.humidityPct}% with dew point ${weather.dewPointC.toFixed(1)}°C creates prime conditions for Botrytis cinerea. Open flowers and ripe fruit are most vulnerable.`,
+      affectedBeds: [],
+      treatments: [
+        {
+          name: "Neem Oil Spray (Broad-Spectrum Antifungal)",
+          description: "Azadirachtin disrupts fungal development and deters insects — safe for pollinators when applied at dusk",
+          application: "Mix 5 mL neem oil + 2 mL liquid soap per 1 L warm water. Spray foliage at dusk, coat undersides of leaves. Repeat every 5–7 days.",
+          localTip: "Pure neem oil (ye-azadirachta zeyt) from herbal medicine shops (ye-lib medhanit bet) in Addis"
+        },
+        {
+          name: "Garlic Extract Spray (Antifungal + Antibacterial)",
+          description: "Allicin compounds strongly inhibit fungal spore germination on leaf surfaces",
+          application: "Blend 6 garlic cloves in 500 mL water, strain finely, dilute 1:10, spray every 3 days during high-risk periods.",
+          localTip: "Ethiopian garlic (ye-nech shinkurt) is especially potent — use fresh cloves from local markets"
+        },
+        {
+          name: "Baking Soda + Soap Spray",
+          description: "Raises leaf surface pH to prevent fungal spore germination — cheap and immediately effective",
+          application: "Dissolve 1 tsp baking soda + 3 drops soap per 1 L water. Spray foliage in morning when leaves dry quickly.",
+          localTip: "Sold everywhere as bicarbonate powder — less than 5 birr per full treatment"
+        },
+        {
+          name: "Prune for Air Circulation",
+          description: "Remove dense inner canopy leaves to reduce leaf wetness duration — the root cause of Botrytis",
+          application: "Remove leaves blocking airflow between plants. Avoid evening overhead irrigation during high-humidity periods.",
+          localTip: "Cultural control — no cost, immediate benefit. Dispose removed leaves away from beds"
+        }
+      ],
+      timeline: "Apply protective spray within 24h — before next rain event"
+    });
+  }
+
+  if (dryBeds.length > 0) {
+    recs.push({
+      id: "dry-stress",
+      severity: dryBeds.some(r => r.moisturePct < 35) ? "critical" : "warning",
+      category: "Water Stress",
+      title: "Moisture Deficit — Berry Size at Risk",
+      diagnosis: `${dryBeds.length} bed(s) below 50% soil moisture. Water stress during fruiting directly reduces berry size and causes blossom-end problems.`,
+      affectedBeds: dryBeds.map(r => r.bedId),
+      treatments: [
+        {
+          name: "Increase Drip Frequency (Not Volume)",
+          description: "Short, frequent cycles maintain consistent moisture better than infrequent deep watering",
+          application: "Increase drip cycles from once to twice daily. Target 60–70% soil moisture consistently.",
+          localTip: "Use the IoT Irrigation tab to open affected zone valves and confirm flow meter readings"
+        },
+        {
+          name: "Teff Straw or Banana Leaf Mulch",
+          description: "Organic mulch reduces soil evaporation by 50–70%, maintaining moisture between irrigations",
+          application: "Apply 5–8 cm of teff straw, banana leaves, or coffee husk around crowns (not touching stems).",
+          localTip: "Teff straw (ye-teff qosha) is the most widely available mulch material in the Entoto area"
+        },
+        {
+          name: "Compost Top Dressing (Water Retention)",
+          description: "Organic matter holds 20× its weight in water, improving soil moisture capacity over time",
+          application: "Apply 2–3 cm mature compost as surface dressing. Do not dig in (avoids crown rot risk).",
+          localTip: "Add enset fiber (ye-false banana fiber) to your compost for exceptional water-holding capacity"
+        }
+      ],
+      timeline: "Open affected zone valves immediately"
+    });
+  }
+
+  if (wetBeds.length > 0) {
+    recs.push({
+      id: "wet-stress",
+      severity: wetBeds.some(r => r.moisturePct > 92) ? "critical" : "warning",
+      category: "Over-Irrigation",
+      title: "Saturation Risk — Root Rot Conditions",
+      diagnosis: `${wetBeds.length} bed(s) above 85% moisture. Saturated soil excludes oxygen from roots, promoting Phytophthora and Pythium root rot pathogens.`,
+      affectedBeds: wetBeds.map(r => r.bedId),
+      treatments: [
+        {
+          name: "Suspend Irrigation Immediately",
+          description: "Allow soil to drain and oxygen to return to root zone before permanent root damage occurs",
+          application: "Close valve for affected zone. Monitor moisture every 2h. Resume only when readings drop below 70%.",
+          localTip: "Use the IoT valve controls on the Irrigation tab to close affected zones now"
+        },
+        {
+          name: "Trichoderma Bio-Fungicide",
+          description: "Beneficial soil fungus that colonizes roots and outcompetes Phytophthora and Pythium pathogens",
+          application: "Apply Trichoderma powder (5–10 g/m²) as soil drench. Colonizes roots within 7–10 days.",
+          localTip: "Available from biological control suppliers in Addis — store cool and dry away from sunlight"
+        },
+        {
+          name: "Coffee Husk Drainage Amendment",
+          description: "Coarse coffee husk improves drainage structure and introduces beneficial microbes",
+          application: "Work coarse coffee husk into top 10 cm during next dry period. Long-term structural improvement.",
+          localTip: "Free from coffee processing plants near Entoto — also acts as slow-release fertilizer"
+        }
+      ],
+      timeline: "Close affected zone valves now"
+    });
+  }
+
+  if (recs.length === 0) {
+    recs.push({
+      id: "all-good",
+      severity: "info",
+      category: "All Systems Optimal",
+      title: "Soil Conditions Ideal — Maintain Current Program",
+      diagnosis: "All monitored beds show pH, EC, and moisture within optimal ranges for strawberry production at Entoto altitude.",
+      affectedBeds: [],
+      treatments: [
+        {
+          name: "Preventive Compost Tea (Weekly)",
+          description: "Maintain soil biology even when readings are optimal — microbial diversity prevents future deficiencies",
+          application: "Apply diluted compost tea (1:10 ratio) to all beds once weekly.",
+          localTip: "Add dried coffee cherry skins (ye-buna qorit) to your compost tea for an exceptional microbial inoculant"
+        }
+      ],
+      timeline: "Routine maintenance — next soil analysis in 7 days"
+    });
+  }
+
+  return recs;
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: "irrigation", label: "Irrigation", icon: Droplets },
@@ -296,10 +593,11 @@ const TABS = [
   { id: "tanks",      label: "Water Tanks", icon: Waves },
   { id: "cameras",    label: "AI Cameras", icon: Camera },
   { id: "weather",    label: "Weather Station", icon: Cloud },
+  { id: "advisor",   label: "AI Advisor",      icon: Sparkles },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-// ─── Main Page ───────────────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function IoTPage() {
   const [tab, setTab] = useState<TabId>("irrigation");
@@ -411,11 +709,11 @@ export default function IoTPage() {
           <div className="flex items-center gap-3">
             {/* Live status pills */}
             <div className="hidden sm:flex items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-400">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400">
                 <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {openValves} valve{openValves !== 1 ? "s" : ""} open
               </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-700 dark:text-blue-400">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
                 <Activity className="size-2.5" />
                 {totalFlowLph.toLocaleString()} L/h
               </span>
@@ -877,7 +1175,7 @@ export default function IoTPage() {
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Net Balance</div>
-                  <div className={cn("text-xl font-bold", true ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                  <div className={cn("text-xl font-bold", true ? "text-emerald-400" : "text-red-400")}>
                     {fmtL(Math.round(WEATHER_CURRENT.rainfallMm24h * 420) - valveStates.reduce((s, v) => s + v.totalLitersToday, 0))}
                   </div>
                 </div>
@@ -1182,6 +1480,152 @@ export default function IoTPage() {
           </div>
         )}
 
+
+        {/* ── AI ADVISOR TAB ── */}
+        {tab === "advisor" && (() => {
+          const recs = generateAdvisorRecs(soilReadings, weather);
+          const critical = recs.filter(r => r.severity === "critical");
+          const warnings = recs.filter(r => r.severity === "warning");
+          const totalBeds = new Set(recs.flatMap(r => r.affectedBeds)).size;
+          return (
+            <div className="space-y-6">
+              {/* Header banner */}
+              <div className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-50/60 dark:from-emerald-950/25 to-background p-6">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-600/20 border border-emerald-500/30 grid place-items-center">
+                        <Leaf className="size-5 text-emerald-500" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">AI Organic Advisor</h2>
+                        <p className="text-[11px] text-muted-foreground">Powered by live soil sensor data · Certified organic treatments only</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground/70 max-w-xl">
+                      Analyses real-time pH, EC, moisture, and weather data to recommend organic fertilizers and treatments tailored to Entoto Riverside Farm's altitude (2,800 m ASL) and certified organic production standards. All suggested inputs are locally sourced.
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider mb-1">Last analysis</div>
+                    <div className="text-[11px] text-muted-foreground font-mono">{lastUpdated.toLocaleTimeString()}</div>
+                    <div className="flex items-center justify-end gap-1.5 mt-1.5">
+                      <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400">Live data</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Issues Found",  value: recs.filter(r => r.id !== "all-good").length, color: "text-foreground",                                                                         bg: "bg-muted/20 border-border" },
+                  { label: "Critical",      value: critical.length,                               color: critical.length ? "text-red-600 dark:text-red-400"    : "text-muted-foreground",         bg: critical.length ? "bg-red-500/10 border-red-500/20"    : "bg-muted/20 border-border" },
+                  { label: "Warnings",      value: warnings.length,                               color: warnings.length ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",        bg: warnings.length ? "bg-amber-500/10 border-amber-500/20" : "bg-muted/20 border-border" },
+                  { label: "Beds at Risk",  value: totalBeds,                                     color: totalBeds ? "text-orange-600 dark:text-orange-400"    : "text-muted-foreground",         bg: totalBeds ? "bg-orange-500/10 border-orange-500/20"    : "bg-muted/20 border-border" },
+                ].map(s => (
+                  <div key={s.label} className={cn("p-4 rounded-xl border", s.bg)}>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">{s.label}</div>
+                    <div className={cn("text-3xl font-bold", s.color)}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recommendation cards */}
+              <div className="space-y-4">
+                {recs.map(rec => {
+                  const sevColor = rec.severity === "critical"
+                    ? "border-red-500/40 bg-red-500/5"
+                    : rec.severity === "warning"
+                    ? "border-amber-500/40 bg-amber-500/5"
+                    : "border-emerald-500/30 bg-emerald-500/5";
+                  const sevBadge = rec.severity === "critical"
+                    ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                    : rec.severity === "warning"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300";
+                  const timelineColor = rec.severity === "critical"
+                    ? "text-red-600 dark:text-red-400"
+                    : rec.severity === "warning"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-emerald-600 dark:text-emerald-400";
+                  const SevIcon = rec.severity === "info" ? CheckCircle2 : AlertTriangle;
+                  return (
+                    <div key={rec.id} className={cn("rounded-2xl border p-5 space-y-4", sevColor)}>
+                      {/* Card header */}
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Badge className={cn("text-[9px] font-bold border-0 uppercase flex items-center gap-1", sevBadge)}>
+                              <SevIcon className="size-2.5" />{rec.severity}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground/60">{rec.category}</span>
+                          </div>
+                          <h3 className="text-sm font-bold text-foreground">{rec.title}</h3>
+                          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{rec.diagnosis}</p>
+                        </div>
+                      </div>
+
+                      {/* Affected beds */}
+                      {rec.affectedBeds.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Affected beds:</span>
+                          {rec.affectedBeds.map(b => (
+                            <span key={b} className="text-[10px] font-mono bg-muted/40 border border-border rounded px-1.5 py-0.5 text-foreground/70">{b}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Organic treatments */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                          <Leaf className="size-3 text-emerald-500" /> Organic Treatments
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          {rec.treatments.map((t, i) => (
+                            <div key={i} className="bg-card/80 border border-border rounded-xl p-4 space-y-2.5">
+                              <div className="flex items-center gap-2">
+                                <div className="size-6 rounded-lg bg-emerald-500/15 border border-emerald-500/20 grid place-items-center shrink-0">
+                                  <Sprout className="size-3.5 text-emerald-500" />
+                                </div>
+                                <span className="text-xs font-semibold text-foreground leading-tight">{t.name}</span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">{t.description}</p>
+                              <div className="space-y-2 text-[11px]">
+                                <div className="flex gap-1.5 items-start">
+                                  <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase tracking-wider shrink-0 font-semibold mt-0.5">How:</span>
+                                  <span className="text-foreground/75 leading-relaxed">{t.application}</span>
+                                </div>
+                                <div className="flex gap-1.5 items-start pt-2 border-t border-border/50">
+                                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider shrink-0 font-semibold mt-0.5">Local:</span>
+                                  <span className="text-emerald-700 dark:text-emerald-300/80 leading-relaxed italic">{t.localTip}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action timeline */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                        <Clock className="size-3 text-muted-foreground/50 shrink-0" />
+                        <span className="text-[10px] text-muted-foreground/60">Action:</span>
+                        <span className={cn("text-[11px] font-semibold", timelineColor)}>{rec.timeline}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer disclaimer */}
+              <div className="rounded-xl border border-border bg-muted/10 px-5 py-4 text-[11px] text-muted-foreground/70 leading-relaxed">
+                <span className="font-semibold text-foreground/60">About this advisor:</span> Recommendations are generated from live sensor readings and are tailored to Entoto Riverside Farm's altitude (2,800 m ASL), climate, and certified organic production standards. All treatments use locally sourced materials. Always conduct a small patch test before full-bed application. Consult your agronomist for critical interventions.
+              </div>
+            </div>
+          );
+        })()}
+
       </div>
 
       <style>{`
@@ -1189,7 +1633,7 @@ export default function IoTPage() {
           0%   { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
-      `}</style>
+      `}`}</style>
     </div>
   );
 }
