@@ -157,7 +157,7 @@ export interface Expense {
   note?: string;
 }
 
-// ── IoT / Sensor types ────────────────────────────────────────────────────────────────────────────
+// ── IoT / Sensor types ───────────────────────────────────────────────────────
 
 export type ValveMode = "auto" | "manual";
 
