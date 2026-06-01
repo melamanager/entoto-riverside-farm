@@ -96,7 +96,7 @@ export function Sidebar() {
   const t = isAm ? AM : EN;
   const role = user?.role ?? "manager";
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname === "/pitch") return null;
 
   return (
     <aside className="hidden md:flex w-[220px] shrink-0 flex-col h-screen sticky top-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">

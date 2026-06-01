@@ -108,7 +108,7 @@ export function MobileNav() {
     fetch("/api/farmers").then(r => r.json()).then(setFarmers);
   }, []);
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname === "/pitch") return null;
 
   const role = user?.role ?? "manager";
 

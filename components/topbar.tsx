@@ -144,7 +144,7 @@ export function Topbar() {
     fetch("/api/notifications/mark-all-read", { method: "PATCH" }).catch(() => {});
   }
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname === "/pitch") return null;
 
   return (
     <header className="h-14 border-b border-border bg-card sticky top-0 z-30 flex items-center px-6 gap-4">
