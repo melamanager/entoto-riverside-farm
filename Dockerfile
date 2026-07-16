@@ -17,7 +17,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL=postgresql://placeholder:placeholder@placeholder:5432/placeholder
 
-RUN npm run build
+RUN npx prisma generate && npx next build
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 FROM base AS runner
