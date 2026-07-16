@@ -51,6 +51,8 @@ model Farmer {
   followUpsAssigned     FollowUp[]          @relation("FollowUpAssignee")
   followUpsCreated      FollowUp[]          @relation("FollowUpCreator")
   stockTransactions     StockTransaction[]
+  irrigationLogs        IrrigationLog[]     @relation("IrrigationRecorder")
+  dailyNotes            DailyNote[]         @relation("DailyNoteAuthor")
 }
 
 model Valve {
@@ -71,6 +73,8 @@ model Valve {
   packagingRecords   PackagingRecord[]
   plantingRecords    PlantingRecord[]
   followUps          FollowUp[]
+  irrigationLogs     IrrigationLog[]
+  dailyNotes         DailyNote[]
 }
 
 model Bed {
@@ -97,6 +101,7 @@ model Bed {
   plantingRecords    PlantingRecord[]
   workerAssignments  WorkerAssignment[]
   followUps          FollowUp[]
+  irrigationLogs     IrrigationLog[]
 }
 
 model HarvestRecord {
@@ -185,9 +190,10 @@ model AttendanceRecord {
   farmer       Farmer           @relation("AttendanceFarmer", fields: [farmerId], references: [id])
   date         String
   status       AttendanceStatus
-  checkInTime  String?
-  checkOutTime String?
-  hoursWorked  Float?
+  checkInTime   String?
+  checkOutTime  String?
+  hoursWorked   Float?
+  overtimeHours Float?  @default(0)
   recordedBy   String
   recorder     Farmer           @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
   note         String?
@@ -401,6 +407,44 @@ model StockTransaction {
   createdAt DateTime @default(now())
 }
 
+model IrrigationLog {
+  id           String           @id @default(cuid())
+  valveId      String
+  valve        Valve            @relation(fields: [valveId], references: [id])
+  bedId        String?
+  bed          Bed?             @relation(fields: [bedId], references: [id])
+  date         String
+  startTime    String?
+  durationMin  Float?
+  waterVolumeL Float?
+  status       IrrigationStatus @default(done)
+  notes        String?
+  recordedBy   String
+  recorder     Farmer           @relation("IrrigationRecorder", fields: [recordedBy], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+model DailyNote {
+  id       String        @id @default(cuid())
+  date     String
+  authorId String
+  author   Farmer        @relation("DailyNoteAuthor", fields: [authorId], references: [id])
+  type     DailyNoteType @default(note)
+  body     String
+  valveId  String?
+  valve    Valve?        @relation(fields: [valveId], references: [id])
+  pinned   Boolean       @default(false)
+  readBy   Json          @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+}
+
 model FollowUp {
   id             String             @id @default(cuid())
   entityType     FollowUpEntityType
@@ -479,6 +523,7 @@ enum TaskCategory {
   harvest
   irrigation
   inspection
+  maintenance
   general
 }
 
@@ -494,6 +539,7 @@ enum NotificationType {
   harvest
   irrigation
   task
+  message
 }
 
 enum NotificationChannel {
@@ -652,6 +698,19 @@ enum FollowUpPriority {
   low
   normal
   urgent
+}
+
+enum IrrigationStatus {
+  done
+  partial
+  skipped
+}
+
+enum DailyNoteType {
+  instruction
+  report
+  issue
+  note
 }
 
 // ─── System Configuration ──────────────────────────────────────────────────────

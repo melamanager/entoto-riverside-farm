@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Map, Sprout, Users, Bug, Wheat,
-  FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks,
+  FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks, ClipboardCheck,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   DollarSign, Beaker,
   BarChart3, CalendarDays, Zap, Warehouse, Languages, Settings, Cpu,
@@ -48,6 +48,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupKey: "operations",
     items: [
+      { href: "/routines",    labelKey: "routines",         icon: ClipboardCheck, roles: ["manager", "supervisor"] },
       { href: "/valves",      labelKey: "irrigationZones",  isValve: true,    roles: ["manager"] },
       { href: "/fertigation", labelKey: "nutrientFeeding",  icon: Beaker,     roles: ["manager", "supervisor"] },
       { href: "/diseases",    labelKey: "diseaseMgmt",      icon: Bug,        roles: ["manager", "supervisor"] },

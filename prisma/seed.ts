@@ -227,6 +227,8 @@ async function main() {
     { id: "t-005", title: "AI photo inspection of infected beds", description: "Take close-up photos of A-BED-06, B-BED-05 for AI re-analysis and upload to system.", assignedTo: "f-006", createdBy: "f-008", status: "in_progress" as const, priority: "high" as const, category: "disease" as const, createdAt: new Date("2026-05-17T07:00:00Z"), dueDate: "2026-05-17" },
     { id: "t-006", title: "Take daily attendance — Valve A+B workers", description: "Record morning attendance for all farmers in Valve A and Valve B zones by 06:30.", assignedTo: "f-006", createdBy: "f-008", status: "done" as const, priority: "medium" as const, category: "general" as const, createdAt: new Date("2026-05-17T06:00:00Z"), dueDate: "2026-05-17", completedAt: new Date("2026-05-17T06:28:00Z") },
     { id: "t-007", title: "Treat B-BED-05 root rot — apply Trichoderma", description: "Reduce drip timer by 40%. Mix Trichoderma at 5g/L. Apply 200ml to each root zone.", assignedTo: "f-003", createdBy: "f-006", bedId: "B-BED-05", status: "pending" as const, priority: "high" as const, category: "disease" as const, createdAt: new Date("2026-05-17T08:00:00Z"), dueDate: "2026-05-17" },
+    { id: "t-008", title: "Clear dry leaves & prep beds — Valve B", description: "Remove old/dry leaves from all Valve B beds, loosen soil surface and re-shape bed edges.", assignedTo: "f-004", createdBy: "f-006", status: "done" as const, priority: "medium" as const, category: "maintenance" as const, createdAt: new Date("2026-05-17T06:30:00Z"), dueDate: "2026-05-17", completedAt: new Date("2026-05-17T09:45:00Z"), progressNote: "All 7 beds cleared and re-shaped." },
+    { id: "t-009", title: "Bed maintenance — Valve C walkways", description: "Clear weeds and debris from Valve C walkways, check mulch cover on all beds and top up where thin.", assignedTo: "f-005", createdBy: "f-007", status: "pending" as const, priority: "low" as const, category: "maintenance" as const, createdAt: new Date("2026-05-17T07:00:00Z"), dueDate: "2026-05-18" },
   ];
 
   for (const t of tasks) {
@@ -255,12 +257,63 @@ async function main() {
         checkInTime: st === "present" ? "06:00" : st === "late" ? "07:30" : undefined,
         checkOutTime: (st === "present" || st === "late") ? "17:00" : undefined,
         hoursWorked: st === "present" ? 10 : st === "late" ? 8.5 : 0,
+        overtimeHours: st === "present" ? 2 : st === "late" ? 0.5 : 0,
         recordedBy: "f-006",
       };
       await prisma.attendanceRecord.upsert({ where: { farmerId_date: { farmerId: f.id, date: ds } }, update: rec, create: rec });
     }
   }
   console.log("  ✓ Attendance records");
+
+  // ── 8b. Irrigation logs (daily watering) ────────────────────────────────────
+  const valveWatering = [
+    { valveId: "valve-a", startTime: "06:00", durationMin: 25, waterVolumeL: 1500, recordedBy: "f-006" },
+    { valveId: "valve-b", startTime: "06:30", durationMin: 25, waterVolumeL: 1350, recordedBy: "f-006" },
+    { valveId: "valve-c", startTime: "07:00", durationMin: 30, waterVolumeL: 1200, recordedBy: "f-007" },
+  ];
+  let iid = 1;
+
+  for (let d = 13; d >= 0; d--) {
+    const date = new Date("2026-05-17");
+    date.setDate(date.getDate() - d);
+    const ds = date.toISOString().split("T")[0];
+
+    for (const vw of valveWatering) {
+      // valve C skipped once for realism (pump maintenance day)
+      const skipped = vw.valveId === "valve-c" && d === 5;
+      const rec = {
+        id: `il-${String(iid++).padStart(4, "0")}`,
+        valveId: vw.valveId,
+        date: ds,
+        startTime: vw.startTime,
+        durationMin: skipped ? 0 : vw.durationMin,
+        waterVolumeL: skipped ? 0 : vw.waterVolumeL,
+        status: (skipped ? "skipped" : "done") as "skipped" | "done",
+        notes: skipped ? "Pump seal replacement — morning cycle missed" : undefined,
+        recordedBy: vw.recordedBy,
+      };
+      await prisma.irrigationLog.upsert({ where: { id: rec.id }, update: rec, create: rec });
+    }
+  }
+  console.log("  ✓ Irrigation logs");
+
+  // ── 8c. Day Log (manager ↔ supervisor communication) ────────────────────────
+  const dailyNotes = [
+    { id: "dn-001", date: "2026-05-17", authorId: "f-008", type: "instruction" as const, pinned: true,
+      body: "Priorities today: 1) finish Kumulus treatment on A-BED-06, 2) harvest all ripe Grade-A in Valve A before 10:00, 3) prep export packaging for the Hilton order.",
+      readBy: ["f-008", "f-006", "f-007"] as Prisma.InputJsonValue, createdAt: new Date("2026-05-17T05:45:00Z") },
+    { id: "dn-002", date: "2026-05-17", authorId: "f-006", type: "report" as const, pinned: false,
+      body: "Valve A+B morning round done. Attendance taken (1 absent). Kumulus mixed and Abebe started spraying A-BED-06 at 08:10.",
+      readBy: ["f-006", "f-008"] as Prisma.InputJsonValue, createdAt: new Date("2026-05-17T08:20:00Z") },
+    { id: "dn-003", date: "2026-05-17", authorId: "f-007", type: "issue" as const, pinned: false,
+      body: "Valve C pump pressure dropping again (~1.8 bar). Watering completed but took 10 min longer. Suggest checking the seal we replaced on May 15.",
+      readBy: ["f-007"] as Prisma.InputJsonValue, createdAt: new Date("2026-05-17T09:05:00Z") },
+  ];
+
+  for (const dn of dailyNotes) {
+    await prisma.dailyNote.upsert({ where: { id: dn.id }, update: dn, create: dn });
+  }
+  console.log("  ✓ Day log notes");
 
   // ── 9. Notifications ─────────────────────────────────────────────────────────
   const notifications = [

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, LogIn, X, AlertTriangle, Wheat, Droplets, ListChecks } from "lucide-react";
+import { Bell, Search, LogIn, X, AlertTriangle, Wheat, Droplets, ListChecks, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,6 +17,7 @@ const NOTIF_ICONS: Record<Notification["type"], React.ReactNode> = {
   harvest:    <Wheat className="size-3.5 text-emerald-500" />,
   irrigation: <Droplets className="size-3.5 text-blue-500" />,
   task:       <ListChecks className="size-3.5 text-purple-500" />,
+  message:    <MessageSquare className="size-3.5 text-sky-500" />,
 };
 
 function timeAgo(iso: string) {

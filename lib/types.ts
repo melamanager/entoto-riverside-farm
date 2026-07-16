@@ -129,13 +129,14 @@ export interface AttendanceRecord {
   checkInTime?: string;
   checkOutTime?: string;
   hoursWorked?: number;
+  overtimeHours?: number;
   recordedBy: string;
   note?: string;
 }
 
 export interface Notification {
   id: string;
-  type: "disease" | "harvest" | "irrigation" | "task";
+  type: "disease" | "harvest" | "irrigation" | "task" | "message";
   channel: "telegram" | "sms" | "in-app";
   message: string;
   timestamp: string;

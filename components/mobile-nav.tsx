@@ -8,7 +8,7 @@ import {
   FileBarChart, CalendarCheck, LogOut, Check, ChevronRight,
   Shield, UserCircle2, Package, ShoppingCart,
   DollarSign, Beaker, BarChart3,
-  CalendarDays, Zap, Languages, Warehouse, Settings,
+  CalendarDays, Zap, Languages, Warehouse, Settings, ClipboardCheck,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
@@ -39,6 +39,7 @@ const NAV_GROUPS = [
   {
     label: "Operations",
     items: [
+      { href: "/routines",    label: "Daily Routines", icon: ClipboardCheck, roles: ["manager", "supervisor"] },
       { href: "/valves",      label: "Valves",       icon: null,       roles: ["manager"],              isValve: true },
       { href: "/fertigation", label: "Fertigation",  icon: Beaker,     roles: ["manager", "supervisor"] },
       { href: "/diseases", label: "Disease Mgmt", icon: Bug,        roles: ["manager", "supervisor"] },

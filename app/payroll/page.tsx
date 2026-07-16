@@ -61,8 +61,27 @@ export default function PayrollPage() {
   const totalDeduct   = records.reduce((s, r) => s + r.deductions, 0);
   const pendingCount  = records.filter(r => r.paymentStatus === "pending").length;
 
-  function processAll() {
-    toast.success(`Processing ${pendingCount} payroll records`, {
+  async function processAll() {
+    // persist any auto-calculated overrides and mark pending records processed
+    const updated: PayrollRecord[] = [];
+    for (const rec of records) {
+      const patch: Partial<PayrollRecord> = {
+        ...overrides[rec.id],
+        ...(rec.paymentStatus === "pending" ? { paymentStatus: "processed" as PayrollStatus } : {}),
+      };
+      if (Object.keys(patch).length === 0) continue;
+      const res = await fetch(`/api/payroll/${rec.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) updated.push(parsePayrollRecord(await res.json() as Record<string, unknown>));
+    }
+    if (updated.length > 0) {
+      setAllRecords(prev => prev.map(r => updated.find(u => u.id === r.id) ?? r));
+      setOverrides({});
+    }
+    toast.success(`Processed ${pendingCount} payroll records`, {
       description: `Total disbursement: ${totalNetPay.toLocaleString()} ETB`,
     });
   }
@@ -79,7 +98,9 @@ export default function PayrollPage() {
       );
       const daysWorked = farmerAtt.filter(a => a.status === "present" || a.status === "late").length;
       const totalHours = farmerAtt.reduce((s, a) => s + (a.hoursWorked ?? 0), 0);
-      const overtimeHours = Math.max(0, totalHours - daysWorked * 8);
+      // prefer explicitly recorded daily overtime (Daily Routines page); fall back to derived estimate
+      const recordedOT = farmerAtt.reduce((s, a) => s + (a.overtimeHours ?? 0), 0);
+      const overtimeHours = recordedOT > 0 ? recordedOT : Math.max(0, totalHours - daysWorked * 8);
       const basePay   = daysWorked * rec.dailyWage;
       const overtimePay = Math.round(overtimeHours * (rec.dailyWage / 8) * 1.5);
       const netPay    = basePay + overtimePay + rec.bonus - rec.deductions;
