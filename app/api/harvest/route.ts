@@ -10,12 +10,14 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const bedId = searchParams.get("bedId");
   const date = searchParams.get("date");
+  const from = searchParams.get("from");
   const farmerId = searchParams.get("farmerId");
 
   const records = await prisma.harvestRecord.findMany({
     where: {
       ...(bedId ? { bedId } : {}),
       ...(date ? { date } : {}),
+      ...(from ? { date: { gte: from } } : {}),
       ...(farmerId ? { farmerId } : {}),
     },
     include: { bed: true, farmer: true },

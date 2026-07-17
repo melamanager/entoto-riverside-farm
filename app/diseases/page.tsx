@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,25 +22,26 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import {
-  DISEASES as DATA_DISEASES,
-  BEDS as DATA_BEDS,
-  FARMERS as DATA_FARMERS,
-  VALVES as DATA_VALVES,
-} from "@/lib/data";
 
 export default function DiseasesPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
-  const [diseases, setDiseases] = useState<DiseaseReport[]>(() => DATA_DISEASES());
-  const farmers: Farmer[] = DATA_FARMERS;
-  const beds: Bed[] = DATA_BEDS();
-  const valves: Valve[] = DATA_VALVES;
+  const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [valves, setValves] = useState<Valve[]>([]);
 
-  function refreshDiseases() {
-    // static data — already in state
-  }
+  const refreshDiseases = useCallback(() => {
+    fetch("/api/diseases").then(r => r.json()).then((data: DiseaseReport[]) => setDiseases(data));
+  }, []);
+
+  useEffect(() => {
+    refreshDiseases();
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+  }, [refreshDiseases]);
 
   function getBed(bedId: string): Bed | undefined { return beds.find(b => b.id === bedId); }
   function getFarmer(farmerId: string): Farmer | undefined { return farmers.find(f => f.id === farmerId); }
@@ -92,21 +93,30 @@ export default function DiseasesPage() {
     setRecommendOpen(true);
   }
 
-  function sendRecommendation() {
+  async function sendRecommendation() {
     if (!recommendTarget) return;
     const patchBody = {
       status: "notified" as const,
       managerNotified: true,
       notifiedAt: new Date().toISOString(),
-      notificationChannels: ["telegram", "sms"] as Array<"telegram" | "sms">,
       managerRecommendation: recommendation,
       requiresImageProof: requireImage,
     };
+    const res = await fetch(`/api/diseases/${recommendTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patchBody),
+    });
+    if (!res.ok) { toast.error("Failed to send recommendation"); return; }
+    const updated: { notificationChannels?: string[] } = await res.json();
+    const ext = (updated.notificationChannels ?? []).filter(c => c !== "in_app");
     setDiseases(prev => prev.map(d =>
       d.id === recommendTarget.id ? { ...d, ...patchBody } : d
     ));
     toast.success("Recommendation sent", {
-      description: `📱 SMS & Telegram sent to supervisor. Task auto-created.${requireImage ? " Photo proof required." : ""}`,
+      description: ext.length > 0
+        ? `📱 Sent to supervisor via ${ext.join(" & ")}.${requireImage ? " Photo proof required." : ""}`
+        : `Supervisor will see it in the app.${requireImage ? " Photo proof required." : ""}`,
       duration: 5000,
     });
     setRecommendOpen(false);
@@ -126,7 +136,13 @@ export default function DiseasesPage() {
     confirmResolve(d.id);
   }
 
-  function confirmResolve(id: string) {
+  async function confirmResolve(id: string) {
+    const res = await fetch(`/api/diseases/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "resolved" }),
+    });
+    if (!res.ok) { toast.error("Failed to resolve"); return; }
     setDiseases(prev => prev.map(d => d.id === id ? { ...d, status: "resolved" as const } : d));
     setProofReviewTarget(null);
     toast.success("Disease marked as resolved");
@@ -150,7 +166,7 @@ export default function DiseasesPage() {
     reader.readAsDataURL(file);
   }
 
-  function submitTreatment() {
+  async function submitTreatment() {
     if (!confirmTarget || !user) return;
     const patchBody = {
       status: "treating" as const,
@@ -160,6 +176,12 @@ export default function DiseasesPage() {
       treatmentNote: treatmentNote || "Treatment applied per manager's recommendation.",
       proofImageUrl: proofImage ?? undefined,
     };
+    const res = await fetch(`/api/diseases/${confirmTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patchBody),
+    });
+    if (!res.ok) { toast.error("Failed to save treatment"); return; }
     setDiseases(prev => prev.map(d =>
       d.id === confirmTarget.id ? { ...d, ...patchBody } : d
     ));

@@ -6,14 +6,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ArrowLeft, Sprout, Wheat, AlertTriangle, Calendar, Package, Bug, Droplets, CheckCircle2, Camera } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { HarvestChart } from "@/components/harvest-chart";
-import {
-  VALVES, FARMERS, bedsInValve, harvestsForValve, totalKgValve,
-  VALVE_STATES, SOIL_READINGS, CAMERA_ALERTS, DISEASES,
-} from "@/lib/data";
+import { VALVE_STATES, SOIL_READINGS, CAMERA_ALERTS } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
-import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
 import type { HarvestRecord, DiseaseReport } from "@/lib/types";
 import type { FertigationRecord, PackagingRecord } from "@/lib/erp-types";
+import { prisma } from "@/lib/prisma";
 
 function plantsInBed(bed: { lengthM: number; plantsPerMeter: number }): number {
   return bed.lengthM * bed.plantsPerMeter;
@@ -21,26 +18,35 @@ function plantsInBed(bed: { lengthM: number; plantsPerMeter: number }): number {
 
 export default async function ValvePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const valve = VALVES.find(v => v.id === id);
+  const valve = await prisma.valve.findUnique({ where: { id } });
   if (!valve) notFound();
 
-  const beds = bedsInValve(valve.id);
-  const harvests = harvestsForValve(valve.id);
-  const diseases = DISEASES().filter(d => beds.some(b => b.id === d.bedId));
-  const supervisor = FARMERS.find(f => f.id === valve.supervisorId);
-  const valveFarmers = FARMERS.filter(f => f.assignedValves.includes(valve.id) && f.role === "farmer");
-  const totalKg = totalKgValve(valve.id);
+  const [beds, farmersAll, harvestRows, diseaseRows, fertigations, packagingRows] = await Promise.all([
+    prisma.bed.findMany({ where: { valveId: id } }),
+    prisma.farmer.findMany(),
+    prisma.harvestRecord.findMany({ where: { bed: { valveId: id } } }),
+    prisma.diseaseReport.findMany({ where: { bed: { valveId: id } } }),
+    prisma.fertigationRecord.findMany({ where: { valveId: id } }),
+    prisma.packagingRecord.findMany({ where: { valveId: id } }),
+  ]);
+  const harvests = harvestRows.map(h => ({ ...h, kg: Number(h.kg) }));
+  const diseases = diseaseRows.map(d => ({ ...d, reportedAt: d.reportedAt.toISOString() }));
+  const packagings = packagingRows.map(p => ({ ...p, packedKg: Number(p.packedKg), lostKg: Number(p.lostKg) }));
+  const supervisor = farmersAll.find(f => f.id === valve.supervisorId);
+  const valveFarmers = farmersAll.filter(f =>
+    Array.isArray(f.assignedValves) && (f.assignedValves as string[]).includes(valve.id) && f.role === "farmer");
+  const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
   const valveState = VALVE_STATES.find(vs => vs.valveId === valve.id);
   const soilReadings = SOIL_READINGS().filter(sr => beds.some(b => b.id === sr.bedId));
   const cameraAlerts = CAMERA_ALERTS.filter(ca => beds.some(b => b.id === ca.bedId));
 
   function getFarmer(farmerId: string) {
-    return FARMERS.find(f => f.id === farmerId);
+    return farmersAll.find(f => f.id === farmerId);
   }
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
-    const d = new Date("2026-05-17");
+    const d = new Date();
     d.setDate(d.getDate() - i);
     series[d.toISOString().split("T")[0]] = 0;
   }
@@ -64,8 +70,8 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
   const log: LogEntry[] = [
     ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
     ...diseases.map(d => ({ date: d.reportedAt.slice(0, 10), kind: "disease" as const, data: d })),
-    ...FERTIGATION_RECORDS.filter(f => f.valveId === valve.id).map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
-    ...PACKAGING_RECORDS.filter(p => p.valveId === valve.id).map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
+    ...fertigations.map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
+    ...packagings.map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   return (

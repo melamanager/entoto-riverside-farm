@@ -130,6 +130,7 @@ model DiseaseReport {
   photo                String?
   aiConfidence         Float?
   infectedLengthM      Float?
+  reporterNote         String?
   suggestedTreatment   String
   treatmentSteps       Json          @default("[]")
   treatmentApplied     Boolean       @default(false)

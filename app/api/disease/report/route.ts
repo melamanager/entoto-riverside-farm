@@ -40,6 +40,8 @@ export async function POST(req: Request) {
       notificationChannels: [],
       aiConfidence:         body.aiConfidence ?? null,
       infectedLengthM:      body.infectedLengthM ? Number(body.infectedLengthM) : null,
+      photo:                body.photo ?? null,
+      reporterNote:         body.reporterNote ?? null,
     },
   });
 

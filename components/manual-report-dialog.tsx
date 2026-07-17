@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bug, Upload, X, Eye, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { DISEASE_LABELS, DISEASE_TREATMENTS, DISEASE_TREATMENT_STEPS, type DiseaseType, type Valve, type Bed } from "@/lib/types";
-import { VALVES as DATA_VALVES, BEDS as DATA_BEDS, addDiseaseReport } from "@/lib/data";
+import { DISEASE_LABELS, type DiseaseType, type Valve, type Bed } from "@/lib/types";
 
 const DISEASE_TYPES = Object.entries(DISEASE_LABELS) as [DiseaseType, string][];
 
@@ -29,8 +28,14 @@ export function ManualReportDialog({ onReported }: Props) {
   const [photoName, setPhotoName] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const valves: Valve[] = DATA_VALVES;
-  const beds: Bed[] = DATA_BEDS();
+  const [valves, setValves] = useState<Valve[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+  }, [open]);
 
   const assignedValves = user?.assignedValves ?? [];
   const availableBeds = isManager ? beds : beds.filter(b => assignedValves.includes(b.valveId));
@@ -60,32 +65,36 @@ export function ManualReportDialog({ onReported }: Props) {
     reader.readAsDataURL(file);
   }
 
-  function submit() {
+  async function submit() {
     if (!bedId || !type || !user) return;
     setLoading(true);
-    addDiseaseReport({
-      bedId,
-      type,
-      severity,
-      reportedAt: new Date().toISOString(),
-      reportedBy: user.id,
-      status: "open",
-      suggestedTreatment: DISEASE_TREATMENTS[type],
-      treatmentSteps: DISEASE_TREATMENT_STEPS[type],
-      treatmentApplied: false,
-      managerNotified: true,
-      notificationChannels: ["telegram", "sms"],
-      aiConfidence: undefined,
-      infectedLengthM: infectedLengthM > 0 ? infectedLengthM : undefined,
-      proofImageUrl: photo ?? undefined,
+    const res = await fetch("/api/disease/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bedId,
+        type,
+        severity,
+        infectedLengthM: infectedLengthM > 0 ? infectedLengthM : undefined,
+        photo: photo ?? undefined,
+        reporterNote: notes || undefined,
+      }),
     });
-    toast.success("Disease report filed", {
-      description: "Manager notified via Telegram & SMS.",
+    setLoading(false);
+    if (!res.ok) {
+      toast.error("Failed to file disease report");
+      return;
+    }
+    const result: { notified?: string[] } = await res.json();
+    const channels = result.notified ?? [];
+    toast.success("Disease report saved", {
+      description: channels.length > 0
+        ? `Manager notified via ${channels.join(" & ")}.`
+        : "Saved to the system. External alerts not configured — manager will see it in-app.",
     });
     reset();
     setOpen(false);
     onReported?.();
-    setLoading(false);
   }
 
   const severityColor =

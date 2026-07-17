@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Users, Wheat, AlertTriangle, TrendingUp, Activity, Leaf,
@@ -20,13 +21,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip } from "@/components/ui/tooltip";
-import {
-  FARM, VALVES, BEDS, FARMERS, HARVESTS, DISEASES, TASKS, ATTENDANCE,
-  plantsInBed, todayKg, totalKgValve,
-  VALVE_STATES, SOIL_READINGS, TANK_LEVELS, CAMERA_ALERTS,
-} from "@/lib/data";
-import { PACKAGING_RECORDS } from "@/lib/erp-data";
+import { FARM, VALVE_STATES, SOIL_READINGS, TANK_LEVELS, CAMERA_ALERTS } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
+import type { Bed, Farmer, Valve, DiseaseReport, HarvestRecord, AttendanceRecord, Task } from "@/lib/types";
+import type { PackagingRecord } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { cn } from "@/lib/utils";
@@ -69,13 +67,32 @@ export default function DashboardPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
 
-  const beds       = BEDS();
-  const harvests   = HARVESTS();
-  const diseases   = DISEASES();
-  const attendance = ATTENDANCE();
-  const today      = "2026-05-17";
+  const [beds, setBeds]             = useState<Bed[]>([]);
+  const [valves, setValves]         = useState<Valve[]>([]);
+  const [farmers, setFarmers]       = useState<Farmer[]>([]);
+  const [harvests, setHarvests]     = useState<HarvestRecord[]>([]);
+  const [diseases, setDiseases]     = useState<DiseaseReport[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [tasks, setTasks]           = useState<Task[]>([]);
+  const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
+  const today = new Date().toISOString().split("T")[0];
 
-  const totalKgToday   = todayKg(today);
+  useEffect(() => {
+    const from = new Date();
+    from.setDate(from.getDate() - 13);
+    const fromStr = from.toISOString().split("T")[0];
+    fetch("/api/beds").then(r => r.json()).then(setBeds);
+    fetch("/api/valves").then(r => r.json()).then(setValves);
+    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch(`/api/harvest?from=${fromStr}`).then(r => r.json()).then((data: Array<Record<string, unknown>>) =>
+      setHarvests(data.map(h => ({ ...h, kg: parseFloat(String(h.kg)) })) as unknown as HarvestRecord[]));
+    fetch("/api/diseases").then(r => r.json()).then(setDiseases);
+    fetch("/api/attendance").then(r => r.json()).then(setAttendance);
+    fetch("/api/tasks").then(r => r.json()).then(setTasks);
+    fetch("/api/packaging").then(r => r.json()).then(setPackagingRecords);
+  }, []);
+
+  const totalKgToday   = harvests.filter(h => h.date === today).reduce((s, h) => s + h.kg, 0);
   const openDiseases   = diseases.filter(d => d.status !== "resolved").length;
   const estimatedYield = beds.reduce((s, b) => s + b.lengthM * 0.4 * 12, 0);
   const presentToday   = attendance.filter(a => a.date === today && a.status === "present").length;
@@ -99,18 +116,20 @@ export default function DashboardPage() {
     harvestKgByBed[h.bedId] = (harvestKgByBed[h.bedId] ?? 0) + h.kg;
   });
 
-  /* zone stats */
-  const valveStats = VALVES.map(v => ({
+  /* zone stats (last 14 days) */
+  const bedValve: Record<string, string> = {};
+  beds.forEach(b => { bedValve[b.id] = b.valveId; });
+  const valveStats = valves.map(v => ({
     valve: v,
-    kg: totalKgValve(v.id),
+    kg: harvests.filter(h => bedValve[h.bedId] === v.id).reduce((s, h) => s + h.kg, 0),
     bedCount: beds.filter(b => b.valveId === v.id).length,
     infected: beds.filter(b => b.valveId === v.id && b.health === "infected").length,
   })).sort((a, b) => b.kg - a.kg);
   const maxZoneKg = Math.max(...valveStats.map(x => x.kg), 1);
 
   /* people */
-  const pendingTasks = TASKS.filter(task => task.status !== "done").length;
-  const topFarmers = [...FARMERS]
+  const pendingTasks = tasks.filter(task => task.status !== "done").length;
+  const topFarmers = [...farmers]
     .filter(f => f.role === "farmer")
     .sort((a, b) => b.performanceScore - a.performanceScore)
     .slice(0, 5);
@@ -244,7 +263,7 @@ export default function DashboardPage() {
               </div>
               <span className={cn("size-2 rounded-full", openValves > 0 ? "bg-blue-400 animate-pulse" : "bg-muted-foreground/30")} />
             </div>
-            <div className="text-2xl font-extrabold text-blue-300 tabular-nums">{openValves}<span className="text-sm font-normal text-blue-400/60">/{VALVES.length}</span></div>
+            <div className="text-2xl font-extrabold text-blue-300 tabular-nums">{openValves}<span className="text-sm font-normal text-blue-400/60">/{valves.length || 3}</span></div>
             <div className="text-[10px] text-blue-400/80 mt-0.5 font-medium">{totalFlowLph.toLocaleString()} L/h active</div>
           </div>
         </Tooltip>
@@ -301,7 +320,7 @@ export default function DashboardPage() {
 
         {/* Field Staff */}
         <Tooltip
-          content={`${FARMERS.filter(f => f.role === "supervisor").length} supervisors and ${FARMERS.filter(f => f.role === "farmer").length} farmers registered. ${presentToday} are present today.`}
+          content={`${farmers.filter(f => f.role === "supervisor").length} supervisors and ${farmers.filter(f => f.role === "farmer").length} farmers registered. ${presentToday} are present today.`}
           side="bottom" maxWidth="230px" wrapperClassName="h-full w-full">
           <div className="rounded-xl border border-border bg-muted/40 p-4 hover:border-primary/30 transition-all cursor-default h-full flex flex-col justify-between">
             <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -309,7 +328,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-end gap-1.5 mb-2.5">
               <span className="text-2xl font-extrabold text-foreground">
-                {FARMERS.filter(f => f.role !== "manager").length}
+                {farmers.filter(f => f.role !== "manager").length}
               </span>
               <span className="text-xs text-muted-foreground mb-0.5">total</span>
             </div>
@@ -318,7 +337,7 @@ export default function DashboardPage() {
               <span className="text-[10px] text-muted-foreground">{presentToday} present today</span>
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {FARMERS.filter(f => f.role === "supervisor").length} supervisors on-site
+              {farmers.filter(f => f.role === "supervisor").length} supervisors on-site
             </div>
           </div>
         </Tooltip>
@@ -428,7 +447,7 @@ export default function DashboardPage() {
         <Card className="border border-border bg-card p-4 md:p-5">
           <SectionHeader
             title="Zone Productivity"
-            sub="Total harvest by irrigation zone · season to date"
+            sub="Total harvest by irrigation zone · last 14 days"
             href="/valves"
             linkLabel="All zones →"
           />
@@ -518,13 +537,13 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Harvest Forecast ────────────────────────────────────────────── */}
-      <HarvestForecast beds={beds} today={today} valves={VALVES} />
+      <HarvestForecast beds={beds} today={today} valves={valves} />
 
       {/* ── Ripeness Heatmap ────────────────────────────────────────────── */}
-      <RipenessHeatmap beds={beds} valves={VALVES} />
+      <RipenessHeatmap beds={beds} valves={valves} />
 
       {/* ── Performance by Origin ───────────────────────────────────────── */}
-      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} packagingRecords={PACKAGING_RECORDS} />
+      <OriginPerformance beds={beds} harvests={harvests} diseases={diseases} packagingRecords={packagingRecords} />
 
       {/* ── Live Farm Map ───────────────────────────────────────────────── */}
       <Card className="border border-border bg-card overflow-hidden">
@@ -540,7 +559,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="p-3 md:p-4">
-          <FarmMap valves={VALVES} beds={beds} harvestKgByBed={harvestKgByBed} />
+          <FarmMap valves={valves} beds={beds} harvestKgByBed={harvestKgByBed} />
         </div>
       </Card>
 

@@ -8,13 +8,9 @@ import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, Package, Bug, Droplet
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
 import { BedQR } from "@/components/bed-qr";
 import { HarvestChart } from "@/components/harvest-chart";
-import {
-  getBed, getValve, getFarmer, harvestsForBed, diseasesForBed,
-  plantsInBed, totalKgBed, FARMERS,
-  SOIL_READINGS, VALVE_STATES, CAMERA_ALERTS,
-} from "@/lib/data";
-import { FERTIGATION_RECORDS, PACKAGING_RECORDS } from "@/lib/erp-data";
+import { SOIL_READINGS, VALVE_STATES, CAMERA_ALERTS } from "@/lib/data";
 import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
+import { prisma } from "@/lib/prisma";
 
 const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
 
@@ -29,15 +25,26 @@ function addDays(dateStr: string, days: number): string {
 
 export default async function BedPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const bed = getBed(id);
+  const bed = await prisma.bed.findUnique({ where: { id } });
   if (!bed) notFound();
 
-  const valve = getValve(bed.valveId)!;
+  const [valveRow, farmersAll, harvestRows, diseaseRows, fertigationRows, packagingRows] = await Promise.all([
+    prisma.valve.findUnique({ where: { id: bed.valveId } }),
+    prisma.farmer.findMany(),
+    prisma.harvestRecord.findMany({ where: { bedId: id } }),
+    prisma.diseaseReport.findMany({ where: { bedId: id } }),
+    prisma.fertigationRecord.findMany({ where: { valveId: bed.valveId, status: "applied" } }),
+    prisma.packagingRecord.findMany({ where: { valveId: bed.valveId, variety: bed.variety } }),
+  ]);
+  const valve = valveRow!;
+  const getFarmer = (fid: string) => farmersAll.find(f => f.id === fid);
   const farmer = getFarmer(bed.farmerId)!;
-  const harvests = harvestsForBed(bed.id).sort((a,b) => b.date.localeCompare(a.date));
-  const diseases = diseasesForBed(bed.id);
-  const totalKg = totalKgBed(bed.id);
-  const plants = plantsInBed(bed);
+  const harvests = harvestRows.map(h => ({ ...h, kg: Number(h.kg) })).sort((a, b) => b.date.localeCompare(a.date));
+  const diseases = diseaseRows.map(d => ({ ...d, reportedAt: d.reportedAt.toISOString() }));
+  const fertigations = fertigationRows;
+  const packagings = packagingRows.map(p => ({ ...p, packedKg: Number(p.packedKg), lostKg: Number(p.lostKg) }));
+  const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
+  const plants = Math.round(bed.lengthM * bed.plantsPerMeter);
   const stageIdx = STAGES.indexOf(bed.stage);
 
   // IoT data
@@ -47,7 +54,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
-    const d = new Date("2026-05-17");
+    const d = new Date();
     d.setDate(d.getDate() - i);
     series[d.toISOString().split("T")[0]] = 0;
   }
@@ -80,12 +87,8 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
   const log: LogEntry[] = [
     ...harvests.map(h => ({ date: h.date, kind: "harvest" as const, data: h })),
     ...diseases.map(d => ({ date: d.reportedAt.slice(0,10), kind: "disease" as const, data: d })),
-    ...FERTIGATION_RECORDS
-      .filter(f => f.valveId === bed.valveId && f.status === "applied")
-      .map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
-    ...PACKAGING_RECORDS
-      .filter(p => p.valveId === bed.valveId && p.variety === bed.variety)
-      .map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
+    ...fertigations.map(f => ({ date: f.applicationDate, kind: "fertigation" as const, data: f })),
+    ...packagings.map(p => ({ date: p.packedDate, kind: "packaging" as const, data: p })),
     ...stageHistory,
   ].sort((a,b) => b.date.localeCompare(a.date));
 
@@ -126,7 +129,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           {[
             { icon: "🌾", label: "Total Yield",   value: `${totalKg.toFixed(1)} kg`,           sub: `${harvests.length} picks` },
             { icon: "📏", label: "Efficiency",     value: `${yieldPerMeter.toFixed(2)} kg/m`,   sub: "yield per metre" },
-            { icon: "🌱", label: "Age",            value: `${Math.floor((new Date("2026-05-20").getTime() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
+            { icon: "🌱", label: "Age",            value: `${Math.floor((Date.now() - new Date(bed.plantedDate).getTime()) / 86400000)}d`, sub: "days growing" },
             { icon: "📊", label: "Stage",          value: GROWTH_STAGE_LABELS[bed.stage],       sub: `${stageIdx + 1} of ${STAGES.length}` },
             { icon: "⭐", label: "Grade A",         value: `${gradeAPct}%`,                      sub: `${gradeACount}/${harvests.length} picks` },
             { icon: "💚", label: "Health",          value: bed.health.charAt(0).toUpperCase() + bed.health.slice(1), sub: diseases.length > 0 ? `${diseases.length} issue${diseases.length > 1 ? "s" : ""}` : "No issues" },
@@ -366,7 +369,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
             {log.slice(0, 20).map((entry, i) => {
               const iconClass = "absolute -left-[18px] top-1 size-5 rounded-full border-2 grid place-items-center";
               if (entry.kind === "harvest") {
-                const h = entry.data as ReturnType<typeof harvestsForBed>[0];
+                const h = entry.data as (typeof harvests)[number];
                 const f = getFarmer(h.farmerId);
                 return (
                   <div key={i} className="relative">
@@ -382,7 +385,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 );
               }
               if (entry.kind === "disease") {
-                const d = entry.data as ReturnType<typeof diseasesForBed>[0];
+                const d = entry.data as (typeof diseases)[number];
                 return (
                   <div key={i} className="relative">
                     <div className={`${iconClass} bg-red-100 border-red-400 dark:bg-red-950/40`}><Bug className="size-2.5 text-red-700" /></div>
@@ -400,7 +403,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 );
               }
               if (entry.kind === "fertigation") {
-                const f = entry.data as typeof FERTIGATION_RECORDS[0];
+                const f = entry.data as (typeof fertigations)[number];
                 const worker = getFarmer(f.responsibleWorkerId);
                 return (
                   <div key={i} className="relative">
@@ -416,7 +419,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 );
               }
               if (entry.kind === "packaging") {
-                const p = entry.data as typeof PACKAGING_RECORDS[0];
+                const p = entry.data as (typeof packagings)[number];
                 const packer = getFarmer(p.packedBy);
                 return (
                   <div key={i} className="relative">
