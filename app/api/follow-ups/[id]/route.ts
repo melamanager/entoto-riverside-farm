@@ -9,7 +9,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const body = await req.json();
 
-  const record = await prisma.followUp.update({ where: { id }, data: body });
+  const before = await prisma.followUp.findUnique({ where: { id }, select: { status: true } });
+  if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const record = await prisma.followUp.update({
+    where: { id },
+    data: body,
+    include: { assignee: { select: { name: true } } },
+  });
+
+  // completing a follow-up notifies the team (creator sees who closed it) — best effort
+  try {
+    if (body.status === "done" && before.status !== "done") {
+      await prisma.notification.create({
+        data: {
+          type: "task",
+          channel: "in_app",
+          message: `✔️ Follow-up "${record.title}" completed by ${record.assignee.name}${record.completionNote ? ` — ${String(record.completionNote).slice(0, 80)}` : ""}`,
+          link: "/tasks?tab=followups",
+        },
+      });
+    }
+  } catch (e) {
+    console.error("follow-up completion notification failed", e);
+  }
+
   return NextResponse.json(record);
 }
 

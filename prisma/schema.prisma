@@ -541,6 +541,7 @@ enum NotificationType {
   irrigation
   task
   message
+  stock
 }
 
 enum NotificationChannel {

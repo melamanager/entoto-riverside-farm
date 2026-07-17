@@ -4,11 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, Package, Bug, Droplets, CheckCircle2, TrendingUp, Camera, Gauge } from "lucide-react";
+import { ArrowLeft, Sprout, Calendar, MapPin, User, Wheat, Package, Bug, Droplets, CheckCircle2, TrendingUp } from "lucide-react";
 import { AIDetectDialog } from "@/components/ai-detect-dialog";
 import { BedQR } from "@/components/bed-qr";
 import { HarvestChart } from "@/components/harvest-chart";
-import { SOIL_READINGS, VALVE_STATES, CAMERA_ALERTS } from "@/lib/data";
 import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
 
@@ -46,11 +45,6 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
   const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
   const plants = Math.round(bed.lengthM * bed.plantsPerMeter);
   const stageIdx = STAGES.indexOf(bed.stage);
-
-  // IoT data
-  const soilReading = SOIL_READINGS().find(sr => sr.bedId === bed.id);
-  const valveState = VALVE_STATES.find(vs => vs.valveId === bed.valveId);
-  const bedCameraAlerts = CAMERA_ALERTS.filter(ca => ca.bedId === bed.id);
 
   const series: Record<string, number> = {};
   for (let i = 13; i >= 0; i--) {
@@ -143,74 +137,6 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
           ))}
         </div>
       </div>
-
-      {/* IoT Live Panel */}
-      {(soilReading || valveState || bedCameraAlerts.length > 0) && (
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="size-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Live IoT — {bed.id}</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-            {soilReading && (
-              <>
-                <div className="bg-muted/40 rounded-xl p-3 border border-border">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Soil Moisture</div>
-                  <div className={`text-sm font-bold tabular-nums ${soilReading.moisturePct < 50 ? "text-amber-600" : soilReading.moisturePct < 40 ? "text-red-600" : "text-emerald-600"}`}>
-                    {soilReading.moisturePct}%
-                  </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-border overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${soilReading.moisturePct >= 60 ? "bg-emerald-500" : soilReading.moisturePct >= 40 ? "bg-amber-500" : "bg-red-500"}`}
-                      style={{ width: `${soilReading.moisturePct}%` }} />
-                  </div>
-                  <div className="text-[9px] text-muted-foreground mt-0.5">Target: 60–80%</div>
-                </div>
-                <div className="bg-muted/40 rounded-xl p-3 border border-border">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Soil Temp</div>
-                  <div className="text-sm font-bold tabular-nums text-foreground">{soilReading.tempC}°C</div>
-                  <div className="text-[9px] text-muted-foreground mt-0.5">EC {soilReading.ecMsCm} mS/cm</div>
-                </div>
-                <div className="bg-muted/40 rounded-xl p-3 border border-border">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">pH Level</div>
-                  <div className={`text-sm font-bold tabular-nums ${soilReading.ph < 5.8 ? "text-amber-600" : "text-foreground"}`}>{soilReading.ph}</div>
-                  <div className="text-[9px] text-muted-foreground mt-0.5">Optimal: 5.8–6.5</div>
-                </div>
-              </>
-            )}
-            {valveState && (
-              <div className="bg-muted/40 rounded-xl p-3 border border-border">
-                <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Valve {valve.name}</div>
-                <div className={`text-sm font-bold ${valveState.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>
-                  {valveState.isOpen ? "● Open" : "○ Closed"}
-                </div>
-                <div className="text-[9px] text-muted-foreground mt-0.5">
-                  {valveState.isOpen ? `${valveState.flowRateLph.toLocaleString()} L/h` : valveState.nextScheduledEvent}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {bedCameraAlerts.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <Camera className="size-3" /> Camera Alerts
-              </div>
-              {bedCameraAlerts.map(ca => (
-                <div key={ca.id} className={`rounded-xl p-3 border border-border/50 bg-gradient-to-r ${ca.bgGradient}`}>
-                  <div className="flex items-start justify-between mb-1">
-                    <span className="text-xs font-bold text-white">{ca.label}</span>
-                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ca.status === "new" ? "bg-red-900/60 text-red-300" : "bg-amber-900/60 text-amber-300"}`}>
-                      {ca.status}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-white/70">{Math.round(ca.confidence * 100)}% confidence · {new Date(ca.detectedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</div>
-                  <div className="text-[10px] text-white/60 mt-1 leading-snug">{ca.description}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Info grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

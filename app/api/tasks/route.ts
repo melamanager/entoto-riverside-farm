@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { sendTelegram } from "@/lib/notifications";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -32,6 +33,26 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const task = await prisma.task.create({ data: body });
+  const task = await prisma.task.create({ data: body, include: { assignee: true } });
+
+  // notify assignment — best effort
+  try {
+    await prisma.notification.create({
+      data: {
+        type: "task",
+        channel: "in_app",
+        message: `📋 New ${task.priority}-priority task "${task.title}" assigned to ${task.assignee.name} (due ${task.dueDate})`,
+        link: "/tasks",
+      },
+    });
+    if (task.priority === "high") {
+      await sendTelegram(
+        `📋 <b>High-priority task — Entoto Farm</b>\n\n<b>${task.title}</b>\nAssigned to: ${task.assignee.name}\nDue: ${task.dueDate}`
+      );
+    }
+  } catch (e) {
+    console.error("task-assignment notification failed", e);
+  }
+
   return NextResponse.json(task, { status: 201 });
 }

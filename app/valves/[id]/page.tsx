@@ -3,10 +3,9 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Sprout, Wheat, AlertTriangle, Calendar, Package, Bug, Droplets, CheckCircle2, Camera } from "lucide-react";
+import { ArrowLeft, Sprout, Wheat, AlertTriangle, Calendar, Package, Bug, Droplets, CheckCircle2 } from "lucide-react";
 import { ValveIcon } from "@/components/valve-icon";
 import { HarvestChart } from "@/components/harvest-chart";
-import { VALVE_STATES, SOIL_READINGS, CAMERA_ALERTS } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
 import type { HarvestRecord, DiseaseReport } from "@/lib/types";
 import type { FertigationRecord, PackagingRecord } from "@/lib/erp-types";
@@ -21,13 +20,17 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
   const valve = await prisma.valve.findUnique({ where: { id } });
   if (!valve) notFound();
 
-  const [beds, farmersAll, harvestRows, diseaseRows, fertigations, packagingRows] = await Promise.all([
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  const weekAgoStr = weekAgo.toISOString().split("T")[0];
+  const [beds, farmersAll, harvestRows, diseaseRows, fertigations, packagingRows, wateringLogs] = await Promise.all([
     prisma.bed.findMany({ where: { valveId: id } }),
     prisma.farmer.findMany(),
     prisma.harvestRecord.findMany({ where: { bed: { valveId: id } } }),
     prisma.diseaseReport.findMany({ where: { bed: { valveId: id } } }),
     prisma.fertigationRecord.findMany({ where: { valveId: id } }),
     prisma.packagingRecord.findMany({ where: { valveId: id } }),
+    prisma.irrigationLog.findMany({ where: { valveId: id, date: { gte: weekAgoStr } }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
   ]);
   const harvests = harvestRows.map(h => ({ ...h, kg: Number(h.kg) }));
   const diseases = diseaseRows.map(d => ({ ...d, reportedAt: d.reportedAt.toISOString() }));
@@ -36,9 +39,6 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
   const valveFarmers = farmersAll.filter(f =>
     Array.isArray(f.assignedValves) && (f.assignedValves as string[]).includes(valve.id) && f.role === "farmer");
   const totalKg = harvests.reduce((s, h) => s + h.kg, 0);
-  const valveState = VALVE_STATES.find(vs => vs.valveId === valve.id);
-  const soilReadings = SOIL_READINGS().filter(sr => beds.some(b => b.id === sr.bedId));
-  const cameraAlerts = CAMERA_ALERTS.filter(ca => beds.some(b => b.id === ca.bedId));
 
   function getFarmer(farmerId: string) {
     return farmersAll.find(f => f.id === farmerId);
@@ -60,11 +60,6 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
     b,
     kg: harvests.filter(h => h.bedId === b.id).reduce((s, h) => s + h.kg, 0),
   })).sort((a, b_) => b_.kg - a.kg);
-
-  const avgSoilMoisture = soilReadings.length > 0
-    ? Math.round(soilReadings.reduce((s, sr) => s + sr.moisturePct, 0) / soilReadings.length)
-    : 0;
-  const warningSoil = soilReadings.filter(sr => sr.status !== "optimal").length;
 
   type LogEntry = { date: string; kind: "harvest" | "disease" | "fertigation" | "packaging"; data: unknown };
   const log: LogEntry[] = [
@@ -103,45 +98,38 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* IoT Live Panel */}
-      {valveState && (
-        <div className="rounded-2xl bg-card border border-border p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`size-2 rounded-full ${valveState.isOpen ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`} />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Live IoT — {valve.name}</span>
+      {/* Watering — real irrigation log data */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`size-2 rounded-full ${wateringLogs[0]?.date === new Date().toISOString().split("T")[0] ? "bg-emerald-500" : "bg-amber-500"}`} />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Watering — {valve.name} · last 7 days</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-muted/40 rounded-xl p-3 border border-border">
+            <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Last Watered</div>
+            <div className="text-sm font-bold text-foreground">
+              {wateringLogs[0]
+                ? `${new Date(`${wateringLogs[0].date}T00:00:00`).toLocaleDateString("en", { month: "short", day: "numeric" })}${wateringLogs[0].startTime ? ` · ${wateringLogs[0].startTime}` : ""}`
+                : "No log yet"}
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5 capitalize">{wateringLogs[0]?.status ?? "log via Daily Routines"}</div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-muted/40 rounded-xl p-3 border border-border">
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Status</div>
-              <div className={`text-sm font-bold ${valveState.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>
-                {valveState.isOpen ? "● Open" : "○ Closed"}
-              </div>
-              <div className="text-[9px] text-muted-foreground mt-0.5 capitalize">{valveState.mode} mode</div>
-            </div>
-            <div className="bg-muted/40 rounded-xl p-3 border border-border">
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Flow Rate</div>
-              <div className="text-sm font-bold text-foreground tabular-nums">{valveState.flowRateLph.toLocaleString()} L/h</div>
-              <div className="text-[9px] text-muted-foreground mt-0.5">{valveState.pressureBar} bar pressure</div>
-            </div>
-            <div className="bg-muted/40 rounded-xl p-3 border border-border">
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Today Used</div>
-              <div className="text-sm font-bold text-foreground tabular-nums">{valveState.totalLitersToday?.toLocaleString()} L</div>
-              <div className="text-[9px] text-muted-foreground mt-0.5">liters today</div>
-            </div>
-            <div className="bg-muted/40 rounded-xl p-3 border border-border">
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Avg Soil Moisture</div>
-              <div className={`text-sm font-bold tabular-nums ${avgSoilMoisture >= 60 ? "text-emerald-600" : avgSoilMoisture >= 40 ? "text-amber-600" : "text-red-600"}`}>
-                {avgSoilMoisture}%
-              </div>
-              <div className="text-[9px] text-muted-foreground mt-0.5">{warningSoil} beds need attention</div>
-            </div>
-            <div className="bg-muted/40 rounded-xl p-3 border border-border">
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Next Event</div>
-              <div className="text-xs font-bold text-foreground leading-snug">{valveState.nextScheduledEvent}</div>
-            </div>
+          <div className="bg-muted/40 rounded-xl p-3 border border-border">
+            <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Sessions</div>
+            <div className="text-sm font-bold text-foreground tabular-nums">{wateringLogs.filter(l => l.status !== "skipped").length}</div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">{wateringLogs.filter(l => l.status === "skipped").length} skipped</div>
+          </div>
+          <div className="bg-muted/40 rounded-xl p-3 border border-border">
+            <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Water This Week</div>
+            <div className="text-sm font-bold text-foreground tabular-nums">{Math.round(wateringLogs.reduce((s, l) => s + (l.waterVolumeL ?? 0), 0)).toLocaleString()} L</div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">{Math.round(wateringLogs.reduce((s, l) => s + (l.durationMin ?? 0), 0))} min total</div>
+          </div>
+          <div className="bg-muted/40 rounded-xl p-3 border border-border">
+            <div className="text-[9px] text-muted-foreground uppercase tracking-wide mb-1">Schedule</div>
+            <div className="text-xs font-bold text-foreground leading-snug">{valve.irrigationSchedule}</div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -163,44 +151,6 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
         </Card>
       </div>
 
-      {/* Camera alerts */}
-      {cameraAlerts.length > 0 && (
-        <Card className="p-5">
-          <h3 className="font-bold mb-3 flex items-center gap-2">
-            <Camera className="size-4 text-muted-foreground" /> Camera Alerts — {valve.name}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {cameraAlerts.map(ca => (
-              <div key={ca.id} className={`rounded-xl p-3 border border-border bg-gradient-to-br ${ca.bgGradient}`}>
-                <div className="flex items-start justify-between mb-1.5">
-                  <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                    ca.alertType === "disease" ? "bg-red-900/80 text-red-200"
-                    : ca.alertType === "ripeness" ? "bg-emerald-900/80 text-emerald-200"
-                    : ca.alertType === "pest" ? "bg-amber-900/80 text-amber-200"
-                    : "bg-slate-900/80 text-slate-200"
-                  }`}>
-                    {ca.alertType}
-                  </span>
-                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
-                    ca.status === "new" ? "bg-red-900/60 text-red-300"
-                    : ca.status === "reviewed" ? "bg-amber-900/60 text-amber-300"
-                    : "bg-emerald-900/60 text-emerald-300"
-                  }`}>
-                    {ca.status}
-                  </span>
-                </div>
-                <div className="text-xs font-bold text-white">{ca.label}</div>
-                <div className="text-[10px] text-white/70 mt-0.5">
-                  <Link href={`/beds/${ca.bedId}`} className="hover:underline">{ca.bedId}</Link>
-                  {" "}· {Math.round(ca.confidence * 100)}% confidence
-                </div>
-                <div className="text-[10px] text-white/60 mt-1 leading-snug line-clamp-2">{ca.description}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {/* Chart */}
       <Card className="p-5">
         <h3 className="font-bold mb-3">Harvest trend — 14 days</h3>
@@ -214,7 +164,6 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
           <div className="space-y-2">
             {bedsRanked.map(({ b, kg }, i) => {
               const max = bedsRanked[0]?.kg || 1;
-              const soil = soilReadings.find(sr => sr.bedId === b.id);
               return (
                 <Link href={`/beds/${b.id}`} key={b.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent">
                   <div className="text-muted-foreground font-mono text-xs w-5 text-center">#{i + 1}</div>
@@ -225,11 +174,6 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
                     </div>
                     <div className="text-[11px] text-muted-foreground flex items-center gap-2">
                       {b.variety}
-                      {soil && (
-                        <span className={`text-[9px] px-1 rounded ${soil.status === "optimal" ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" : "text-amber-600 bg-amber-50 dark:bg-amber-950/30"}`}>
-                          💧 {soil.moisturePct}%
-                        </span>
-                      )}
                     </div>
                     <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${(kg / max) * 100 || 3}%` }} />
@@ -261,57 +205,6 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
           </div>
         </Card>
       </div>
-
-      {/* Soil readings table */}
-      {soilReadings.length > 0 && (
-        <Card className="p-5">
-          <h3 className="font-bold mb-3 flex items-center gap-2">
-            <Droplets className="size-4 text-blue-500" /> Soil Sensor Readings
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground border-b border-border">
-                  <th className="text-left py-2 pr-4">Bed</th>
-                  <th className="text-right py-2 pr-4">Moisture</th>
-                  <th className="text-right py-2 pr-4">Temp</th>
-                  <th className="text-right py-2 pr-4">EC</th>
-                  <th className="text-right py-2 pr-4">pH</th>
-                  <th className="text-right py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {soilReadings.map(sr => (
-                  <tr key={sr.bedId} className="border-b border-border/50 hover:bg-accent/30">
-                    <td className="py-1.5 pr-4 font-mono font-semibold">
-                      <Link href={`/beds/${sr.bedId}`} className="hover:text-primary">{sr.bedId}</Link>
-                    </td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums">
-                      <span className={sr.moisturePct < 50 ? "text-amber-600 font-bold" : ""}>{sr.moisturePct}%</span>
-                    </td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums">{sr.tempC}°C</td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums">
-                      <span className={sr.ecMsCm > 2.5 ? "text-amber-600 font-bold" : ""}>{sr.ecMsCm}</span>
-                    </td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums">
-                      <span className={sr.ph < 5.8 ? "text-amber-600 font-bold" : ""}>{sr.ph}</span>
-                    </td>
-                    <td className="py-1.5 text-right">
-                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                        sr.status === "optimal" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                        : sr.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                        : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
-                      }`}>
-                        {sr.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
 
       {/* Activity log */}
       <Card className="p-5">

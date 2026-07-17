@@ -7,7 +7,6 @@ import {
   Bug, ShieldCheck, CalendarCheck, ListChecks, ChevronRight,
   Zap, Sparkles, Sprout, Package, Info,
 } from "lucide-react";
-import { IotStatusBar } from "@/components/iot-status-bar";
 import { ValveIcon } from "@/components/valve-icon";
 import { FarmMap } from "@/components/farm-map";
 import { HarvestChart } from "@/components/harvest-chart";
@@ -21,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip } from "@/components/ui/tooltip";
-import { FARM, VALVE_STATES, SOIL_READINGS, TANK_LEVELS, CAMERA_ALERTS } from "@/lib/data";
+import { FARM } from "@/lib/data";
 import { DISEASE_LABELS } from "@/lib/types";
 import type { Bed, Farmer, Valve, DiseaseReport, HarvestRecord, AttendanceRecord, Task } from "@/lib/types";
 import type { PackagingRecord } from "@/lib/erp-types";
@@ -75,6 +74,7 @@ export default function DashboardPage() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [tasks, setTasks]           = useState<Task[]>([]);
   const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
+  const [watering, setWatering] = useState<{ valvesWatered: number; totalValves: number; sessions: number; waterVolumeL: number } | null>(null);
   const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
@@ -90,6 +90,9 @@ export default function DashboardPage() {
     fetch("/api/attendance").then(r => r.json()).then(setAttendance);
     fetch("/api/tasks").then(r => r.json()).then(setTasks);
     fetch("/api/packaging").then(r => r.json()).then(setPackagingRecords);
+    fetch(`/api/routines/daily?date=${new Date().toISOString().split("T")[0]}`)
+      .then(r => r.json())
+      .then(d => setWatering(d.watering ?? null));
   }, []);
 
   const totalKgToday   = harvests.filter(h => h.date === today).reduce((s, h) => s + h.kg, 0);
@@ -134,17 +137,10 @@ export default function DashboardPage() {
     .sort((a, b) => b.performanceScore - a.performanceScore)
     .slice(0, 5);
 
-  /* IoT — static snapshot (live in IotStatusBar) */
-  const soilReadings    = SOIL_READINGS();
-  const cameraAlerts    = CAMERA_ALERTS;
-  const openValves      = VALVE_STATES.filter(v => v.isOpen).length;
-  const totalFlowLph    = VALVE_STATES.reduce((s, v) => s + v.flowRateLph, 0);
-  const totalWaterToday = VALVE_STATES.reduce((s, v) => s + v.totalLitersToday, 0);
-  const mainTankPct     = Math.round((TANK_LEVELS[0].currentL / TANK_LEVELS[0].capacityL) * 100);
-  const newCamAlerts    = cameraAlerts.filter(a => a.status === "new").length;
-  const soilOptimal     = soilReadings.filter(r => r.status === "optimal").length;
-  const soilWarning     = soilReadings.filter(r => r.status === "warning").length;
-  const soilCritical    = soilReadings.filter(r => r.status === "critical").length;
+  /* bed health + watering — live */
+  const bedsHealthy  = beds.filter(b => b.health === "healthy").length;
+  const bedsWarning  = beds.filter(b => b.health === "warning").length;
+  const bedsInfected = beds.filter(b => b.health === "infected").length;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
@@ -223,9 +219,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── IoT Live Bar ───────────────────────────────────────────────── */}
-      <IotStatusBar />
-
       {/* ── AI Alert Banner ────────────────────────────────────────────── */}
       {openDiseases > 0 && (
         <Link href="/ai"
@@ -252,70 +245,64 @@ export default function DashboardPage() {
       {/* ── Stat strip ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-        {/* Irrigation Zones */}
+        {/* Watering today (live) */}
         <Tooltip
-          content={`${openValves} valve zone${openValves !== 1 ? "s" : ""} actively flowing at ${totalFlowLph.toLocaleString()} L/h combined. Each zone feeds multiple raised beds via drip tape.`}
+          content={`Valves watered today from the irrigation log. Log watering sessions on the Daily Routines page.`}
           side="bottom" maxWidth="240px" wrapperClassName="h-full w-full">
-          <div className="rounded-xl border border-blue-500/20 bg-blue-500/8 p-4 hover:border-blue-500/40 transition-all cursor-default group h-full flex flex-col justify-between">
+          <Link href="/routines" className="rounded-xl border border-blue-500/20 bg-blue-500/8 p-4 hover:border-blue-500/40 transition-all group h-full flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                <ValveIcon size={11} /> Irrigation
+                <ValveIcon size={11} /> Watering
               </div>
-              <span className={cn("size-2 rounded-full", openValves > 0 ? "bg-blue-400 animate-pulse" : "bg-muted-foreground/30")} />
+              <span className={cn("size-2 rounded-full", (watering?.valvesWatered ?? 0) > 0 ? "bg-blue-400" : "bg-muted-foreground/30")} />
             </div>
-            <div className="text-2xl font-extrabold text-blue-300 tabular-nums">{openValves}<span className="text-sm font-normal text-blue-400/60">/{valves.length || 3}</span></div>
-            <div className="text-[10px] text-blue-400/80 mt-0.5 font-medium">{totalFlowLph.toLocaleString()} L/h active</div>
-          </div>
+            <div className="text-2xl font-extrabold text-blue-300 tabular-nums">{watering?.valvesWatered ?? 0}<span className="text-sm font-normal text-blue-400/60">/{watering?.totalValves ?? valves.length}</span></div>
+            <div className="text-[10px] text-blue-400/80 mt-0.5 font-medium">{watering?.sessions ?? 0} session{(watering?.sessions ?? 0) === 1 ? "" : "s"} today</div>
+          </Link>
         </Tooltip>
 
-        {/* Soil Health */}
+        {/* Bed health (live) */}
         <Tooltip
-          content={`${soilOptimal} beds in optimal soil range (moisture 55–80%, EC 1.5–2.5 mS/cm, pH 5.8–6.5). ${soilWarning} need attention, ${soilCritical} are critical.`}
+          content={`${bedsHealthy} of ${beds.length} beds healthy. ${bedsWarning} showing warnings, ${bedsInfected} infected — infected beds carry active disease reports.`}
           side="bottom" maxWidth="250px" wrapperClassName="h-full w-full">
-          <div className="rounded-xl border border-primary/20 bg-primary/8 p-4 hover:border-primary/40 transition-all cursor-default h-full flex flex-col justify-between">
+          <Link href="/beds" className="rounded-xl border border-primary/20 bg-primary/8 p-4 hover:border-primary/40 transition-all h-full flex flex-col justify-between">
             <div className="text-[10px] font-bold text-primary/80 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Sprout className="size-3" /> Soil Health
+              <Sprout className="size-3" /> Bed Health
             </div>
             <div className="flex items-end gap-1.5 mb-2.5">
-              <span className="text-2xl font-extrabold text-primary">{soilOptimal}</span>
-              <span className="text-xs text-muted-foreground mb-0.5">/ {soilReadings.length} optimal</span>
+              <span className="text-2xl font-extrabold text-primary">{bedsHealthy}</span>
+              <span className="text-xs text-muted-foreground mb-0.5">/ {beds.length || "–"} healthy</span>
             </div>
             <div className="flex gap-0.5 rounded-full overflow-hidden h-1.5">
-              <div className="bg-primary transition-all" style={{ width: `${(soilOptimal / soilReadings.length) * 100}%` }} />
-              <div className="bg-amber-400 transition-all"   style={{ width: `${(soilWarning  / soilReadings.length) * 100}%` }} />
-              <div className="bg-red-400 transition-all"     style={{ width: `${(soilCritical / soilReadings.length) * 100}%` }} />
+              <div className="bg-primary transition-all" style={{ width: `${beds.length ? (bedsHealthy / beds.length) * 100 : 0}%` }} />
+              <div className="bg-amber-400 transition-all"   style={{ width: `${beds.length ? (bedsWarning / beds.length) * 100 : 0}%` }} />
+              <div className="bg-red-400 transition-all"     style={{ width: `${beds.length ? (bedsInfected / beds.length) * 100 : 0}%` }} />
             </div>
             <div className="text-[10px] text-muted-foreground mt-1.5">
-              <span className="text-amber-400 font-semibold">{soilWarning} warn</span>
-              {soilCritical > 0 && <span className="text-red-400 font-semibold ml-1.5">{soilCritical} critical</span>}
+              <span className="text-amber-400 font-semibold">{bedsWarning} warn</span>
+              {bedsInfected > 0 && <span className="text-red-400 font-semibold ml-1.5">{bedsInfected} infected</span>}
             </div>
-          </div>
+          </Link>
         </Tooltip>
 
-        {/* Water Today */}
+        {/* Water used today (live) */}
         <Tooltip
-          content={`Total water applied today across all open zones. Main tank at ${mainTankPct}% capacity (${Math.round(TANK_LEVELS[0].currentL / 1000)} m³ remaining of ${TANK_LEVELS[0].capacityL / 1000} m³ total).`}
+          content={`Total water recorded in today's watering sessions (from the irrigation log).`}
           side="bottom" maxWidth="250px" wrapperClassName="h-full w-full">
-          <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-4 hover:border-sky-500/40 transition-all cursor-default h-full flex flex-col justify-between">
+          <Link href="/routines" className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-4 hover:border-sky-500/40 transition-all h-full flex flex-col justify-between">
             <div className="text-[10px] font-bold text-sky-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Activity className="size-3" /> Water Today
             </div>
             <div className="flex items-end gap-1.5 mb-2.5">
               <span className="text-2xl font-extrabold text-sky-300">
-                {totalWaterToday >= 1000 ? (totalWaterToday / 1000).toFixed(1) : Math.round(totalWaterToday)}
+                {(watering?.waterVolumeL ?? 0) >= 1000 ? ((watering?.waterVolumeL ?? 0) / 1000).toFixed(1) : Math.round(watering?.waterVolumeL ?? 0)}
               </span>
-              <span className="text-xs text-muted-foreground mb-0.5">{totalWaterToday >= 1000 ? "m³" : "L"}</span>
-            </div>
-            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-sky-400 rounded-full transition-all"
-                style={{ width: `${Math.min(100, mainTankPct)}%` }} />
+              <span className="text-xs text-muted-foreground mb-0.5">{(watering?.waterVolumeL ?? 0) >= 1000 ? "m³" : "L"}</span>
             </div>
             <div className="text-[10px] text-muted-foreground mt-1.5">
-              Tank <span className={cn("font-semibold",
-                mainTankPct < 25 ? "text-red-400" : mainTankPct < 50 ? "text-amber-400" : "text-sky-400"
-              )}>{mainTankPct}%</span> remaining
+              {(watering?.waterVolumeL ?? 0) > 0 ? "recorded in watering log" : "no watering logged yet"}
             </div>
-          </div>
+          </Link>
         </Tooltip>
 
         {/* Field Staff */}
@@ -377,33 +364,13 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="font-bold text-foreground">Alert Feed</div>
-              <InfoTip tip="AI camera detections and active disease reports. Camera alerts are from on-bed vision sensors. Disease reports are from supervisor inspections." />
+              <InfoTip tip="Active disease reports from supervisor inspections and AI photo analysis." />
             </div>
             <Badge variant="outline" className="text-[10px] tabular-nums">
-              {openDiseases + newCamAlerts} active
+              {openDiseases} active
             </Badge>
           </div>
           <div className="space-y-1.5 flex-1 overflow-y-auto max-h-64">
-            {cameraAlerts.filter(a => a.status === "new").slice(0, 3).map(a => (
-              <Link key={a.id} href="/iot"
-                className="flex items-start gap-2.5 p-2.5 rounded-lg border border-red-500/20 bg-red-500/8 hover:bg-red-500/12 transition-colors group">
-                <span className="size-1.5 rounded-full bg-red-500 mt-2 shrink-0 animate-pulse" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold text-red-300 truncate">📷 {a.label} — {a.bedId}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <Tooltip
-                      content={`Model confidence: ${Math.round(a.confidence * 100)}%. Above 80% = high confidence. Recommend visual verification and treatment log.`}
-                      side="right" maxWidth="220px">
-                      <span className="text-[10px] text-red-400 cursor-help underline decoration-dotted">
-                        {Math.round(a.confidence * 100)}% conf
-                      </span>
-                    </Tooltip>
-                    <span className="text-[10px] text-red-500/60">· {a.alertType}</span>
-                  </div>
-                </div>
-                <ChevronRight className="size-3.5 text-red-500/30 group-hover:text-red-400 mt-0.5 shrink-0 transition-colors" />
-              </Link>
-            ))}
             {diseases.filter(d => d.status !== "resolved").slice(0, 4).map(d => (
               <Link key={d.id} href="/diseases"
                 className="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/8 hover:bg-amber-500/12 transition-colors group">
@@ -426,16 +393,16 @@ export default function DashboardPage() {
                 <ChevronRight className="size-3.5 text-amber-500/30 group-hover:text-amber-400 mt-0.5 shrink-0 transition-colors" />
               </Link>
             ))}
-            {openDiseases === 0 && newCamAlerts === 0 && (
+            {openDiseases === 0 && (
               <div className="text-center text-muted-foreground text-xs py-8 flex flex-col items-center gap-2">
                 <span className="text-2xl">✅</span>
                 All clear — no active alerts
               </div>
             )}
           </div>
-          <Link href="/iot"
+          <Link href="/diseases"
             className="mt-3 pt-3 border-t border-border text-[11px] text-primary hover:text-primary/80 font-semibold text-center block transition-colors">
-            View IoT Control Center →
+            Manage diseases →
           </Link>
         </div>
       </div>

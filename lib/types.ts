@@ -136,7 +136,7 @@ export interface AttendanceRecord {
 
 export interface Notification {
   id: string;
-  type: "disease" | "harvest" | "irrigation" | "task" | "message";
+  type: "disease" | "harvest" | "irrigation" | "task" | "message" | "stock";
   channel: "telegram" | "sms" | "in-app";
   message: string;
   timestamp: string;

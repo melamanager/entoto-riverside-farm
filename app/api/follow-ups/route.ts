@@ -11,6 +11,13 @@ export async function GET(req: Request) {
   const assignedTo = searchParams.get("assignedTo");
   const entityType = searchParams.get("entityType");
 
+  // lazy overdue sweep: pending follow-ups past their due date become overdue
+  const today = new Date().toISOString().split("T")[0];
+  await prisma.followUp.updateMany({
+    where: { status: "pending", dueDate: { lt: today } },
+    data: { status: "overdue" },
+  });
+
   const records = await prisma.followUp.findMany({
     where: {
       ...(status ? { status: status as "pending" | "done" | "overdue" } : {}),

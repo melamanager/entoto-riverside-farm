@@ -26,5 +26,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     },
     include: { assignee: true, creator: true, children: { include: { assignee: true, creator: true } } },
   });
+
+  // notify completion — best effort
+  try {
+    await prisma.notification.create({
+      data: {
+        type: "task",
+        channel: "in_app",
+        message: `✅ Task "${updated.title}" completed by ${updated.assignee.name} — awaiting manager review`,
+        link: "/tasks",
+      },
+    });
+  } catch (e) {
+    console.error("task-completion notification failed", e);
+  }
+
   return NextResponse.json(updated);
 }

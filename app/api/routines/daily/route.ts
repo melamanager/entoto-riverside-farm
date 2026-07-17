@@ -62,6 +62,7 @@ export async function GET(req: Request) {
       totalValves: valves.length,
       sessions: irrigationLogs.length,
       skipped: irrigationLogs.filter((l) => l.status === "skipped").length,
+      waterVolumeL: irrigationLogs.reduce((s, l) => s + (l.waterVolumeL ?? 0), 0),
       valves: valves.map((v) => ({
         id: v.id,
         name: v.name,

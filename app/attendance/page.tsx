@@ -5,10 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save } from "lucide-react";
+import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users } from "lucide-react";
 import { toast } from "sonner";
 import type { Farmer, AttendanceRecord, AttendanceStatus, Valve } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
+import { useAuth } from "@/lib/auth";
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -17,8 +18,21 @@ const STATUS_ICONS = {
   leave: Palmtree,
 };
 
+const DEFAULT_CHECK_IN = "06:00";
+const DEFAULT_CHECK_OUT = "17:00";
+
+// "06:00" + "17:00" -> 11.0 (hours, 1 decimal); null when either time is missing
+function hoursBetween(checkIn?: string | null, checkOut?: string | null): number | null {
+  if (!checkIn || !checkOut) return null;
+  const [ih, im] = checkIn.split(":").map(Number);
+  const [oh, om] = checkOut.split(":").map(Number);
+  const diff = (oh * 60 + om - (ih * 60 + im)) / 60;
+  return diff > 0 ? Math.round(diff * 10) / 10 : null;
+}
+
 export default function AttendancePage() {
   const options = useOptions();
+  const { user } = useAuth();
   const statuses = options.attendanceStatuses.map(s => ({
     value: s.value as AttendanceStatus,
     label: s.label,
@@ -29,9 +43,12 @@ export default function AttendancePage() {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [valves, setValves] = useState<Valve[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
   const [checkIns, setCheckIns] = useState<Record<string, string>>({});
+  const [checkOuts, setCheckOuts] = useState<Record<string, string>>({});
+  const [recorders, setRecorders] = useState<Record<string, string>>({});
   const [viewDate, setViewDate] = useState(today);
   const [saved, setSaved] = useState(false);
 
@@ -47,11 +64,12 @@ export default function AttendancePage() {
       setFarmers((farmData as Farmer[]).filter(f => f.role !== "manager"));
       setValves(valveData as Valve[]);
       const records = attData as AttendanceRecord[];
-      setSelected(Object.fromEntries(records.map((a: AttendanceRecord) => [a.farmerId, a.status])));
-      setCheckIns(Object.fromEntries(records.filter((a: AttendanceRecord) => a.checkInTime).map((a: AttendanceRecord) => [a.farmerId, a.checkInTime!])));
+      setSelected(Object.fromEntries(records.map(a => [a.farmerId, a.status])));
+      setCheckIns(Object.fromEntries(records.filter(a => a.checkInTime).map(a => [a.farmerId, a.checkInTime!])));
+      setCheckOuts(Object.fromEntries(records.filter(a => a.checkOutTime).map(a => [a.farmerId, a.checkOutTime!])));
       setLoading(false);
     });
-  }, []);
+  }, [today]);
 
   // Refetch historic records when viewDate changes (and it's not today)
   useEffect(() => {
@@ -61,31 +79,80 @@ export default function AttendancePage() {
     }
     fetch(`/api/attendance?date=${viewDate}`)
       .then(r => r.json())
-      .then(data => setHistoricRecords(data as AttendanceRecord[]));
-  }, [viewDate]);
+      .then(data => {
+        const recs = data as (AttendanceRecord & { recorder?: { name: string } })[];
+        setHistoricRecords(recs);
+        setRecorders(Object.fromEntries(recs.map(r => [r.farmerId, (r as { recorder?: { name: string } }).recorder?.name ?? r.recordedBy])));
+      });
+  }, [viewDate, today]);
 
   function setStatus(farmerId: string, status: AttendanceStatus) {
     setSelected(prev => ({ ...prev, [farmerId]: status }));
     setSaved(false);
   }
 
+  function markAllPresent() {
+    setSelected(Object.fromEntries(farmers.map(f => [f.id, "present" as AttendanceStatus])));
+    setSaved(false);
+    toast.info("All staff marked present — adjust exceptions, then save.");
+  }
+
   async function saveAttendance() {
-    const body = farmers.map(f => ({
-      farmerId: f.id,
-      date: today,
-      status: selected[f.id] ?? "absent",
-      checkInTime: checkIns[f.id] ?? null,
-      recordedBy: "supervisor",
-    }));
-    await fetch("/api/attendance", {
+    if (!user) { toast.error("Session expired — please sign in again."); return; }
+    if (Object.keys(selected).length === 0) { toast.error("Mark at least one staff member first."); return; }
+    setSaving(true);
+    const body = farmers
+      .filter(f => selected[f.id])
+      .map(f => {
+        const status = selected[f.id];
+        const working = status === "present" || status === "late";
+        const checkIn = working ? (checkIns[f.id] ?? DEFAULT_CHECK_IN) : undefined;
+        const checkOut = working ? (checkOuts[f.id] ?? undefined) : undefined;
+        const hours = working ? hoursBetween(checkIn, checkOut) : 0;
+        return {
+          farmerId: f.id,
+          date: today,
+          status,
+          checkInTime: checkIn ?? null,
+          checkOutTime: checkOut ?? null,
+          hoursWorked: hours ?? undefined,
+          overtimeHours: hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - 8) * 10) / 10) : 0,
+          recordedBy: user.id,
+        };
+      });
+    const res = await fetch("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error("Failed to save attendance", { description: "Check your connection and try again." });
+      return;
+    }
     toast.success("Attendance saved", {
-      description: `Recorded for ${Object.keys(selected).length} staff members.`,
+      description: `${body.length} staff recorded by ${user.name}. Hours & overtime calculated from check-in/out.`,
     });
     setSaved(true);
+  }
+
+  function exportCsv() {
+    const header = "Date,Staff,Status,Check-in,Check-out,Hours,Overtime";
+    const rows = farmers.map(f => {
+      const status = selected[f.id] ?? "";
+      const working = status === "present" || status === "late";
+      const ci = working ? (checkIns[f.id] ?? DEFAULT_CHECK_IN) : "";
+      const co = working ? (checkOuts[f.id] ?? "") : "";
+      const hours = working ? hoursBetween(ci, co) : 0;
+      const ot = hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - 8) * 10) / 10) : "";
+      return [today, f.name, status, ci, co, hours ?? "", ot].join(",");
+    });
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `attendance-${today}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   const presentCount = Object.values(selected).filter(s => s === "present").length;
@@ -108,15 +175,19 @@ export default function AttendancePage() {
           <p className="text-muted-foreground text-sm">Daily attendance tracking for all farm staff</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={markAllPresent}>
+            <Users className="size-3.5" /> Mark All Present
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={exportCsv}>
             <Download className="size-3.5" /> Export CSV
           </Button>
           <Button
             size="sm"
             className="gap-2 bg-primary hover:bg-primary/90"
             onClick={saveAttendance}
+            disabled={saving}
           >
-            <Save className="size-3.5" /> Save Attendance
+            <Save className="size-3.5" /> {saving ? "Saving…" : "Save Attendance"}
           </Button>
         </div>
       </div>
@@ -155,9 +226,10 @@ export default function AttendancePage() {
             <thead>
               <tr>
                 <th>Staff Member</th>
-                <th>Role</th>
                 <th>Assigned Valve</th>
-                <th>Check-in Time</th>
+                <th>Check-in</th>
+                <th>Check-out</th>
+                <th>Hours / OT</th>
                 <th className="text-center" colSpan={4}>Mark Attendance</th>
                 <th>Current Status</th>
               </tr>
@@ -166,6 +238,9 @@ export default function AttendancePage() {
               {farmers.map(f => {
                 const valve = valves.filter(v => f.assignedValves.includes(v.id));
                 const status = selected[f.id];
+                const working = status === "present" || status === "late";
+                const hours = working ? hoursBetween(checkIns[f.id] ?? DEFAULT_CHECK_IN, checkOuts[f.id]) : null;
+                const ot = hours !== null ? Math.max(0, Math.round((hours - 8) * 10) / 10) : null;
                 const StatusIcon = status ? STATUS_ICONS[status] : null;
                 return (
                   <tr key={f.id}>
@@ -176,11 +251,10 @@ export default function AttendancePage() {
                         </Avatar>
                         <div>
                           <div className="font-semibold text-foreground text-sm">{f.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{f.phone}</div>
+                          <div className="text-[11px] text-muted-foreground capitalize">{f.role} · {f.phone}</div>
                         </div>
                       </div>
                     </td>
-                    <td><Badge variant="outline" className="text-[10px] capitalize">{f.role}</Badge></td>
                     <td>
                       <div className="flex gap-1">
                         {valve.map(v=>(
@@ -191,10 +265,31 @@ export default function AttendancePage() {
                     <td>
                       <input
                         type="time"
-                        value={checkIns[f.id] ?? "06:00"}
-                        onChange={e => setCheckIns(prev=>({...prev,[f.id]:e.target.value}))}
-                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground"
+                        value={checkIns[f.id] ?? DEFAULT_CHECK_IN}
+                        disabled={!working}
+                        onChange={e => { setCheckIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
                       />
+                    </td>
+                    <td>
+                      <input
+                        type="time"
+                        value={checkOuts[f.id] ?? ""}
+                        disabled={!working}
+                        placeholder={DEFAULT_CHECK_OUT}
+                        onChange={e => { setCheckOuts(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
+                      />
+                    </td>
+                    <td className="tabular-nums text-xs">
+                      {hours !== null ? (
+                        <span>
+                          {hours}h
+                          {ot !== null && ot > 0 && <span className="text-indigo-600 font-semibold ml-1">+{ot} OT</span>}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                     {statuses.map(s => (
                       <td key={s.value} className="text-center px-2">
@@ -236,9 +331,12 @@ export default function AttendancePage() {
         </div>
 
         <div className="flex items-center justify-between px-5 py-3 bg-muted border-t border-border">
-          <div className="text-xs text-muted-foreground">Recorded by: Selam Girma (Supervisor)</div>
-          <Button onClick={saveAttendance} className="bg-primary hover:bg-primary/90 gap-2 text-sm" size="sm">
-            <Save className="size-3.5" /> Save & Submit
+          <div className="text-xs text-muted-foreground">
+            Recorded by: <span className="font-semibold text-foreground/80">{user?.name ?? "—"}</span>
+            <span className="capitalize"> ({user?.role ?? ""})</span>
+          </div>
+          <Button onClick={saveAttendance} disabled={saving} className="bg-primary hover:bg-primary/90 gap-2 text-sm" size="sm">
+            <Save className="size-3.5" /> {saving ? "Saving…" : "Save & Submit"}
           </Button>
         </div>
       </Card>
@@ -260,7 +358,7 @@ export default function AttendancePage() {
             <table className="w-full pro-table">
               <thead>
                 <tr>
-                  <th>Farmer</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th>
+                  <th>Farmer</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th><th>Overtime</th><th>Recorded By</th>
                 </tr>
               </thead>
               <tbody>
@@ -287,6 +385,12 @@ export default function AttendancePage() {
                       <td className="tabular-nums text-foreground/70">{rec?.checkInTime ?? "—"}</td>
                       <td className="tabular-nums text-foreground/70">{rec?.checkOutTime ?? "—"}</td>
                       <td className="tabular-nums text-foreground/70">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
+                      <td className="tabular-nums text-foreground/70">
+                        {rec?.overtimeHours && rec.overtimeHours > 0
+                          ? <span className="text-indigo-600 font-semibold">{rec.overtimeHours}h</span>
+                          : "—"}
+                      </td>
+                      <td className="text-foreground/70 text-xs">{rec ? (recorders[f.id] ?? rec.recordedBy) : "—"}</td>
                     </tr>
                   );
                 })}
