@@ -14,7 +14,9 @@ export async function GET(req: Request) {
     orderBy: [{ valveId: "asc" }, { id: "asc" }],
   });
 
-  return NextResponse.json(beds);
+  return NextResponse.json(beds, {
+    headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" },
+  });
 }
 
 export async function POST(req: Request) {

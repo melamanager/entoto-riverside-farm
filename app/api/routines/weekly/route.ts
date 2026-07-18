@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { todayAddis } from "@/lib/dates";
 import { complianceForRange, countedDaySet } from "@/lib/compliance";
+import { getFarmConfig } from "@/lib/config";
 
 function isoDate(d: Date) {
   return d.toISOString().split("T")[0];
@@ -73,12 +74,13 @@ export async function GET(req: Request) {
   const stockInETB = byType("stock_in").reduce((s, t) => s + txnValue(t), 0);
 
   // ── Overtime / payroll summary ─────────────────────────────────────────────
-  // latest known daily wage per farmer (most recent payroll record), fallback 400 ETB
+  // latest known daily wage per farmer (most recent payroll record), config fallback
+  const cfg = await getFarmConfig();
   const wageByFarmer = new Map<string, number>();
   for (const p of payrollRecords) {
     if (!wageByFarmer.has(p.farmerId)) wageByFarmer.set(p.farmerId, Number(p.dailyWage));
   }
-  const DEFAULT_DAILY_WAGE = 400;
+  const DEFAULT_DAILY_WAGE = cfg.defaultDailyWage;
 
   // Business rule: a supervisor's day with no routine records does not count as
   // worked unless a manager acknowledged it.
@@ -118,7 +120,7 @@ export async function GET(req: Request) {
 
   const overtimeRows = Array.from(perWorker.values()).map((w) => {
     const dailyWage = wageByFarmer.get(w.farmerId) ?? DEFAULT_DAILY_WAGE;
-    const overtimePay = Math.round(w.overtimeHours * (dailyWage / 8) * 1.5 * 100) / 100;
+    const overtimePay = Math.round(w.overtimeHours * (dailyWage / cfg.workdayHours) * cfg.overtimeMultiplier * 100) / 100;
     return { ...w, dailyWage, overtimePay };
   });
 

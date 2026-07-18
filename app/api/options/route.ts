@@ -26,7 +26,9 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json(out);
+  return NextResponse.json(out, {
+    headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=600" },
+  });
 }
 
 export async function PATCH(req: Request) {

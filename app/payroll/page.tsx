@@ -36,6 +36,7 @@ export default function PayrollPage() {
   const [allRecords, setAllRecords] = useState<PayrollRecord[]>([]);
   const [farmers, setFarmers]       = useState<Farmer[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [cfg, setCfg] = useState({ workdayHours: 8, overtimeMultiplier: 1.5 });
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [overrides, setOverrides] = useState<Record<string, Partial<PayrollRecord>>>({});
 
@@ -48,6 +49,7 @@ export default function PayrollPage() {
     });
     fetch("/api/farmers").then(r => r.json()).then(setFarmers);
     fetch("/api/attendance").then(r => r.json()).then(setAttendance);
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(c => c && setCfg({ workdayHours: c.workdayHours ?? 8, overtimeMultiplier: c.overtimeMultiplier ?? 1.5 }));
   }, []);
 
   const months = [...new Set(allRecords.map(r => r.month))].sort().reverse();
@@ -137,9 +139,9 @@ export default function PayrollPage() {
       const totalHours = farmerAtt.reduce((s, a) => s + (a.hoursWorked ?? 0), 0);
       // prefer explicitly recorded daily overtime (Daily Routines page); fall back to derived estimate
       const recordedOT = farmerAtt.reduce((s, a) => s + (a.overtimeHours ?? 0), 0);
-      const overtimeHours = recordedOT > 0 ? recordedOT : Math.max(0, totalHours - daysWorked * 8);
+      const overtimeHours = recordedOT > 0 ? recordedOT : Math.max(0, totalHours - daysWorked * cfg.workdayHours);
       const basePay   = daysWorked * rec.dailyWage;
-      const overtimePay = Math.round(overtimeHours * (rec.dailyWage / 8) * 1.5);
+      const overtimePay = Math.round(overtimeHours * (rec.dailyWage / cfg.workdayHours) * cfg.overtimeMultiplier);
       const netPay    = basePay + overtimePay + rec.bonus - rec.deductions;
       newOverrides[rec.id] = { daysWorked, overtimeHours, basePay, overtimePay, netPay };
     });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/notifications";
+import { getFarmConfig } from "@/lib/config";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
         link: "/tasks",
       },
     });
-    if (task.priority === "high") {
+    if (task.priority === "high" && (await getFarmConfig()).notifyTasks) {
       await sendTelegram(
         `📋 <b>High-priority task — Entoto Farm</b>\n\n<b>${task.title}</b>\nAssigned to: ${task.assignee.name}\nDue: ${task.dueDate}`
       );

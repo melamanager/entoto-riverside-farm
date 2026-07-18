@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { sendTelegram } from "@/lib/notifications";
 import { todayAddis } from "@/lib/dates";
+import { getFarmConfig } from "@/lib/config";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -50,8 +51,8 @@ export async function POST(req: Request) {
 
   // daily-target milestone — best effort
   try {
-    const targetSetting = await prisma.appSetting.findUnique({ where: { key: "harvest_daily_target_kg" } });
-    const target = Number(targetSetting?.value ?? 50);
+    const cfg = await getFarmConfig();
+    const target = cfg.harvestDailyTargetKg;
     const agg = await prisma.harvestRecord.aggregate({ where: { date: record.date }, _sum: { kg: true } });
     const totalAfter = Number(agg._sum.kg ?? 0);
     const totalBefore = totalAfter - Number(body.kg);
@@ -64,9 +65,11 @@ export async function POST(req: Request) {
           link: "/harvest",
         },
       });
-      await sendTelegram(
-        `🎉 <b>Harvest target reached — Entoto Farm</b>\n\n<b>${totalAfter.toFixed(1)} kg</b> collected today (target ${target} kg). Great work!`
-      );
+      if (cfg.notifyHarvest) {
+        await sendTelegram(
+          `🎉 <b>Harvest target reached — Entoto Farm</b>\n\n<b>${totalAfter.toFixed(1)} kg</b> collected today (target ${target} kg). Great work!`
+        );
+      }
     }
   } catch (e) {
     console.error("harvest milestone notification failed", e);

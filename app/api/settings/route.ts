@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptSecret } from "@/lib/crypto";
+import { CONFIG_KEYS } from "@/lib/config";
 
-const ALLOWED_KEYS = [
-  "sms_token", "sms_base_url", "sms_enabled",
-  "telegram_token", "telegram_chat_id", "telegram_enabled",
-  "weather_api_key",
+// Integration credentials (secret — encrypted at rest, never returned raw)
+const SECRET_KEYS = ["sms_token", "telegram_token", "weather_api_key"];
+// Non-secret integration + operational config
+const PLAIN_KEYS = [
+  "sms_base_url", "sms_enabled",
+  "telegram_chat_id", "telegram_enabled",
+  ...CONFIG_KEYS,
 ];
+const ALLOWED_KEYS = [...SECRET_KEYS, ...PLAIN_KEYS];
 
-function maskToken(value: string): string {
-  if (!value || value.length <= 8) return "••••••••";
-  return "••••" + value.slice(-4);
+function isSecret(key: string) {
+  return key.endsWith("_token") || key.endsWith("_key");
+}
+function mask(value: string): string {
+  if (!value) return "";
+  return value.length <= 8 ? "••••••••" : "••••" + value.slice(-4);
 }
 
 export async function GET() {
@@ -18,10 +27,16 @@ export async function GET() {
   if (session?.user?.role !== "manager") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const rows = await prisma.appSetting.findMany();
-  const out: Record<string, string> = {};
+  const rows = await prisma.appSetting.findMany({ where: { key: { in: ALLOWED_KEYS } } });
+  const out: Record<string, string | boolean> = {};
   for (const r of rows) {
-    out[r.key] = r.key.endsWith("_token") ? maskToken(r.value) : r.value;
+    // secrets are only ever exposed as a masked hint + a configured flag
+    if (isSecret(r.key)) {
+      out[r.key] = r.value ? mask("set") : "";
+      out[`${r.key}_configured`] = !!r.value;
+    } else {
+      out[r.key] = r.value;
+    }
   }
   return NextResponse.json(out);
 }
@@ -31,16 +46,23 @@ export async function PATCH(req: Request) {
   if (session?.user?.role !== "manager") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const body = await req.json() as Record<string, string>;
-  for (const [key, value] of Object.entries(body)) {
+  const body = await req.json() as Record<string, string | boolean>;
+  let updated = 0;
+  for (const [key, raw] of Object.entries(body)) {
     if (!ALLOWED_KEYS.includes(key)) continue;
-    if (typeof value !== "string") continue;
-    if (value.startsWith("••••")) continue; // unchanged masked value
-    await prisma.appSetting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value },
-    });
+    const value = typeof raw === "boolean" ? String(raw) : String(raw ?? "");
+    if (isSecret(key)) {
+      // an empty or masked value means "leave unchanged"
+      if (!value || value.startsWith("••••")) continue;
+      await prisma.appSetting.upsert({
+        where: { key },
+        update: { value: encryptSecret(value) },
+        create: { key, value: encryptSecret(value) },
+      });
+    } else {
+      await prisma.appSetting.upsert({ where: { key }, update: { value }, create: { key, value } });
+    }
+    updated++;
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, updated });
 }

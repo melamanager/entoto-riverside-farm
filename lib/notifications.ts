@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { decryptSecret } from "@/lib/crypto";
 
 async function getSetting(key: string): Promise<string | null> {
   const s = await prisma.appSetting.findUnique({ where: { key } });
-  return s?.value || null;
+  if (!s?.value) return null;
+  // secrets are stored encrypted at rest — decrypt for use
+  return key.endsWith("_token") || key.endsWith("_key") ? decryptSecret(s.value) : s.value;
 }
 
 export async function sendSmsEthiopia(to: string, message: string) {

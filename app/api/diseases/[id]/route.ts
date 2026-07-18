@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/notifications";
 import { todayAddis } from "@/lib/dates";
+import { getFarmConfig } from "@/lib/config";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -28,9 +29,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (body.status === "notified" && before.status !== "notified") {
       // 1) alert the supervisor
-      const tg = await sendTelegram(
-        `📋 <b>Treatment Recommendation — Entoto Farm</b>\n\n<b>Bed:</b> <code>${report.bedId}</code>\n<b>Disease:</b> ${label}\n\n${report.managerRecommendation ?? ""}\n\nOpen the ERP → Diseases to confirm treatment.`
-      );
+      const tg = (await getFarmConfig()).notifyDisease
+        ? await sendTelegram(
+            `📋 <b>Treatment Recommendation — Entoto Farm</b>\n\n<b>Bed:</b> <code>${report.bedId}</code>\n<b>Disease:</b> ${label}\n\n${report.managerRecommendation ?? ""}\n\nOpen the ERP → Diseases to confirm treatment.`
+          )
+        : { ok: false };
       const channels = tg.ok ? ["telegram"] : [];
 
       // 2) turn the recommendation into a PRIORITY daily task for the responsible

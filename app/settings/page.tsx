@@ -1,125 +1,122 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Settings, Bell, Cpu, Zap, Clock, Droplets, Camera, Radio,
-  Save, Wifi, WifiOff, Sliders, CalendarClock, Bot,
+  Settings, Bell, Save, Sliders, Send, DollarSign, Wheat, Clock, MessageSquare, KeyRound, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { VALVES, VALVE_STATES, SOIL_READINGS, CAMERA_ALERTS, BEDS } from "@/lib/data";
+import { CONFIG_DEFAULTS } from "@/lib/config";
 
-type TabKey = "notifications" | "irrigation" | "iot" | "ai" | "farm";
-
-interface IrrigationConfig {
-  valveId: string;
-  morningTime: string;
-  eveningTime: string;
-  durationMin: number;
-  autoEnabled: boolean;
-}
-
-interface AIConfig {
-  diseaseConfidenceThreshold: number;
-  soilMoistureAlertPct: number;
-  workerAnomalySensitivity: "low" | "medium" | "high";
-  autoRunMorning: boolean;
-  autoRunEvening: boolean;
-  moldRiskAlertScore: number;
-}
-
-const INITIAL_IRRIGATION: IrrigationConfig[] = VALVES.map(v => ({
-  valveId: v.id,
-  morningTime: v.id === "valve-a" ? "06:00" : v.id === "valve-b" ? "06:30" : "07:00",
-  eveningTime: v.id === "valve-a" ? "17:00" : v.id === "valve-b" ? "17:30" : "18:00",
-  durationMin: v.id === "valve-c" ? 30 : 25,
-  autoEnabled: true,
-}));
-
-const INITIAL_AI: AIConfig = {
-  diseaseConfidenceThreshold: 70,
-  soilMoistureAlertPct: 45,
-  workerAnomalySensitivity: "medium",
-  autoRunMorning: true,
-  autoRunEvening: false,
-  moldRiskAlertScore: 60,
-};
-
-const CAMERA_CONFIG = CAMERA_ALERTS.map(ca => ({
-  id: ca.cameraId,
-  bedId: ca.bedId,
-  enabled: true,
-  lastSeen: ca.detectedAt,
-}));
-
-const SENSOR_CONFIG = SOIL_READINGS().slice(0, 6).map((sr, i) => ({
-  id: `sensor-${i + 1}`,
-  bedId: sr.bedId,
-  type: "soil" as const,
-  online: sr.status !== "critical",
-  lastReading: sr.recordedAt,
-}));
+type TabKey = "operations" | "integrations" | "notifications";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted-foreground/30"}`}
-    >
+    <button type="button" onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted-foreground/30"}`}>
       <span className={`inline-block size-3.5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
     </button>
   );
 }
 
+const num = (v: string, d: number) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+
 export default function SettingsPage() {
   const { isManager } = useAuth();
-  const [tab, setTab] = useState<TabKey>("irrigation");
+  const [tab, setTab] = useState<TabKey>("operations");
+  const [saving, setSaving] = useState(false);
 
-  // Notifications state (stored in memory for demo)
-  const [smsEnabled, setSmsEnabled] = useState(true);
+  // operational config
+  const [farmName, setFarmName] = useState(CONFIG_DEFAULTS.farmName);
+  const [harvestTarget, setHarvestTarget] = useState(CONFIG_DEFAULTS.harvestDailyTargetKg);
+  const [dailyWage, setDailyWage] = useState(CONFIG_DEFAULTS.defaultDailyWage);
+  const [workdayHours, setWorkdayHours] = useState(CONFIG_DEFAULTS.workdayHours);
+  const [otMultiplier, setOtMultiplier] = useState(CONFIG_DEFAULTS.overtimeMultiplier);
+  const [kgPerM, setKgPerM] = useState(CONFIG_DEFAULTS.targetKgPerM);
+
+  // notifications
+  const [notify, setNotify] = useState({ disease: true, lowstock: true, tasks: true, harvest: true });
   const [telegramEnabled, setTelegramEnabled] = useState(true);
-  const [notifyDisease, setNotifyDisease] = useState(true);
-  const [notifyHarvest, setNotifyHarvest] = useState(true);
-  const [notifyIrrigation, setNotifyIrrigation] = useState(false);
-  const [notifyTasks, setNotifyTasks] = useState(true);
+  const [smsEnabled, setSmsEnabled] = useState(false);
 
-  // Irrigation state
-  const [irrigation, setIrrigation] = useState<IrrigationConfig[]>(INITIAL_IRRIGATION);
+  // integrations (secrets are write-only; we only learn whether they're configured)
+  const [telegramToken, setTelegramToken] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [smsToken, setSmsToken] = useState("");
+  const [smsBaseUrl, setSmsBaseUrl] = useState("");
+  const [configured, setConfigured] = useState<Record<string, boolean>>({});
+  const [testing, setTesting] = useState(false);
 
-  // AI config state
-  const [aiConfig, setAiConfig] = useState<AIConfig>(INITIAL_AI);
+  useEffect(() => {
+    if (!isManager) return;
+    fetch("/api/settings").then(r => r.ok ? r.json() : {}).then((s: Record<string, string | boolean>) => {
+      if (s.farm_name) setFarmName(String(s.farm_name));
+      if (s.harvest_daily_target_kg) setHarvestTarget(num(String(s.harvest_daily_target_kg), harvestTarget));
+      if (s.default_daily_wage) setDailyWage(num(String(s.default_daily_wage), dailyWage));
+      if (s.workday_hours) setWorkdayHours(num(String(s.workday_hours), workdayHours));
+      if (s.overtime_multiplier) setOtMultiplier(num(String(s.overtime_multiplier), otMultiplier));
+      if (s.target_kg_per_m) setKgPerM(num(String(s.target_kg_per_m), kgPerM));
+      setNotify({
+        disease: s.notify_disease !== "false",
+        lowstock: s.notify_lowstock !== "false",
+        tasks: s.notify_tasks !== "false",
+        harvest: s.notify_harvest !== "false",
+      });
+      if (s.telegram_enabled !== undefined) setTelegramEnabled(s.telegram_enabled !== "false");
+      if (s.sms_enabled !== undefined) setSmsEnabled(s.sms_enabled === "true");
+      if (s.telegram_chat_id) setTelegramChatId(String(s.telegram_chat_id));
+      if (s.sms_base_url) setSmsBaseUrl(String(s.sms_base_url));
+      setConfigured({
+        telegram_token: !!s.telegram_token_configured,
+        sms_token: !!s.sms_token_configured,
+        weather_api_key: !!s.weather_api_key_configured,
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManager]);
 
-  // IoT device enabled state
-  const [cameraEnabled, setCameraEnabled] = useState<Record<string, boolean>>(
-    Object.fromEntries(CAMERA_CONFIG.map(c => [c.id, c.enabled]))
-  );
-  const [sensorEnabled, setSensorEnabled] = useState<Record<string, boolean>>(
-    Object.fromEntries(SENSOR_CONFIG.map(s => [s.id, s.online]))
-  );
+  async function save() {
+    setSaving(true);
+    const body: Record<string, string> = {
+      farm_name: farmName,
+      harvest_daily_target_kg: String(harvestTarget),
+      default_daily_wage: String(dailyWage),
+      workday_hours: String(workdayHours),
+      overtime_multiplier: String(otMultiplier),
+      target_kg_per_m: String(kgPerM),
+      notify_disease: String(notify.disease),
+      notify_lowstock: String(notify.lowstock),
+      notify_tasks: String(notify.tasks),
+      notify_harvest: String(notify.harvest),
+      telegram_enabled: String(telegramEnabled),
+      sms_enabled: String(smsEnabled),
+      telegram_chat_id: telegramChatId,
+      sms_base_url: smsBaseUrl,
+    };
+    // only send secrets that were actually typed (empty = leave unchanged)
+    if (telegramToken.trim()) body.telegram_token = telegramToken.trim();
+    if (smsToken.trim()) body.sms_token = smsToken.trim();
 
-  // Farm config
-  const [farmName, setFarmName] = useState("ENTOTO Riverside Farm");
-  const [altitudeM, setAltitudeM] = useState(2800);
-  const [targetKgPerM, setTargetKgPerM] = useState(0.38);
-  const [workStartTime, setWorkStartTime] = useState("06:00");
-  const [workEndTime, setWorkEndTime] = useState("17:00");
-
-  function saveAll() {
-    toast.success("Settings saved", { description: "All configuration changes applied successfully." });
+    const res = await fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSaving(false);
+    if (!res.ok) { toast.error("Failed to save settings"); return; }
+    toast.success("Settings saved", { description: "Applied across the farm. Payroll, targets and alerts now use these values." });
+    setTelegramToken(""); setSmsToken("");
+    if (body.telegram_token) setConfigured(c => ({ ...c, telegram_token: true }));
+    if (body.sms_token) setConfigured(c => ({ ...c, sms_token: true }));
   }
 
-  const TABS = [
-    { key: "irrigation" as TabKey, label: "Irrigation Scheduler", icon: Droplets },
-    { key: "iot" as TabKey, label: "IoT Devices", icon: Cpu },
-    { key: "ai" as TabKey, label: "AI Settings", icon: Bot },
-    { key: "notifications" as TabKey, label: "Notifications", icon: Bell },
-    { key: "farm" as TabKey, label: "Farm Config", icon: Settings },
-  ];
+  async function testTelegram() {
+    setTesting(true);
+    const res = await fetch("/api/settings/test-telegram", { method: "POST" });
+    setTesting(false);
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) toast.success("Test message sent — check Telegram");
+    else toast.error("Telegram test failed", { description: d.error ?? "Set the bot token + chat id, save, then retry." });
+  }
 
   if (!isManager) {
     return (
@@ -130,523 +127,175 @@ export default function SettingsPage() {
     );
   }
 
+  const TABS = [
+    { key: "operations" as TabKey, label: "Farm Operations", icon: Sliders },
+    { key: "integrations" as TabKey, label: "Integrations", icon: KeyRound },
+    { key: "notifications" as TabKey, label: "Notifications", icon: Bell },
+  ];
+  const inputCls = "w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring";
+
   return (
-    <div className="p-6 md:p-8 max-w-[1200px] mx-auto space-y-6">
-      {/* Header */}
+    <div className="p-6 md:p-8 max-w-[1000px] mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Settings className="size-5 text-primary" />
             <h1 className="text-2xl font-bold">Settings & Configuration</h1>
           </div>
-          <p className="text-sm text-muted-foreground">Manage irrigation schedules, IoT devices, AI agents, and farm settings</p>
+          <p className="text-sm text-muted-foreground">Operational parameters, integrations and alert preferences — applied live across the farm.</p>
         </div>
-        <Button onClick={saveAll} className="gap-2">
-          <Save className="size-4" /> Save All Changes
-        </Button>
+        <Button onClick={save} disabled={saving} className="gap-2"><Save className="size-4" /> {saving ? "Saving…" : "Save Changes"}</Button>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-border overflow-x-auto pb-0">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-              tab === t.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <t.icon className="size-3.5" />
-            {t.label}
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
+        {TABS.map(tb => (
+          <button key={tb.key} onClick={() => setTab(tb.key)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${tab === tb.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <tb.icon className="size-3.5" /> {tb.label}
           </button>
         ))}
       </div>
 
-      {/* ── Irrigation Scheduler ────────────────────────────────────────────── */}
-      {tab === "irrigation" && (
+      {tab === "operations" && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CalendarClock className="size-4 text-primary" />
-            <h2 className="font-semibold text-foreground">Irrigation Schedule — All Zones</h2>
-          </div>
-          {irrigation.map((cfg, i) => {
-            const valve = VALVES.find(v => v.id === cfg.valveId)!;
-            const state = VALVE_STATES.find(vs => vs.valveId === cfg.valveId);
-            return (
-              <Card key={cfg.valveId} className="p-5">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-lg grid place-items-center text-white text-sm font-bold shadow" style={{ background: valve.color }}>
-                      {valve.name.split(" ")[1]}
-                    </div>
-                    <div>
-                      <div className="font-semibold">{valve.name}</div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className={`size-1.5 rounded-full ${state?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`} />
-                        {state?.isOpen ? "Currently open" : "Currently closed"} · {state?.mode} mode
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Auto irrigation</span>
-                    <Toggle
-                      checked={cfg.autoEnabled}
-                      onChange={v => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, autoEnabled: v } : c))}
-                    />
-                  </div>
-                </div>
-
-                <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${!cfg.autoEnabled ? "opacity-50 pointer-events-none" : ""}`}>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Morning Start</label>
-                    <input
-                      type="time"
-                      value={cfg.morningTime}
-                      onChange={e => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, morningTime: e.target.value } : c))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Evening Start</label>
-                    <input
-                      type="time"
-                      value={cfg.eveningTime}
-                      onChange={e => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, eveningTime: e.target.value } : c))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Duration (min)</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={5}
-                        max={120}
-                        value={cfg.durationMin}
-                        onChange={e => setIrrigation(prev => prev.map((c, j) => j === i ? { ...c, durationMin: Number(e.target.value) } : c))}
-                        className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-card text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                      <span className="text-sm text-muted-foreground">minutes</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><Clock className="size-3" /> Next: {state?.nextScheduledEvent}</span>
-                  <span>Today used: {state?.totalLitersToday?.toLocaleString()} L</span>
-                  <span>{state?.pressureBar} bar · {BEDS().filter(b => b.valveId === valve.id).length} beds</span>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── IoT Devices ─────────────────────────────────────────────────────── */}
-      {tab === "iot" && (
-        <div className="space-y-5">
-          {/* Cameras */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Camera className="size-4 text-primary" />
-              <h2 className="font-semibold">Cameras</h2>
-              <Badge variant="outline" className="text-[10px]">{Object.values(cameraEnabled).filter(Boolean).length} / {CAMERA_CONFIG.length} online</Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {CAMERA_CONFIG.map(cam => (
-                <Card key={cam.id} className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`size-8 rounded-lg grid place-items-center ${cameraEnabled[cam.id] ? "bg-emerald-100 dark:bg-emerald-950/40" : "bg-muted"}`}>
-                        <Camera className={`size-4 ${cameraEnabled[cam.id] ? "text-emerald-600" : "text-muted-foreground"}`} />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold">{cam.id}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Bed <Link href={`/beds/${cam.bedId}`} className="hover:text-primary font-mono">{cam.bedId}</Link>
-                        </div>
-                      </div>
-                    </div>
-                    <Toggle
-                      checked={cameraEnabled[cam.id]}
-                      onChange={v => setCameraEnabled(p => ({ ...p, [cam.id]: v }))}
-                    />
-                  </div>
-                  <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1.5">
-                    {cameraEnabled[cam.id] ? <Wifi className="size-3 text-emerald-500" /> : <WifiOff className="size-3" />}
-                    Last active: {new Date(cam.lastSeen).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Soil sensors */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Radio className="size-4 text-primary" />
-              <h2 className="font-semibold">Soil Sensors</h2>
-              <Badge variant="outline" className="text-[10px]">{Object.values(sensorEnabled).filter(Boolean).length} / {SENSOR_CONFIG.length} online</Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {SENSOR_CONFIG.map(sensor => {
-                const reading = SOIL_READINGS().find(sr => sr.bedId === sensor.bedId);
-                return (
-                  <Card key={sensor.id} className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="text-sm font-semibold">{sensor.id}</div>
-                        <div className="text-[11px] text-muted-foreground font-mono">{sensor.bedId}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Toggle
-                          checked={sensorEnabled[sensor.id]}
-                          onChange={v => setSensorEnabled(p => ({ ...p, [sensor.id]: v }))}
-                        />
-                      </div>
-                    </div>
-                    {reading && sensorEnabled[sensor.id] && (
-                      <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                        <div className="bg-muted/40 rounded p-1.5">
-                          <span className="text-muted-foreground">Moisture</span>
-                          <div className={`font-bold ${reading.moisturePct < 50 ? "text-amber-600" : "text-emerald-600"}`}>{reading.moisturePct}%</div>
-                        </div>
-                        <div className="bg-muted/40 rounded p-1.5">
-                          <span className="text-muted-foreground">Temp</span>
-                          <div className="font-bold">{reading.tempC}°C</div>
-                        </div>
-                        <div className="bg-muted/40 rounded p-1.5">
-                          <span className="text-muted-foreground">EC</span>
-                          <div className={`font-bold ${reading.ecMsCm > 2.5 ? "text-amber-600" : ""}`}>{reading.ecMsCm} mS</div>
-                        </div>
-                        <div className="bg-muted/40 rounded p-1.5">
-                          <span className="text-muted-foreground">pH</span>
-                          <div className={`font-bold ${reading.ph < 5.8 ? "text-amber-600" : ""}`}>{reading.ph}</div>
-                        </div>
-                      </div>
-                    )}
-                    <div className={`mt-2 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${
-                      reading?.status === "optimal" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                      : reading?.status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                      : "bg-muted text-muted-foreground"
-                    }`}>
-                      <span className="size-1.5 rounded-full bg-current" />
-                      {sensorEnabled[sensor.id] ? (reading?.status ?? "unknown") : "offline"}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Valve state panel */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Droplets className="size-4 text-primary" />
-              <h2 className="font-semibold">Valve Controllers</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {VALVE_STATES.map(vs => {
-                const valve = VALVES.find(v => v.id === vs.valveId)!;
-                return (
-                  <Card key={vs.valveId} className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="size-7 rounded-lg grid place-items-center text-white text-xs font-bold" style={{ background: valve.color }}>
-                        {valve.name.split(" ")[1]}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold">{valve.name}</div>
-                        <div className={`text-[10px] font-medium ${vs.isOpen ? "text-emerald-600" : "text-muted-foreground"}`}>
-                          {vs.isOpen ? "● Open" : "○ Closed"} · {vs.mode}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground space-y-0.5">
-                      <div>{vs.flowRateLph.toLocaleString()} L/h · {vs.pressureBar} bar</div>
-                      <div>{vs.totalLitersToday?.toLocaleString()} L used today</div>
-                      <div className="text-foreground/70">{vs.nextScheduledEvent}</div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── AI Settings ──────────────────────────────────────────────────────── */}
-      {tab === "ai" && (
-        <div className="space-y-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Bot className="size-4 text-primary" />
-            <h2 className="font-semibold">AI Agent Configuration</h2>
-          </div>
-
-          {/* Agent auto-run */}
           <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><Zap className="size-4 text-amber-500" /> Auto-Run Schedule</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium">Morning analysis (06:00)</div>
-                  <div className="text-[11px] text-muted-foreground">Run all AI agents at the start of each workday</div>
-                </div>
-                <Toggle checked={aiConfig.autoRunMorning} onChange={v => setAiConfig(p => ({ ...p, autoRunMorning: v }))} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium">Evening analysis (17:00)</div>
-                  <div className="text-[11px] text-muted-foreground">Run end-of-day forecasting and anomaly checks</div>
-                </div>
-                <Toggle checked={aiConfig.autoRunEvening} onChange={v => setAiConfig(p => ({ ...p, autoRunEvening: v }))} />
-              </div>
-            </div>
-          </Card>
-
-          {/* Thresholds */}
-          <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><Sliders className="size-4 text-blue-500" /> Alert Thresholds</h3>
-            <div className="space-y-5">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-sm font-medium">Disease Detection Confidence</div>
-                    <div className="text-[11px] text-muted-foreground">Only alert when AI confidence exceeds this level</div>
-                  </div>
-                  <span className="text-sm font-bold text-primary tabular-nums">{aiConfig.diseaseConfidenceThreshold}%</span>
-                </div>
-                <input
-                  type="range" min={50} max={95} step={5}
-                  value={aiConfig.diseaseConfidenceThreshold}
-                  onChange={e => setAiConfig(p => ({ ...p, diseaseConfidenceThreshold: Number(e.target.value) }))}
-                  className="w-full accent-primary"
-                />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                  <span>More alerts (50%)</span>
-                  <span>Fewer, certain alerts (95%)</span>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-sm font-medium">Soil Moisture Alert Level</div>
-                    <div className="text-[11px] text-muted-foreground">Alert when soil moisture drops below this percentage</div>
-                  </div>
-                  <span className="text-sm font-bold text-amber-600 tabular-nums">{aiConfig.soilMoistureAlertPct}%</span>
-                </div>
-                <input
-                  type="range" min={30} max={70} step={5}
-                  value={aiConfig.soilMoistureAlertPct}
-                  onChange={e => setAiConfig(p => ({ ...p, soilMoistureAlertPct: Number(e.target.value) }))}
-                  className="w-full accent-amber-500"
-                />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                  <span>Alert at very dry (30%)</span>
-                  <span>Alert early (70%)</span>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-sm font-medium">Mold Risk Alert Score</div>
-                    <div className="text-[11px] text-muted-foreground">Alert when gray mold risk score exceeds this level</div>
-                  </div>
-                  <span className="text-sm font-bold text-red-600 tabular-nums">{aiConfig.moldRiskAlertScore}</span>
-                </div>
-                <input
-                  type="range" min={30} max={90} step={5}
-                  value={aiConfig.moldRiskAlertScore}
-                  onChange={e => setAiConfig(p => ({ ...p, moldRiskAlertScore: Number(e.target.value) }))}
-                  className="w-full accent-red-500"
-                />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                  <span>Alert often (30)</span>
-                  <span>Alert only critical (90)</span>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm font-medium mb-2">Worker Anomaly Sensitivity</div>
-                <div className="text-[11px] text-muted-foreground mb-2">How sensitive the AI is to unusual productivity patterns</div>
-                <div className="flex gap-2">
-                  {(["low", "medium", "high"] as const).map(level => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setAiConfig(p => ({ ...p, workerAnomalySensitivity: level }))}
-                      className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-all capitalize ${
-                        aiConfig.workerAnomalySensitivity === level
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground"
-                      }`}
-                    >
-                      {level}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ── Notifications ────────────────────────────────────────────────────── */}
-      {tab === "notifications" && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Bell className="size-4 text-primary" />
-            <h2 className="font-semibold">Notification Channels</h2>
-          </div>
-
-          <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-4">Channel Settings</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 grid place-items-center">
-                    <span className="text-sm">📱</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">SMS Notifications</div>
-                    <div className="text-[11px] text-muted-foreground">Abebe Ethiopia SMS Gateway</div>
-                  </div>
-                </div>
-                <Toggle checked={smsEnabled} onChange={setSmsEnabled} />
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-lg bg-sky-100 dark:bg-sky-950/40 grid place-items-center">
-                    <span className="text-sm">✈️</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Telegram Alerts</div>
-                    <div className="text-[11px] text-muted-foreground">@EntotoFarmBot</div>
-                  </div>
-                </div>
-                <Toggle checked={telegramEnabled} onChange={setTelegramEnabled} />
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-4">Alert Types</h3>
-            <div className="space-y-3">
-              {[
-                { label: "Disease alerts", sub: "When a new disease is detected or severity increases", val: notifyDisease, set: setNotifyDisease },
-                { label: "Harvest ready", sub: "When AI detects ripe fruit or beds reach harvest stage", val: notifyHarvest, set: setNotifyHarvest },
-                { label: "Irrigation events", sub: "Valve open/close, schedule changes, overrides", val: notifyIrrigation, set: setNotifyIrrigation },
-                { label: "Task reminders", sub: "Pending tasks and overdue assignments", val: notifyTasks, set: setNotifyTasks },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium">{item.label}</div>
-                    <div className="text-[11px] text-muted-foreground">{item.sub}</div>
-                  </div>
-                  <Toggle checked={item.val} onChange={item.set} />
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ── Farm Configuration ───────────────────────────────────────────────── */}
-      {tab === "farm" && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Settings className="size-4 text-primary" />
-            <h2 className="font-semibold">Farm Configuration</h2>
-          </div>
-
-          <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-4">General Info</h3>
+            <h3 className="font-semibold text-sm mb-4">Farm</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Farm Name</label>
-                <input
-                  type="text"
-                  value={farmName}
-                  onChange={e => setFarmName(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <input value={farmName} onChange={e => setFarmName(e.target.value)} className={inputCls} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Altitude (m)</label>
-                <input
-                  type="number"
-                  value={altitudeM}
-                  onChange={e => setAltitudeM(Number(e.target.value))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Target Yield (kg/m)</label>
-                <input
-                  type="number"
-                  step={0.01}
-                  value={targetKgPerM}
-                  onChange={e => setTargetKgPerM(Number(e.target.value))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">Used for efficiency calculations across all beds</p>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5 flex items-center gap-1"><Wheat className="size-3" /> Daily Harvest Target (kg)</label>
+                <input type="number" min={0} value={harvestTarget} onFocus={e => e.target.select()} onChange={e => setHarvestTarget(num(e.target.value, harvestTarget))} className={inputCls} />
+                <p className="text-[11px] text-muted-foreground mt-1">Milestone alert fires when the day's harvest crosses this.</p>
               </div>
             </div>
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-4">Work Hours</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><DollarSign className="size-4 text-primary" /> Payroll & Hours</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Shift Start</label>
-                <input
-                  type="time"
-                  value={workStartTime}
-                  onChange={e => setWorkStartTime(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Default Daily Wage (ETB)</label>
+                <input type="number" min={0} value={dailyWage} onFocus={e => e.target.select()} onChange={e => setDailyWage(num(e.target.value, dailyWage))} className={inputCls} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Shift End</label>
-                <input
-                  type="time"
-                  value={workEndTime}
-                  onChange={e => setWorkEndTime(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5 flex items-center gap-1"><Clock className="size-3" /> Workday Hours</label>
+                <input type="number" min={1} max={24} value={workdayHours} onFocus={e => e.target.select()} onChange={e => setWorkdayHours(num(e.target.value, workdayHours))} className={inputCls} />
+                <p className="text-[11px] text-muted-foreground mt-1">Overtime accrues beyond this.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Overtime Multiplier</label>
+                <input type="number" min={1} step={0.1} value={otMultiplier} onFocus={e => e.target.select()} onChange={e => setOtMultiplier(num(e.target.value, otMultiplier))} className={inputCls} />
+                <p className="text-[11px] text-muted-foreground mt-1">e.g. 1.5× hourly for OT.</p>
               </div>
             </div>
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-sm mb-3">System Info</h3>
-            <div className="space-y-2 text-sm">
-              {[
-                ["Location", "Entoto Mountain, Addis Ababa, Ethiopia 🇪🇹"],
-                ["Total Area", "4.2 ha"],
-                ["Established", "September 2025"],
-                ["Owner", "Entoto Agro PLC"],
-                ["ERP Version", "v2.0 — Live Demo"],
-                ["Data Mode", "Static / In-memory (demo branch)"],
-              ].map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
-                  <span className="text-muted-foreground">{k}</span>
-                  <span className="font-medium text-foreground">{v}</span>
-                </div>
-              ))}
+            <h3 className="font-semibold text-sm mb-4">Yield</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Target Yield (kg per metre)</label>
+                <input type="number" min={0} step={0.01} value={kgPerM} onFocus={e => e.target.select()} onChange={e => setKgPerM(num(e.target.value, kgPerM))} className={inputCls} />
+                <p className="text-[11px] text-muted-foreground mt-1">Baseline for per-bed efficiency scoring.</p>
+              </div>
             </div>
           </Card>
         </div>
       )}
 
-      {/* Save button footer */}
+      {tab === "integrations" && (
+        <div className="space-y-4">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2"><MessageSquare className="size-4 text-sky-500" /> Telegram</h3>
+              {configured.telegram_token
+                ? <Badge className="bg-primary/15 text-primary border-primary/30 gap-1"><CheckCircle2 className="size-3" /> Configured</Badge>
+                : <Badge variant="outline">Not set</Badge>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Bot Token</label>
+                <input type="password" placeholder={configured.telegram_token ? "•••• saved — leave blank to keep" : "123456:ABC-..."} value={telegramToken} onChange={e => setTelegramToken(e.target.value)} className={inputCls} autoComplete="off" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Chat ID</label>
+                <input placeholder="e.g. 336715653" value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} className={inputCls} />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-3">
+              <Button variant="outline" size="sm" className="gap-2" onClick={testTelegram} disabled={testing}><Send className="size-3.5" /> {testing ? "Sending…" : "Send test message"}</Button>
+              <span className="text-[11px] text-muted-foreground">Message @your_bot first so it can reply, then Save.</span>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">📱 SMS (Ethiopia)</h3>
+              {configured.sms_token
+                ? <Badge className="bg-primary/15 text-primary border-primary/30 gap-1"><CheckCircle2 className="size-3" /> Configured</Badge>
+                : <Badge variant="outline">Not set</Badge>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">API Token</label>
+                <input type="password" placeholder={configured.sms_token ? "•••• saved — leave blank to keep" : "apikey:senderId"} value={smsToken} onChange={e => setSmsToken(e.target.value)} className={inputCls} autoComplete="off" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Base URL</label>
+                <input placeholder="https://api.smsethiopia.com/..." value={smsBaseUrl} onChange={e => setSmsBaseUrl(e.target.value)} className={inputCls} />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4 bg-muted/40">
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <KeyRound className="size-3.5" />
+              Weather (Tomorrow.io) and the Gemini AI key are set as server environment variables. Secrets entered here are <b>encrypted at rest</b> and never shown back.
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "notifications" && (
+        <div className="space-y-4">
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4">Channels</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div><div className="text-sm font-medium">Telegram alerts</div><div className="text-[11px] text-muted-foreground">Push critical events to Telegram</div></div>
+                <Toggle checked={telegramEnabled} onChange={setTelegramEnabled} />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div><div className="text-sm font-medium">SMS alerts</div><div className="text-[11px] text-muted-foreground">Requires SMS integration configured</div></div>
+                <Toggle checked={smsEnabled} onChange={setSmsEnabled} />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm mb-4">Which events send a Telegram alert</h3>
+            <div className="space-y-3">
+              {[
+                { k: "disease" as const, label: "Disease treatment recommendations", sub: "When a manager sends a recommendation to a supervisor" },
+                { k: "tasks" as const, label: "High-priority task assignments", sub: "When a high-priority task is created" },
+                { k: "lowstock" as const, label: "Critical low-stock warnings", sub: "When an item crosses half its reorder level" },
+                { k: "harvest" as const, label: "Daily harvest target reached", sub: "When the day's harvest hits the target" },
+              ].map(item => (
+                <div key={item.k} className="flex items-center justify-between">
+                  <div><div className="text-sm font-medium">{item.label}</div><div className="text-[11px] text-muted-foreground">{item.sub}</div></div>
+                  <Toggle checked={notify[item.k]} onChange={v => setNotify(p => ({ ...p, [item.k]: v }))} />
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-4">In-app bell notifications are always on; these toggles control only the Telegram push.</p>
+          </Card>
+        </div>
+      )}
+
       <div className="flex justify-end pt-2">
-        <Button onClick={saveAll} className="gap-2 min-w-[180px]">
-          <Save className="size-4" /> Save Changes
-        </Button>
+        <Button onClick={save} disabled={saving} className="gap-2 min-w-[160px]"><Save className="size-4" /> {saving ? "Saving…" : "Save Changes"}</Button>
       </div>
     </div>
   );

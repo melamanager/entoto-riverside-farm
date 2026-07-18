@@ -10,6 +10,7 @@ import { BedQR } from "@/components/bed-qr";
 import { HarvestChart } from "@/components/harvest-chart";
 import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
+import { getFarmConfig } from "@/lib/config";
 
 const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
 
@@ -61,7 +62,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
   const yieldPerMeter = totalKg / bed.lengthM;
   const yieldPerPlant = totalKg / plants;
 
-  const KG_PER_M_TARGET = 0.38;
+  const KG_PER_M_TARGET = (await getFarmConfig()).targetKgPerM;
   const plannedHarvestStart = addDays(bed.plantedDate, 56);
   const harvestsSorted = [...harvests].sort((a, b) => a.date.localeCompare(b.date));
   const actualHarvestStart = harvestsSorted[0]?.date ?? null;

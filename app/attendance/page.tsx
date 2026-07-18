@@ -7,9 +7,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users } from "lucide-react";
 import { toast } from "sonner";
-import type { Farmer, AttendanceRecord, AttendanceStatus, Valve } from "@/lib/types";
+import type { AttendanceRecord, AttendanceStatus } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
 import { useAuth } from "@/lib/auth";
+import { useReference } from "@/lib/reference";
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -40,9 +41,11 @@ export default function AttendancePage() {
   }));
   const today = new Date().toLocaleDateString("en-CA");
 
-  const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [valves, setValves] = useState<Valve[]>([]);
-  const [loading, setLoading] = useState(true);
+  // farmers + valves come from the shared, cached reference store (no refetch)
+  const { farmers: allFarmers, valves, loaded: refLoaded } = useReference();
+  const farmers = allFarmers.filter(f => f.role !== "manager");
+  const [attLoaded, setAttLoaded] = useState(false);
+  const loading = !refLoaded || !attLoaded;
   const [saving, setSaving] = useState(false);
 
   const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
@@ -54,20 +57,14 @@ export default function AttendancePage() {
 
   const [historicRecords, setHistoricRecords] = useState<AttendanceRecord[]>([]);
 
-  // Load farmers, valves, and today's attendance on mount
+  // Only today's attendance is page-specific; farmers/valves are shared.
   useEffect(() => {
-    Promise.all([
-      fetch("/api/farmers").then(r => r.json()),
-      fetch("/api/valves").then(r => r.json()),
-      fetch(`/api/attendance?date=${today}`).then(r => r.json()),
-    ]).then(([farmData, valveData, attData]) => {
-      setFarmers((farmData as Farmer[]).filter(f => f.role !== "manager"));
-      setValves(valveData as Valve[]);
+    fetch(`/api/attendance?date=${today}`).then(r => r.json()).then((attData) => {
       const records = attData as AttendanceRecord[];
       setSelected(Object.fromEntries(records.map(a => [a.farmerId, a.status])));
       setCheckIns(Object.fromEntries(records.filter(a => a.checkInTime).map(a => [a.farmerId, a.checkInTime!])));
       setCheckOuts(Object.fromEntries(records.filter(a => a.checkOutTime).map(a => [a.farmerId, a.checkOutTime!])));
-      setLoading(false);
+      setAttLoaded(true);
     });
   }, [today]);
 

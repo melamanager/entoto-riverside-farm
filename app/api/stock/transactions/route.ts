@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { sendTelegram } from "@/lib/notifications";
+import { getFarmConfig } from "@/lib/config";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
           link: "/stock",
         },
       });
-      if (critical) {
+      if (critical && (await getFarmConfig()).notifyLowStock) {
         await sendTelegram(
           `🚨 <b>Critical stock — Entoto Farm</b>\n\n<b>${item.name}</b> is down to <b>${after} ${item.unit}</b> (reorder level ${reorder}).\nRestock needed.`
         );

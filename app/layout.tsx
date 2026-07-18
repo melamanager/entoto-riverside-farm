@@ -6,6 +6,7 @@ import { Topbar } from "@/components/topbar";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
 import { LangProvider } from "@/lib/lang";
+import { ReferenceProvider } from "@/lib/reference";
 import { MobileNav } from "@/components/mobile-nav";
 import { SessionProvider } from "next-auth/react";
 
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
         <LangProvider>
         <AuthProvider>
+        <ReferenceProvider>
           <div className="min-h-screen flex">
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0">
@@ -31,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <MobileNav />
             </div>
           </div>
+        </ReferenceProvider>
         </AuthProvider>
         </LangProvider>
         </SessionProvider>
