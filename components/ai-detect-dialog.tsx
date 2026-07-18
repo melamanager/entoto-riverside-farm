@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle, ImageUp, Languages } from "lucide-react";
 import { toast } from "sonner";
 import type { AIDetectionResult } from "@/lib/ai";
+import type { Bed } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 
 interface Props {
@@ -24,22 +25,23 @@ const AM_DISEASE_NAMES: Record<string, string> = {
   none:                "በሽታ አልተገኘም",
 };
 
+// Natural / organic-first advice (Amharic)
 const AM_TREATMENTS: Record<string, string> = {
   powdery_mildew:
-    "ኩሙሉስ DF (ሰልፈር) 2g ለ1 ሊትር ውሃ ቀላቅለህ ቅጠሎቹ ሁሉ ላይ ረጭ። " +
-    "በ7 ቀን አንዴ ለ3 ሳምንት ድገም። የተጎዱ ቅጠሎቹን ቆርጦ አስወግድ።",
+    "የተጎዱ ቅጠሎችን ቆርጠህ አስወግድ፤ አየር እንዲዘዋወር አድርግ። ወተት ከውሃ 1:9 ቀላቅለህ ጥዋት ረጭ፤ " +
+    "በየ5–7 ቀኑ ለ3 ሳምንት ድገም። ውሃ ስሩ ላይ ብቻ ስጥ። ካልቀነሰ ብቻ ወደ ሰልፈር አልፍ።",
   root_rot:
-    "ውሃ ማጠጣቱን ወዲያው ቀንስ። ትሪኮደርማ ሃርዚያኑም ለሥሩ ሰጥ። " +
-    "ከ60% በላይ የተጠቁ ዕጾችን ነቅሎ ያቃጥሏቸው።",
+    "ውሃ ማጠጣቱን ወዲያው ቀንስ፤ የፍሳሽ መውጫ አሻሽል (ኮምፖስት ጨምር)። በስሩ ላይ ትንሽ ቀረፋ (cinnamon) ነስንስ። " +
+    "በጣም የተበሰበሱ ዕፅዋትን ነቅለህ አስወግድ (አታዳብር)። ትሪኮደርማ ካለ ስጥ።",
   gray_mold:
-    "የተጎዱ ፍሬዎችን ሰብስቦ ይጣሏቸው። ስዊች 62.5 WG ለ1 ሊትር ውሃ 0.8g ቀላቅሎ ረጭ። " +
-    "አየር እንዲዘዋወር ሞቅ ያሉ ቅጠሎችን አስወግድ። እርጥበቱ ከ85% በታች እንዲሆን ያድርጉ።",
+    "የበሰበሱ ፍሬና ቅጠሎችን ሰብስበህ በከረጢት አስወግድ። የተጨናነቁ ቅጠሎችን አስወግድ አየር እንዲገባ። " +
+    "ቤኪንግ ሶዳ (1 ማንኪያ + ጥቂት ሳሙና በ1 ሊትር ውሃ) ረጭ። ጥዋት ብቻ ውሃ ስጥ።",
   leaf_spot:
-    "ነጠብጣብ ያሉ ቅጠሎችን ሁሉ አስወግድ። ኮሲዴ 3000 ወይም ኮፐር ሃይድሮክሳይድ ረጭ። " +
-    "ቅጠሎቹ ሳይረጡ ውሃ ስጥ (drip ብቻ ተጠቀም)።",
+    "ነጠብጣብ ያሉ ቅጠሎችን አስወግድ። ኒም ዘይት (5ml + ጠብታ ሳሙና በ1 ሊትር) ረጭ ወይም ነጭ ሽንኩርት+በርበሬ ውሃ። " +
+    "ቅጠሎቹ ሳይረጡ በdrip ብቻ ውሃ ስጥ። በየ7–10 ቀኑ ድገም።",
   nitrogen_deficiency:
-    "ዩሪያ (46-0-0) ለ1000 ሊትር ውሃ 5 ኪሎ ቀላቅለህ ለ30 ደቂቃ ስጥ። " +
-    "ከ5–7 ቀን ውስጥ ቅጠሎቹ ቀለም ይቀያይራሉ።",
+    "ይህ በሽታ አይደለም — ተክሉ ተርቧል። የኮምፖስት/ፍግ ሻይ አዘጋጅተህ በስሩ ስጥ፤ የበሰበሰ ፍግ ጨምር። " +
+    "ከ5–7 ቀን ውስጥ ቀለሙ ይሻሻላል። ዩሪያ በጣም ሲያስፈልግ ብቻ ተጠቀም።",
   none: "ቤቱ ጤናማ ይመስላል። ቀጥሎ መከታተሉ ይቀጠሉ።",
 };
 
@@ -55,26 +57,29 @@ const AM_RAW_NOTES: Record<string, string> = {
 export function AIDetectDialog({ bedId, trigger }: Props) {
   const { user } = useAuth();
   const [open, setOpen]               = useState(false);
-  const [mode, setMode]               = useState<"demo" | "live">("demo");
+  const [mode, setMode]               = useState<"demo" | "live">("live");
   const [lang, setLang]               = useState<"en" | "am">("en");
   const [loading, setLoading]         = useState(false);
   const [result, setResult]           = useState<AIDetectionResult | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [infectedLengthM, setInfectedLengthM] = useState<number>(0);
   const [bedData, setBedData] = useState<{ lengthM: number; valveId: string } | null>(null);
-  const [supervisorId, setSupervisorId] = useState<string | null>(null);
+  // when no bed was passed in (opened from the page header), let the user pick one
+  const [bedList, setBedList] = useState<Bed[]>([]);
+  const [pickedBedId, setPickedBedId] = useState<string>("");
+  const effectiveBedId = bedId ?? (pickedBedId || undefined);
 
+  // load the bed list for the picker (only when opened without a fixed bed)
   useEffect(() => {
-    if (!bedId || !open) return;
-    fetch(`/api/beds/${bedId}`)
-      .then(r => r.json())
-      .then(bed => {
-        setBedData(bed);
-        return fetch(`/api/valves/${bed.valveId}`).then(r => r.json());
-      })
-      .then(valve => setSupervisorId(valve?.supervisorId ?? null))
-      .catch(() => {});
+    if (bedId || !open) return;
+    fetch("/api/beds").then(r => r.json()).then(setBedList).catch(() => {});
   }, [bedId, open]);
+
+  // load the chosen bed's dimensions for the infected-length estimate
+  useEffect(() => {
+    if (!effectiveBedId || !open) return;
+    fetch(`/api/beds/${effectiveBedId}`).then(r => r.json()).then(setBedData).catch(() => {});
+  }, [effectiveBedId, open]);
 
   async function runDetection(imageBase64?: string) {
     setLoading(true);
@@ -115,44 +120,29 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
   }
 
   async function reportAsDisease() {
-    if (!result || !bedId || result.disease === "none") return;
+    if (!result || !effectiveBedId || result.disease === "none") return;
     const res = await fetch("/api/disease/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bedId,
+        bedId: effectiveBedId,
         type: result.disease,
         severity: result.severity,
         suggestedTreatment: result.suggestedTreatment,
         aiConfidence: result.confidence,
-        reportedBy: user?.id ?? "f-006",
+        photo: imagePreview ?? undefined,
         infectedLengthM: infectedLengthM > 0 ? infectedLengthM : (bedData ? Math.round(bedData.lengthM * (result.severity / 100) * 10) / 10 : undefined),
       }),
     });
-    if (res.ok) {
-      if (supervisorId) {
-        await fetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: `AI Alert: ${result.diseaseLabel} detected — ${bedId}`,
-            description: `AI confidence ${result.confidence}%. ${result.suggestedTreatment}`,
-            assignedTo: supervisorId,
-            createdBy: user?.id ?? "f-008",
-            bedId,
-            status: "pending",
-            priority: result.severity > 60 ? "high" : "medium",
-            category: "disease",
-            createdAt: new Date().toISOString(),
-            dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-          }),
-        });
-      }
-      toast.success("Disease report filed", {
-        description: "Manager notified · Supervisor task auto-created",
-      });
-      setOpen(false);
-    }
+    if (!res.ok) { toast.error("Failed to file report"); return; }
+    // the manager triages next (writes a recommendation → a task is created then)
+    toast.success("Disease report filed", {
+      description: "The manager is notified and will send a treatment recommendation.",
+    });
+    setOpen(false);
+    setResult(null);
+    setImagePreview(null);
+    setPickedBedId("");
   }
 
   const diseaseKey  = result?.disease ?? "none";
@@ -182,6 +172,25 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
             {bedId && <Badge variant="outline" className="ml-2 font-mono text-xs">{bedId}</Badge>}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Bed picker — only when a bed wasn't already chosen */}
+        {!bedId && (
+          <div>
+            <label className="text-xs font-semibold text-stone-600 block mb-1">
+              {isAm ? "የትኛው አልጋ?" : "Which bed?"}
+            </label>
+            <select
+              value={pickedBedId}
+              onChange={e => setPickedBedId(e.target.value)}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
+            >
+              <option value="">{isAm ? "አልጋ ምረጥ…" : "Select a bed…"}</option>
+              {bedList.map(b => (
+                <option key={b.id} value={b.id}>{b.id} — {b.variety}{b.health !== "healthy" ? ` ⚠ ${b.health}` : ""}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Mode + language toggle */}
         <div className="flex gap-2">
@@ -342,7 +351,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
               </div>
             )}
 
-            {result.disease !== "none" && bedId && (() => {
+            {result.disease !== "none" && effectiveBedId && (() => {
               const bedLen = bedData?.lengthM ?? 0;
               const autoEst = bedLen > 0 ? Math.round(bedLen * (result.severity / 100) * 10) / 10 : 0;
               const displayLen = infectedLengthM > 0 ? infectedLengthM : autoEst;
@@ -381,10 +390,16 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
               );
             })()}
 
-            {result.disease !== "none" && bedId && (
-              <Button onClick={reportAsDisease} className="w-full bg-rose-600 hover:bg-rose-700">
-                {isAm ? "ሪፖርት ያስገቡ — ሥራ አስኪያጅን ያሳውቁ" : "File disease report & notify manager"}
-              </Button>
+            {result.disease !== "none" && (
+              effectiveBedId ? (
+                <Button onClick={reportAsDisease} className="w-full bg-rose-600 hover:bg-rose-700">
+                  {isAm ? "ሪፖርት ያስገቡ — ሥራ አስኪያጅን ያሳውቁ" : "File disease report & notify manager"}
+                </Button>
+              ) : (
+                <div className="text-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md py-2">
+                  {isAm ? "ሪፖርት ለማስገባት ከላይ አልጋ ይምረጡ" : "Pick a bed above to file this as a report"}
+                </div>
+              )
             )}
           </div>
         )}

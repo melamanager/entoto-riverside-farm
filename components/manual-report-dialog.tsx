@@ -66,7 +66,9 @@ export function ManualReportDialog({ onReported }: Props) {
   }
 
   async function submit() {
-    if (!bedId || !type || !user) return;
+    if (!bedId) { toast.error("Choose the affected bed"); return; }
+    if (!type) { toast.error("Choose the disease type"); return; }
+    if (!user) { toast.error("Session expired — please sign in again"); return; }
     setLoading(true);
     const res = await fetch("/api/disease/report", {
       method: "POST",

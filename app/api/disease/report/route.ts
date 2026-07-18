@@ -68,8 +68,9 @@ export async function POST(req: Request) {
     data: {
       type:    "disease",
       channel: channels.includes("telegram") ? "telegram" : channels.includes("sms") ? "sms" : "in_app",
-      message: `🚨 ${body.bedId} — ${type.replace(/_/g, " ")} detected (severity ${body.severity ?? 30}%). ${channels.length ? `Notified via ${channels.join(" & ")}.` : "Notification pending — check settings."}`,
+      message: `🚨 New disease report: ${body.bedId} — ${type.replace(/_/g, " ")} (severity ${body.severity ?? 30}%). Review and send a treatment recommendation.`,
       link:    "/diseases",
+      recipientRole: "manager",
     },
   });
 
