@@ -825,7 +825,7 @@ export default function PackagingPage() {
               <Plus className="size-4 text-amber-600" /> New Packaging Batch
             </DialogTitle>
           </DialogHeader>
-          <BatchForm />
+          {BatchForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
             <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={handleCreate}>{t.common.create}</Button>
@@ -841,7 +841,7 @@ export default function PackagingPage() {
               <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.batchNumber}
             </DialogTitle>
           </DialogHeader>
-          <BatchForm />
+          {BatchForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
             <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={handleEdit}>{t.common.save}</Button>

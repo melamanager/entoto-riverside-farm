@@ -61,7 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/harvest",    labelKey: "harvestLog",      icon: Wheat,        roles: ["manager", "supervisor"] },
       { href: "/packaging",  labelKey: "packaging",        icon: Package,      roles: ["manager", "supervisor"] },
-      { href: "/orders",   labelKey: "customerOrders", icon: ShoppingCart, roles: ["manager"] },
+      { href: "/orders",   labelKey: "customerOrders", icon: ShoppingCart, roles: ["manager", "supervisor"] },
       { href: "/expenses", labelKey: "expenses",        icon: DollarSign,   roles: ["manager"] },
     ],
   },

@@ -13,8 +13,20 @@ import { toast } from "sonner";
 import { CUSTOMER_TYPE_LABELS } from "@/lib/erp-types";
 import type { CustomerOrder, CustomerType, PaymentStatus, DeliveryStatus, PackagingRecord, FertigationRecord } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
+import { useAuth } from "@/lib/auth";
 import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
+
+// parse a number input safely: empty / invalid → 0, never NaN
+function num(v: string): number {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+function derivePaymentStatus(advance: number, total: number): PaymentStatus {
+  if (advance <= 0) return "pending";
+  if (advance >= total) return "paid";
+  return "partial";
+}
 
 const PAYMENT_STYLE: Record<PaymentStatus, string> = {
   paid:    "bg-primary/15 text-primary border-primary/30",
@@ -34,11 +46,10 @@ const CUSTOMER_ICONS: Record<CustomerType, string> = {
 
 const EMPTY_FORM = {
   customerName: "", customerType: "direct" as CustomerType,
-  orderDate: new Date().toISOString().split("T")[0],
-  deliveryDate: new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
+  orderDate: new Date().toLocaleDateString("en-CA"),
+  deliveryDate: new Date(Date.now() + 3 * 86400000).toLocaleDateString("en-CA"),
   quantityKg: 10, pricePerKg: 140,
   advancePaid: 0,
-  paymentStatus: "pending" as PaymentStatus,
   deliveryStatus: "pending" as DeliveryStatus,
   variety: "", phone: "", notes: "",
 };
@@ -48,6 +59,7 @@ type ActiveTab = "orders" | "revenue";
 export default function OrdersPage() {
   const options = useOptions();
   const { isAm } = useLang();
+  const { isManager } = useAuth();
   const t = isAm ? AM : EN;
   const [activeTab, setActiveTab]       = useState<ActiveTab>("orders");
   const [orders, setOrders]             = useState<CustomerOrder[]>([]);
@@ -102,7 +114,7 @@ export default function OrdersPage() {
       .then(r => r.json())
       .then((data: Array<{ month: string; netPay: unknown }>) =>
         setPayrollMonthTotal(data
-          .filter(p => p.month === new Date().toISOString().slice(0, 7))
+          .filter(p => p.month === new Date().toLocaleDateString("en-CA").slice(0, 7))
           .reduce((s, p) => s + parseFloat(String(p.netPay)), 0)))
       .catch(() => setPayrollMonthTotal(0));
   }, []);
@@ -113,31 +125,38 @@ export default function OrdersPage() {
       customerName: o.customerName, customerType: o.customerType,
       orderDate: o.orderDate, deliveryDate: o.deliveryDate,
       quantityKg: o.quantityKg, pricePerKg: o.pricePerKg,
-      advancePaid: o.advancePaid, paymentStatus: o.paymentStatus,
+      advancePaid: o.advancePaid,
       deliveryStatus: o.deliveryStatus, variety: o.variety ?? "",
       phone: o.phone ?? "", notes: o.notes ?? "",
     });
     setEditTarget(o);
   }
 
-  function totalAmt() { return form.quantityKg * form.pricePerKg; }
+  function totalAmt() { return Math.round(form.quantityKg * form.pricePerKg * 100) / 100; }
+
+  function validateOrder(): string | null {
+    if (!form.customerName.trim()) return "Customer name is required";
+    if (form.quantityKg <= 0)      return "Quantity must be greater than 0";
+    if (form.pricePerKg <= 0)      return "Price per kg must be greater than 0";
+    if (form.deliveryDate < form.orderDate) return "Delivery date can't be before the order date";
+    return null;
+  }
 
   async function handleCreate() {
-    if (!form.customerName.trim()) { toast.error("Customer name is required"); return; }
-    if (form.quantityKg <= 0)      { toast.error("Quantity must be > 0"); return; }
-    if (form.pricePerKg <= 0)      { toast.error("Price must be > 0"); return; }
+    const err = validateOrder();
+    if (err) { toast.error(err); return; }
     const body = {
       customerName: form.customerName.trim(),
       customerType: form.customerType,
       orderDate: form.orderDate, deliveryDate: form.deliveryDate,
       quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
-      totalAmount: totalAmt(), advancePaid: form.advancePaid,
-      paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
+      advancePaid: Math.min(form.advancePaid, totalAmt()),
+      deliveryStatus: form.deliveryStatus,
       variety: form.variety || null,
       phone: form.phone || null, notes: form.notes || null,
     };
     const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { toast.error("Failed to create order"); return; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); toast.error((e as {error?: string}).error ?? "Failed to record sale"); return; }
     const created = await res.json() as CustomerOrder & { quantityKg: number | string; pricePerKg: number | string; totalAmount: number | string; advancePaid: number | string };
     const newOrder: CustomerOrder = {
       ...created,
@@ -147,19 +166,21 @@ export default function OrdersPage() {
       advancePaid: parseFloat(String(created.advancePaid)),
     };
     setOrders(prev => [newOrder, ...prev]);
-    toast.success(`Order for ${newOrder.customerName} created`);
+    toast.success(`Sale for ${newOrder.customerName} recorded — ${newOrder.totalAmount.toLocaleString()} ETB`);
     setCreateOpen(false);
   }
 
   async function handleEdit() {
     if (!editTarget) return;
+    const err = validateOrder();
+    if (err) { toast.error(err); return; }
     const body = {
       customerName: form.customerName.trim(),
       customerType: form.customerType,
       orderDate: form.orderDate, deliveryDate: form.deliveryDate,
       quantityKg: form.quantityKg, pricePerKg: form.pricePerKg,
-      totalAmount: totalAmt(), advancePaid: form.advancePaid,
-      paymentStatus: form.paymentStatus, deliveryStatus: form.deliveryStatus,
+      advancePaid: Math.min(form.advancePaid, totalAmt()),
+      deliveryStatus: form.deliveryStatus,
       variety: form.variety || null,
       phone: form.phone || null, notes: form.notes || null,
     };
@@ -201,7 +222,7 @@ export default function OrdersPage() {
   const pending      = orders.filter(o => o.deliveryStatus === "pending").length;
 
   // Revenue tab data — P&L scoped to the current month
-  const monthKey   = new Date().toISOString().slice(0, 7);
+  const monthKey   = new Date().toLocaleDateString("en-CA").slice(0, 7);
   const monthLabel = new Date().toLocaleDateString("en", { month: "long", year: "numeric" });
   const monthCollected = orders
     .filter(o => o.orderDate.startsWith(monthKey))
@@ -270,15 +291,17 @@ export default function OrdersPage() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Qty (kg)</label>
-            <input type="number" min={1} value={form.quantityKg}
-              onChange={e => setForm(p => ({ ...p, quantityKg: Number(e.target.value) }))}
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Qty (kg) <span className="text-red-500">*</span></label>
+            <input type="number" min={0.1} step={0.5} inputMode="decimal" value={form.quantityKg || ""}
+              onFocus={e => e.target.select()}
+              onChange={e => setForm(p => ({ ...p, quantityKg: num(e.target.value) }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Price / kg (ETB)</label>
-            <input type="number" min={1} value={form.pricePerKg}
-              onChange={e => setForm(p => ({ ...p, pricePerKg: Number(e.target.value) }))}
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Price / kg (ETB) <span className="text-red-500">*</span></label>
+            <input type="number" min={1} step={1} inputMode="decimal" value={form.pricePerKg || ""}
+              onFocus={e => e.target.select()}
+              onChange={e => setForm(p => ({ ...p, pricePerKg: num(e.target.value) }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
@@ -288,33 +311,40 @@ export default function OrdersPage() {
             </div>
           </div>
         </div>
-        <div>
-          <label className="text-xs font-semibold text-foreground/80 block mb-1">Advance Paid (ETB)</label>
-          <input type="number" min={0} value={form.advancePaid}
-            onChange={e => setForm(p => ({ ...p, advancePaid: Number(e.target.value) }))}
-            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
-        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Payment Status</label>
-            <select value={form.paymentStatus}
-              onChange={e => setForm(p => ({ ...p, paymentStatus: e.target.value as PaymentStatus }))}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
-              {options.paymentStatuses.map(s => (
-                <option key={s.value} value={s.value} className="capitalize">{s.label}</option>
-              ))}
-            </select>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Advance Paid (ETB)</label>
+            <input type="number" min={0} step={1} max={total} inputMode="decimal" value={form.advancePaid || ""}
+              onFocus={e => e.target.select()}
+              onChange={e => setForm(p => ({ ...p, advancePaid: Math.min(num(e.target.value), total) }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+            <button type="button" onClick={() => setForm(p => ({ ...p, advancePaid: total }))}
+              className="text-[11px] text-primary hover:underline mt-1">Mark paid in full</button>
           </div>
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Delivery Status</label>
-            <select value={form.deliveryStatus}
-              onChange={e => setForm(p => ({ ...p, deliveryStatus: e.target.value as DeliveryStatus }))}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-              {options.deliveryStatuses.map(s => (
-                <option key={s.value} value={s.value}>{s.label.replace("_", " ")}</option>
-              ))}
-            </select>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Payment</label>
+            <div className="flex items-center h-9">
+              {(() => {
+                const ps = derivePaymentStatus(form.advancePaid, total);
+                return (
+                  <Badge className={`text-xs capitalize ${PAYMENT_STYLE[ps]}`}>
+                    {ps} · {form.advancePaid.toLocaleString()} / {total.toLocaleString()} ETB
+                  </Badge>
+                );
+              })()}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-1">Set automatically from the advance.</div>
           </div>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Delivery Status</label>
+          <select value={form.deliveryStatus}
+            onChange={e => setForm(p => ({ ...p, deliveryStatus: e.target.value as DeliveryStatus }))}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+            {options.deliveryStatuses.map(s => (
+              <option key={s.value} value={s.value}>{s.label.replace("_", " ")}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="text-xs font-semibold text-foreground/80 block mb-1">Notes</label>
@@ -345,11 +375,11 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* Tab switcher */}
+      {/* Tab switcher — Revenue & P&L is manager-only */}
       <div className="flex items-center gap-1 p-1 bg-muted rounded-xl w-fit">
         {([
           { key: "orders",  label: "Customer Orders", icon: ShoppingCart },
-          { key: "revenue", label: "Revenue & P&L",    icon: TrendingUp  },
+          ...(isManager ? [{ key: "revenue" as const, label: "Revenue & P&L", icon: TrendingUp }] : []),
         ] as const).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
@@ -414,7 +444,7 @@ export default function OrdersPage() {
                 <tbody>
                   {records.map(ord => {
                     const balance = ord.totalAmount - ord.advancePaid;
-                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < new Date().toISOString().split("T")[0];
+                    const isOverdue = ord.deliveryStatus === "pending" && ord.deliveryDate < new Date().toLocaleDateString("en-CA");
                     const batches = packagingRecords.filter(p => p.orderId === ord.id);
                     const fulfilledKg = batches.reduce((s, p) => s + p.packedKg, 0);
                     const isExpanded = expandedOrder === ord.id;
@@ -466,10 +496,12 @@ export default function OrdersPage() {
                                 className="size-6 rounded bg-muted hover:bg-accent grid place-items-center">
                                 <Pencil className="size-3 text-muted-foreground" />
                               </button>
-                              <button onClick={() => setDeleteTarget(ord)}
-                                className="size-6 rounded bg-muted hover:bg-red-100 grid place-items-center">
-                                <Trash2 className="size-3 text-muted-foreground" />
-                              </button>
+                              {isManager && (
+                                <button onClick={() => setDeleteTarget(ord)}
+                                  className="size-6 rounded bg-muted hover:bg-red-100 grid place-items-center">
+                                  <Trash2 className="size-3 text-muted-foreground" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -632,7 +664,7 @@ export default function OrdersPage() {
               <Plus className="size-4 text-indigo-600" /> New Customer Order
             </DialogTitle>
           </DialogHeader>
-          <OrderForm />
+          {OrderForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
             <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={handleCreate}>{t.common.create}</Button>
@@ -647,7 +679,7 @@ export default function OrdersPage() {
               <Pencil className="size-4 text-muted-foreground" /> Edit Order — {editTarget?.customerName}
             </DialogTitle>
           </DialogHeader>
-          <OrderForm />
+          {OrderForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
             <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={handleEdit}>{t.common.save}</Button>

@@ -52,7 +52,7 @@ const NAV_GROUPS = [
     items: [
       { href: "/harvest",   label: "Harvest Log",     icon: Wheat,         roles: ["manager", "supervisor"] },
       { href: "/packaging", label: "Packaging",        icon: Package,       roles: ["manager", "supervisor"] },
-      { href: "/orders",   label: "Customer Orders", icon: ShoppingCart, roles: ["manager"] },
+      { href: "/orders",   label: "Customer Orders", icon: ShoppingCart, roles: ["manager", "supervisor"] },
       { href: "/expenses", label: "Expenses",         icon: DollarSign,   roles: ["manager"] },
     ],
   },
