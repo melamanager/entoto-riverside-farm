@@ -509,7 +509,7 @@ export default function PackagingPage() {
           </div>
           <p className="text-muted-foreground text-sm">{t.packaging.subtitle}</p>
         </div>
-        <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-700 gap-2">
+        <Button onClick={() => openCreate()} className="bg-amber-600 hover:bg-amber-700 gap-2">
           <Plus className="size-4" /> {t.packaging.newBatch}
         </Button>
       </div>
