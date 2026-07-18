@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bug, Upload, X, Eye, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { DISEASE_LABELS, type DiseaseType, type Valve, type Bed } from "@/lib/types";
+import { DISEASE_LABELS, type DiseaseType } from "@/lib/types";
+import { useReference } from "@/lib/reference";
 
 const DISEASE_TYPES = Object.entries(DISEASE_LABELS) as [DiseaseType, string][];
 
@@ -28,14 +29,8 @@ export function ManualReportDialog({ onReported }: Props) {
   const [photoName, setPhotoName] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [valves, setValves] = useState<Valve[]>([]);
-  const [beds, setBeds] = useState<Bed[]>([]);
-
-  useEffect(() => {
-    if (!open) return;
-    fetch("/api/valves").then(r => r.json()).then(setValves);
-    fetch("/api/beds").then(r => r.json()).then(setBeds);
-  }, [open]);
+  // beds + valves from the shared cache — dialog opens instantly, no refetch
+  const { beds, valves } = useReference();
 
   const assignedValves = user?.assignedValves ?? [];
   const availableBeds = isManager ? beds : beds.filter(b => assignedValves.includes(b.valveId));

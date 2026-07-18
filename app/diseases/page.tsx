@@ -51,6 +51,7 @@ export default function DiseasesPage() {
   const [recommendOpen, setRecommendOpen] = useState(false);
   const [recommendTarget, setRecommendTarget] = useState<DiseaseReport | null>(null);
   const [recommendation, setRecommendation] = useState("");
+  const [recommendSteps, setRecommendSteps] = useState("");
   const [requireImage, setRequireImage] = useState(false);
 
   // Supervisor: confirm treatment dialog
@@ -102,17 +103,23 @@ export default function DiseasesPage() {
   function openRecommend(d: DiseaseReport) {
     setRecommendTarget(d);
     setRecommendation(d.managerRecommendation ?? DISEASE_TREATMENTS[d.type]);
+    // protocol steps default to the natural per-disease list, but the manager can tailor them
+    const steps = (d.treatmentSteps?.length ? d.treatmentSteps : DISEASE_TREATMENT_STEPS[d.type]) ?? [];
+    setRecommendSteps(steps.join("\n"));
     setRequireImage(d.requiresImageProof ?? false);
     setRecommendOpen(true);
   }
 
   async function sendRecommendation() {
     if (!recommendTarget) return;
+    const steps = recommendSteps.split("\n").map(s => s.trim()).filter(Boolean);
     const patchBody = {
       status: "notified" as const,
       managerNotified: true,
       notifiedAt: new Date().toISOString(),
       managerRecommendation: recommendation,
+      treatmentSteps: steps,
+      treatmentProgress: [],   // reset the checklist for the new protocol
       requiresImageProof: requireImage,
     };
     const res = await fetch(`/api/diseases/${recommendTarget.id}`, {
@@ -559,24 +566,28 @@ export default function DiseasesPage() {
                 <Textarea
                   value={recommendation}
                   onChange={e => setRecommendation(e.target.value)}
-                  placeholder="Describe exact treatment: chemicals, doses, application method, timing…"
+                  placeholder="Describe the treatment for this bed — natural remedy first (what to mix, how, when), amounts, timing…"
                   rows={5}
                   className="text-sm resize-none"
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">This will be sent to the assigned supervisor via SMS and Telegram.</p>
               </div>
 
-              {/* Protocol steps preview */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-[11px] font-semibold text-blue-800 mb-1.5">📋 Standard Protocol ({DISEASE_TREATMENT_STEPS[recommendTarget.type].length} steps)</div>
-                <div className="space-y-1">
-                  {DISEASE_TREATMENT_STEPS[recommendTarget.type].slice(0, 3).map((s, i) => (
-                    <div key={i} className="text-[11px] text-blue-700">Step {i + 1}: {s}</div>
-                  ))}
-                  {DISEASE_TREATMENT_STEPS[recommendTarget.type].length > 3 && (
-                    <div className="text-[11px] text-blue-500">+{DISEASE_TREATMENT_STEPS[recommendTarget.type].length - 3} more steps…</div>
-                  )}
-                </div>
+              {/* Editable protocol steps — the manager tailors what the supervisor ticks off */}
+              <div>
+                <label className="text-xs font-semibold text-foreground/80 block mb-1.5">
+                  📋 Treatment Protocol — one step per line
+                </label>
+                <Textarea
+                  value={recommendSteps}
+                  onChange={e => setRecommendSteps(e.target.value)}
+                  placeholder={"Remove affected leaves\nSpray milk solution 1:9\nWater at roots only"}
+                  rows={6}
+                  className="text-sm resize-none font-mono"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Pre-filled with the natural steps for this disease — edit them for this bed. The supervisor ticks each off.
+                </p>
               </div>
 
               {/* Require image proof toggle */}
