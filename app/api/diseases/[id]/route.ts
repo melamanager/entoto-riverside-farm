@@ -87,6 +87,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           channel: tg.ok ? "telegram" : "in_app",
           message: `📋 PRIORITY: treat ${report.bedId} (${label}) — task assigned, action required today`,
           link: "/tasks",
+          recipientId: assigneeId, // the responsible supervisor
         },
       });
     }
@@ -113,6 +114,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           channel: "in_app",
           message: `💊 Treatment applied on ${report.bedId} (${label}) — awaiting manager verification`,
           link: "/diseases",
+          recipientRole: "manager",
         },
       });
     }
@@ -122,8 +124,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data: {
           type: "disease",
           channel: "in_app",
-          message: `✅ ${report.bedId} (${label}) marked resolved by manager`,
+          message: `✅ ${report.bedId} (${label}) resolved by manager — good work`,
           link: "/diseases",
+          recipientId: report.treatmentAppliedBy ?? undefined, // the supervisor who treated it
         },
       });
       // restore bed health when no active reports remain on it

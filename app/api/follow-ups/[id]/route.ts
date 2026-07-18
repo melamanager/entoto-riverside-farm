@@ -27,6 +27,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           channel: "in_app",
           message: `✔️ Follow-up "${record.title}" completed by ${record.assignee.name}${record.completionNote ? ` — ${String(record.completionNote).slice(0, 80)}` : ""}`,
           link: "/tasks?tab=followups",
+          recipientRole: "manager",
         },
       });
     }

@@ -60,8 +60,9 @@ export async function POST(req: Request) {
       data: {
         type: "message",
         channel: "in_app",
-        message: `✔️ Manager acknowledged ${supervisor.name}'s ${date} — counted as a worked day${note ? ` (${note})` : ""}`,
+        message: `✔️ Manager acknowledged your ${date} — it now counts as a worked day${note ? ` (${note})` : ""}`,
         link: "/routines",
+        recipientId: supervisorId,
       },
     });
   } catch (e) {

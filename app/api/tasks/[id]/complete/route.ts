@@ -35,6 +35,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         channel: "in_app",
         message: `✅ Task "${updated.title}" completed by ${updated.assignee.name} — awaiting manager review`,
         link: "/tasks",
+        recipientRole: "manager",
       },
     });
   } catch (e) {

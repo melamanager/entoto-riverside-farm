@@ -83,6 +83,7 @@ export async function POST(req: Request) {
         channel: "in_app",
         message: `🧾 Sale recorded: ${order.customerName} — ${Number(order.quantityKg)}kg for ${Number(order.totalAmount).toLocaleString()} ETB (by ${seller?.name ?? userId})`,
         link: "/orders",
+        recipientRole: "manager",
       },
     });
   } catch (e) {

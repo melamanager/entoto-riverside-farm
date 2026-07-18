@@ -70,8 +70,9 @@ export async function POST(req: Request) {
       data: {
         type: "task",
         channel: "in_app",
-        message: `📋 New ${task.priority}-priority task "${task.title}" assigned to ${task.assignee.name} (due ${task.dueDate})`,
+        message: `📋 New ${task.priority}-priority task assigned to you: "${task.title}" (due ${task.dueDate})`,
         link: "/tasks",
+        recipientId: task.assignedTo, // the assignee (usually a supervisor) sees it
       },
     });
     if (task.priority === "high" && (await getFarmConfig()).notifyTasks) {

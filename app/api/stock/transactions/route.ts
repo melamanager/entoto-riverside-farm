@@ -71,6 +71,7 @@ export async function POST(req: Request) {
           channel: "in_app",
           message: `${critical ? "🚨" : "📦"} ${critical ? "CRITICAL" : "Low"} stock: ${item.name} at ${after} ${item.unit} (reorder level ${reorder})`,
           link: "/stock",
+          recipientRole: "manager",
         },
       });
       if (critical && (await getFarmConfig()).notifyLowStock) {

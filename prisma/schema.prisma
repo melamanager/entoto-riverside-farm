@@ -211,13 +211,18 @@ model AttendanceRecord {
 }
 
 model Notification {
-  id        String              @id @default(cuid())
-  type      NotificationType
-  channel   NotificationChannel
-  message   String
-  timestamp DateTime            @default(now())
-  read      Boolean             @default(false)
-  link      String?
+  id            String              @id @default(cuid())
+  type          NotificationType
+  channel       NotificationChannel
+  message       String
+  timestamp     DateTime            @default(now())
+  read          Boolean             @default(false)
+  link          String?
+  recipientId   String?             // targeted to one farmer (null = not person-specific)
+  recipientRole String?             // targeted to a role e.g. "manager" (null = any)
+
+  @@index([recipientId])
+  @@index([recipientRole])
 }
 
 model Expense {

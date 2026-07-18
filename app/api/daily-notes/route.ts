@@ -63,12 +63,15 @@ export async function POST(req: Request) {
   // notify the other side in-app (best effort — a failed notification must not lose the note)
   try {
     const icon = type === "issue" ? "⚠️" : type === "instruction" ? "📋" : "📝";
+    // notify the other side of the conversation
+    const otherRole = note.author.role === "manager" ? "supervisor" : "manager";
     await prisma.notification.create({
       data: {
         type: "message",
         channel: "in_app",
         message: `${icon} ${note.author.name} (${note.author.role}) posted a ${type} in the Day Log for ${date}`,
         link: "/routines",
+        recipientRole: otherRole,
       },
     });
   } catch (e) {

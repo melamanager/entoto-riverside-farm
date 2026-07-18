@@ -144,6 +144,8 @@ export interface Notification {
   timestamp: string;
   read: boolean;
   link?: string;
+  recipientId?: string | null;
+  recipientRole?: string | null;
 }
 
 export type ExpenseCategory = "fuel" | "chemicals" | "seeds" | "labour" | "equipment" | "packaging" | "repairs" | "other";
