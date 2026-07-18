@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DollarSign, CheckCircle2, Clock, Download, Users, Calculator } from "lucide-react";
+import { DollarSign, CheckCircle2, Clock, Download, Users, Calculator, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { PayrollRecord, PayrollStatus } from "@/lib/erp-types";
 import type { AttendanceRecord, Farmer } from "@/lib/types";
@@ -92,16 +92,47 @@ export default function PayrollPage() {
     }
   }
 
+  function exportCsv() {
+    if (records.length === 0) { toast.error("Nothing to export for this month"); return; }
+    const header = "Month,Staff,Days,Daily Wage,Base Pay,OT Hours,OT Pay,Bonus,Deductions,Net Pay,Status";
+    const rows = records.map(r => {
+      const name = farmers.find(f => f.id === r.farmerId)?.name ?? r.farmerId;
+      return [r.month, name, r.daysWorked, r.dailyWage, r.basePay, r.overtimeHours, r.overtimePay, r.bonus, r.deductions, r.netPay, r.paymentStatus].join(",");
+    });
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `payroll-${selectedMonth}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   // Flow 7: auto-calculate days & hours from attendance
-  function autoCalculate() {
+  async function autoCalculate() {
     const allAttendance = attendance;
     const monthPrefix   = selectedMonth; // "2026-05"
     const newOverrides: Record<string, Partial<PayrollRecord>> = { ...overrides };
 
+    // supervisor rule: a day with no routine records only counts if manager-acknowledged
+    const [yy, mm] = monthPrefix.split("-").map(Number);
+    const lastDay = new Date(yy, mm, 0).getDate();
+    const comp: { rows?: { supervisorId: string; date: string; recorded: boolean; acknowledged: boolean }[] } =
+      await fetch(`/api/routines/compliance?from=${monthPrefix}-01&to=${monthPrefix}-${String(lastDay).padStart(2, "0")}`)
+        .then(r => r.ok ? r.json() : {});
+    const counted = new Set((comp.rows ?? []).filter(r => r.recorded || r.acknowledged).map(r => `${r.supervisorId}|${r.date}`));
+    const todayStr = new Date().toLocaleDateString("en-CA");
+    let excludedDays = 0;
+
     records.forEach(rec => {
-      const farmerAtt = allAttendance.filter(a =>
-        a.farmerId === rec.farmerId && a.date.startsWith(monthPrefix)
-      );
+      const isSupervisor = farmers.find(f => f.id === rec.farmerId)?.role === "supervisor";
+      const farmerAtt = allAttendance.filter(a => {
+        if (a.farmerId !== rec.farmerId || !a.date.startsWith(monthPrefix)) return false;
+        if (isSupervisor && a.date < todayStr && !counted.has(`${rec.farmerId}|${a.date}`)) {
+          if (a.status === "present" || a.status === "late") excludedDays += 1;
+          return false;
+        }
+        return true;
+      });
       const daysWorked = farmerAtt.filter(a => a.status === "present" || a.status === "late").length;
       const totalHours = farmerAtt.reduce((s, a) => s + (a.hoursWorked ?? 0), 0);
       // prefer explicitly recorded daily overtime (Daily Routines page); fall back to derived estimate
@@ -114,7 +145,45 @@ export default function PayrollPage() {
     });
     setOverrides(newOverrides);
     toast.success("Payroll recalculated from attendance records", {
-      description: `Based on ${monthPrefix} attendance data`,
+      description: excludedDays > 0
+        ? `${excludedDays} supervisor day(s) excluded — no routines recorded and not acknowledged. Review & Process All to save.`
+        : `Based on ${monthPrefix} attendance. Review, then Process All to save.`,
+      duration: 6000,
+    });
+  }
+
+  // Start a new payroll month: creates a record for every non-manager staff
+  // member, carrying each person's latest known daily wage
+  async function startMonth() {
+    const month = new Date().toLocaleDateString("en-CA").slice(0, 7);
+    if (allRecords.some(r => r.month === month)) {
+      setSelectedMonth(month);
+      toast.info(`${month} already exists`);
+      return;
+    }
+    const wageOf = (fid: string) => {
+      const prev = allRecords.filter(r => r.farmerId === fid).sort((a, b) => b.month.localeCompare(a.month))[0];
+      return prev ? prev.dailyWage : 400;
+    };
+    const staff = farmers.filter(f => f.role !== "manager");
+    const created: PayrollRecord[] = [];
+    for (const f of staff) {
+      const res = await fetch("/api/payroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          farmerId: f.id, month, daysWorked: 0, dailyWage: wageOf(f.id),
+          basePay: 0, overtimeHours: 0, overtimePay: 0, bonus: 0, deductions: 0, netPay: 0,
+        }),
+      });
+      if (res.ok) created.push(parsePayrollRecord(await res.json() as Record<string, unknown>));
+    }
+    if (created.length === 0) { toast.error("Failed to start the month"); return; }
+    setAllRecords(prev => [...prev, ...created]);
+    setSelectedMonth(month);
+    toast.success(`Started ${month} payroll for ${created.length} staff`, {
+      description: "Now: 1) Auto-calculate from attendance  2) Review  3) Process All",
+      duration: 6000,
     });
   }
 
@@ -127,6 +196,7 @@ export default function PayrollPage() {
             <h1 className="text-2xl font-bold text-foreground">{t.payroll.title}</h1>
           </div>
           <p className="text-muted-foreground text-sm">{t.payroll.subtitle}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Monthly flow: <b>1)</b> Start month → <b>2)</b> Auto-calculate from attendance → <b>3)</b> Review → <b>4)</b> Process All. Supervisor days without routine records are excluded unless acknowledged.</p>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -140,10 +210,15 @@ export default function PayrollPage() {
               </option>
             ))}
           </select>
+          {!months.includes(new Date().toLocaleDateString("en-CA").slice(0, 7)) && (
+            <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90" onClick={startMonth}>
+              <Plus className="size-3.5" /> Start {new Date().toLocaleDateString("en", { month: "long" })} payroll
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-2" onClick={autoCalculate}>
             <Calculator className="size-3.5" /> {t.payroll.autoCalculate}
           </Button>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={exportCsv}>
             <Download className="size-3.5" /> {t.payroll.export}
           </Button>
           {pendingCount > 0 && (

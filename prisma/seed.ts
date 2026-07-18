@@ -315,6 +315,16 @@ async function main() {
   }
   console.log("  ✓ Day log notes");
 
+  // ── 8d. Routine acknowledgment example ──────────────────────────────────────
+  // Yonas (f-007) has no records on 2026-05-12 (see irrigation skip context);
+  // manager acknowledges it so the day still counts.
+  await prisma.routineAck.upsert({
+    where: { date_supervisorId: { date: "2026-05-12", supervisorId: "f-007" } },
+    update: { ackBy: "f-008", note: "Off-site — collecting seedlings in Debre Zeit" },
+    create: { date: "2026-05-12", supervisorId: "f-007", ackBy: "f-008", note: "Off-site — collecting seedlings in Debre Zeit" },
+  });
+  console.log("  ✓ Routine acknowledgments");
+
   // ── 9. Notifications ─────────────────────────────────────────────────────────
   const notifications = [
     { id: "n-001", type: "disease" as const,     channel: "telegram" as const, message: "🚨 ALERT: A-BED-06 — Powdery Mildew detected (severity 42%). Treatment plan sent to Abebe.",   timestamp: new Date("2026-05-17T06:14:00Z"), read: false, link: "/diseases" },

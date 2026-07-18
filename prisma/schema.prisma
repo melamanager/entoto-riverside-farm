@@ -53,6 +53,8 @@ model Farmer {
   stockTransactions     StockTransaction[]
   irrigationLogs        IrrigationLog[]     @relation("IrrigationRecorder")
   dailyNotes            DailyNote[]         @relation("DailyNoteAuthor")
+  routineAcksReceived   RoutineAck[]        @relation("AckSupervisor")
+  routineAcksGiven      RoutineAck[]        @relation("AckManager")
 }
 
 model Valve {
@@ -426,6 +428,22 @@ model IrrigationLog {
   createdAt DateTime @default(now())
 
   @@index([date])
+}
+
+// Manager acknowledgment that a supervisor's day with no routine records
+// still counts as a worked day (sick, off-site assignment, etc.)
+model RoutineAck {
+  id           String  @id @default(cuid())
+  date         String
+  supervisorId String
+  supervisor   Farmer  @relation("AckSupervisor", fields: [supervisorId], references: [id])
+  ackBy        String
+  acker        Farmer  @relation("AckManager", fields: [ackBy], references: [id])
+  note         String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([date, supervisorId])
 }
 
 model DailyNote {

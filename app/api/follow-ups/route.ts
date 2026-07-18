@@ -37,6 +37,8 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
+  // accountability: creator is always the signed-in user, never client-supplied
+  body.createdBy = (session.user as { id: string }).id;
   const record = await prisma.followUp.create({ data: body });
   return NextResponse.json(record, { status: 201 });
 }

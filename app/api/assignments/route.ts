@@ -29,6 +29,11 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
+  // accountability: the supervisor of record is the signed-in user, not client-supplied
+  // (managers may log on behalf of a specific supervisor by passing supervisorId)
+  const { id: userId, role } = session.user as { id: string; role: string };
+  if (role !== "manager") body.supervisorId = userId;
+  else if (!body.supervisorId) body.supervisorId = userId;
   const record = await prisma.workerAssignment.create({ data: body });
   return NextResponse.json(record, { status: 201 });
 }

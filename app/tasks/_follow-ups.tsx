@@ -19,7 +19,7 @@ import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = new Date().toLocaleDateString("en-CA");
 
 const PRIORITY_STYLE: Record<FollowUpPriority, string> = {
   low:    "bg-muted text-muted-foreground border-border",

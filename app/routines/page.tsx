@@ -53,7 +53,7 @@ type WeeklyData = {
   net: { incomeETB: number; spendETB: number; balanceETB: number };
   overtime: {
     totalHours: number; totalPayETB: number;
-    workers: { farmerId: string; name: string; avatar: string; daysWorked: number; hoursWorked: number; overtimeHours: number; dailyWage: number; overtimePay: number }[];
+    workers: { farmerId: string; name: string; avatar: string; daysWorked: number; hoursWorked: number; overtimeHours: number; dailyWage: number; overtimePay: number; missedDays: number }[];
   };
 };
 
@@ -67,6 +67,20 @@ type DailyNoteT = {
   createdAt: string;
   author: { id: string; name: string; avatar: string; role: string };
   valve?: { name: string } | null;
+};
+
+type ComplianceRow = {
+  date: string;
+  supervisorId: string;
+  name: string;
+  avatar: string;
+  attendance: boolean;
+  watering: boolean;
+  dayLog: boolean;
+  recorded: boolean;
+  acknowledged: boolean;
+  ackByName: string | null;
+  ackNote: string | null;
 };
 
 type AttendanceRec = {
@@ -148,6 +162,11 @@ export default function RoutinesPage() {
   const [noteType, setNoteType] = useState<DailyNoteT["type"]>("note");
   const [posting, setPosting] = useState(false);
 
+  const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
+  const [myTodayCompliance, setMyTodayCompliance] = useState<ComplianceRow | null>(null);
+  const [ackTarget, setAckTarget] = useState<{ date: string; supervisorId: string; name: string } | null>(null);
+  const [ackNote, setAckNote] = useState("");
+
   const loadDaily = useCallback(() => {
     fetch(`/api/routines/daily?date=${date}`).then(r => r.json()).then(setDaily);
   }, [date]);
@@ -175,9 +194,23 @@ export default function RoutinesPage() {
     }
   }, [date, user?.id]);
 
+  const loadCompliance = useCallback(() => {
+    fetch(`/api/routines/compliance?from=${weekStart}&to=${shiftDate(weekStart, 6)}`)
+      .then(r => r.ok ? r.json() : { rows: [] })
+      .then(d => setCompliance(d.rows ?? []));
+  }, [weekStart]);
+
   useEffect(() => { loadDaily(); }, [loadDaily]);
   useEffect(() => { loadNotes(); }, [loadNotes]);
-  useEffect(() => { if (view === "weekly") loadWeekly(); }, [view, loadWeekly]);
+  useEffect(() => { if (view === "weekly") { loadWeekly(); loadCompliance(); } }, [view, loadWeekly, loadCompliance]);
+
+  // supervisor's own compliance banner for today
+  useEffect(() => {
+    if (isManager || !user?.id || date !== today()) { setMyTodayCompliance(null); return; }
+    fetch(`/api/routines/compliance?from=${date}&to=${date}`)
+      .then(r => r.ok ? r.json() : { rows: [] })
+      .then(d => setMyTodayCompliance((d.rows ?? []).find((r: ComplianceRow) => r.supervisorId === user.id) ?? null));
+  }, [isManager, user?.id, date, daily]);
   useEffect(() => {
     fetch("/api/farmers").then(r => r.json()).then((all: Farmer[]) => setFarmers(all.filter(f => f.role !== "manager")));
   }, []);
@@ -303,6 +336,21 @@ export default function RoutinesPage() {
     setNotes(prev => prev.filter(p => p.id !== n.id));
   }
 
+  async function acknowledgeDay() {
+    if (!ackTarget) return;
+    const res = await fetch("/api/routines/compliance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: ackTarget.date, supervisorId: ackTarget.supervisorId, note: ackNote || undefined }),
+    });
+    if (!res.ok) { toast.error("Failed to acknowledge day"); return; }
+    toast.success(`${ackTarget.name}'s ${ackTarget.date} acknowledged as worked`);
+    setAckTarget(null);
+    setAckNote("");
+    loadCompliance();
+    loadWeekly();
+  }
+
   const noteTypeLabel = (ty: DailyNoteT["type"]) =>
     ty === "instruction" ? t.routines.typeInstruction
     : ty === "report" ? t.routines.typeReport
@@ -335,8 +383,9 @@ export default function RoutinesPage() {
           </div>
           <p className="text-muted-foreground text-sm">{t.routines.subtitle}</p>
         </div>
+        {/* weekly view carries financials + wages → managers only */}
         <div className="flex items-center gap-1 p-1 rounded-lg bg-muted">
-          {(["daily", "weekly"] as const).map(v => (
+          {(isManager ? (["daily", "weekly"] as const) : (["daily"] as const)).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${view === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               {v === "daily" ? t.routines.dailyTab : t.routines.weeklyTab}
@@ -364,6 +413,17 @@ export default function RoutinesPage() {
               </div>
             )}
           </div>
+
+          {/* Supervisor: no-routines-today warning */}
+          {myTodayCompliance && !myTodayCompliance.recorded && (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-800">
+              <CircleDot className="size-5 shrink-0 mt-0.5 text-amber-500" />
+              <div className="text-sm">
+                <div className="font-bold">{t.routines.pendingToday}</div>
+                <div className="text-xs mt-0.5">{t.routines.noRoutinesToday}</div>
+              </div>
+            </div>
+          )}
 
           {/* Checklist + Day Log */}
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 items-start">
@@ -456,9 +516,13 @@ export default function RoutinesPage() {
                   <div className="flex items-center gap-2"><ShoppingCart className="size-4 text-emerald-600" /><span className="font-semibold text-sm">{t.routines.sales}</span></div>
                   <StatusBadge status={statuses.sales} t={t} />
                 </div>
-                <div className="text-2xl font-bold">{daily.sales.totalETB.toLocaleString()}<span className="text-sm text-muted-foreground font-normal"> ETB</span></div>
+                {/* money & orders link are manager-only */}
+                <div className="text-2xl font-bold">
+                  {isManager ? <>{daily.sales.totalETB.toLocaleString()}<span className="text-sm text-muted-foreground font-normal"> ETB</span></>
+                    : <>{daily.sales.orders}<span className="text-sm text-muted-foreground font-normal"> order{daily.sales.orders === 1 ? "" : "s"}</span></>}
+                </div>
                 <div className="text-xs text-muted-foreground">{daily.sales.orders} order{daily.sales.orders === 1 ? "" : "s"} · {daily.sales.totalKg.toFixed(1)} kg</div>
-                <Link href="/orders"><Button variant="outline" size="sm" className="w-full gap-1 mt-1"><ExternalLink className="size-3" /> Open Orders</Button></Link>
+                {isManager && <Link href="/orders"><Button variant="outline" size="sm" className="w-full gap-1 mt-1"><ExternalLink className="size-3" /> Open Orders</Button></Link>}
               </Card>
 
               {/* 7. Store */}
@@ -679,6 +743,7 @@ export default function RoutinesPage() {
                         <tr className="text-left text-xs text-muted-foreground border-b border-border">
                           <th className="py-2 pr-4">Worker</th>
                           <th className="py-2 pr-4 text-right">Days</th>
+                          <th className="py-2 pr-4 text-right">{t.routines.missedLabel}</th>
                           <th className="py-2 pr-4 text-right">Hours</th>
                           <th className="py-2 pr-4 text-right">OT Hours</th>
                           <th className="py-2 pr-4 text-right">Daily Wage</th>
@@ -690,6 +755,11 @@ export default function RoutinesPage() {
                           <tr key={w.farmerId} className="border-b border-border/50">
                             <td className="py-1.5 pr-4 font-medium">{w.name}</td>
                             <td className="py-1.5 pr-4 text-right">{w.daysWorked}</td>
+                            <td className="py-1.5 pr-4 text-right">
+                              {w.missedDays > 0
+                                ? <span className="text-rose-600 font-bold">{w.missedDays}</span>
+                                : <span className="text-muted-foreground">0</span>}
+                            </td>
                             <td className="py-1.5 pr-4 text-right">{w.hoursWorked.toFixed(1)}</td>
                             <td className="py-1.5 pr-4 text-right font-semibold text-indigo-600">{w.overtimeHours.toFixed(1)}</td>
                             <td className="py-1.5 pr-4 text-right">{w.dailyWage.toLocaleString()}</td>
@@ -698,7 +768,7 @@ export default function RoutinesPage() {
                         ))}
                         <tr className="font-bold">
                           <td className="py-2 pr-4">Total</td>
-                          <td /><td />
+                          <td /><td /><td />
                           <td className="py-2 pr-4 text-right text-indigo-700">{weekly.overtime.totalHours.toFixed(1)}</td>
                           <td />
                           <td className="py-2 text-right">{weekly.overtime.totalPayETB.toLocaleString()}</td>
@@ -713,10 +783,109 @@ export default function RoutinesPage() {
                   OT pay = OT hours × (daily wage ÷ 8) × 1.5 — same formula as the monthly payroll page. Monthly payroll picks these hours up automatically.
                 </p>
               </Card>
+
+              {/* ── Supervisor routine compliance ── */}
+              <Card className="p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="size-4 text-primary" />
+                  <h2 className="font-bold text-base">{t.routines.compliance}</h2>
+                </div>
+                <p className="text-[11px] text-muted-foreground">{t.routines.complianceRule}</p>
+                {(() => {
+                  const days = Array.from({ length: 7 }, (_, i) => shiftDate(weekStart, i));
+                  const supervisors = [...new Map(compliance.map(r => [r.supervisorId, { id: r.supervisorId, name: r.name }])).values()];
+                  const cell = (sid: string, d: string) => compliance.find(r => r.supervisorId === sid && r.date === d);
+                  const todayStr = today();
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                            <th className="py-2 pr-4">Supervisor</th>
+                            {days.map(d => (
+                              <th key={d} className="py-2 px-2 text-center whitespace-nowrap">{fmtShort(d)}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {supervisors.map(s => (
+                            <tr key={s.id} className="border-b border-border/50">
+                              <td className="py-2 pr-4 font-medium whitespace-nowrap">{s.name}</td>
+                              {days.map(d => {
+                                const r = cell(s.id, d);
+                                if (!r || d > todayStr) {
+                                  return <td key={d} className="py-2 px-2 text-center text-muted-foreground/40">·</td>;
+                                }
+                                if (r.recorded) {
+                                  const what = [r.attendance && "attendance", r.watering && "watering", r.dayLog && "day log"].filter(Boolean).join(", ");
+                                  return <td key={d} className="py-2 px-2 text-center" title={`${t.routines.recordedLabel}: ${what}`}>
+                                    <span className="inline-grid place-items-center size-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">✓</span>
+                                  </td>;
+                                }
+                                if (r.acknowledged) {
+                                  return <td key={d} className="py-2 px-2 text-center" title={`${t.routines.ackdLabel} by ${r.ackByName}${r.ackNote ? `: ${r.ackNote}` : ""}`}>
+                                    <span className="inline-grid place-items-center size-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">A</span>
+                                  </td>;
+                                }
+                                if (d === todayStr) {
+                                  return <td key={d} className="py-2 px-2 text-center" title={t.routines.pendingToday}>
+                                    <span className="inline-grid place-items-center size-6 rounded-full border-2 border-dashed border-amber-400 text-amber-500 text-xs">…</span>
+                                  </td>;
+                                }
+                                return <td key={d} className="py-2 px-2 text-center">
+                                  {isManager ? (
+                                    <button
+                                      onClick={() => { setAckTarget({ date: d, supervisorId: s.id, name: s.name }); setAckNote(""); }}
+                                      title={`${t.routines.missedLabel} — ${t.routines.ackDay}`}
+                                      className="inline-grid place-items-center size-6 rounded-full bg-rose-100 text-rose-700 text-xs font-bold hover:ring-2 hover:ring-rose-400 transition-all">
+                                      ✗
+                                    </button>
+                                  ) : (
+                                    <span className="inline-grid place-items-center size-6 rounded-full bg-rose-100 text-rose-700 text-xs font-bold" title={t.routines.missedLabel}>✗</span>
+                                  )}
+                                </td>;
+                              })}
+                            </tr>
+                          ))}
+                          {supervisors.length === 0 && (
+                            <tr><td colSpan={8} className="py-4 text-center text-xs text-muted-foreground">No supervisors found.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                      <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-muted-foreground">
+                        <span><span className="inline-block size-3 rounded-full bg-emerald-100 border border-emerald-300 mr-1 align-middle" />{t.routines.recordedLabel}</span>
+                        <span><span className="inline-block size-3 rounded-full bg-amber-100 border border-amber-300 mr-1 align-middle" />{t.routines.ackdLabel}</span>
+                        <span><span className="inline-block size-3 rounded-full bg-rose-100 border border-rose-300 mr-1 align-middle" />{t.routines.missedLabel}{isManager ? " (click to acknowledge)" : ""}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </Card>
             </>
           )}
         </>
       )}
+
+      {/* ── Acknowledge day dialog (manager) ── */}
+      <Dialog open={!!ackTarget} onOpenChange={o => !o && setAckTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{t.routines.ackDay}</DialogTitle></DialogHeader>
+          {ackTarget && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{ackTarget.name}</span> recorded no routines on <span className="font-semibold text-foreground">{fmtDate(ackTarget.date)}</span>.
+                Acknowledging counts it as a worked day anyway.
+              </p>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
+                <textarea rows={2} className={inputCls} placeholder="e.g. sick day, market trip for the farm…"
+                  value={ackNote} onChange={e => setAckNote(e.target.value)} />
+              </div>
+              <Button className="w-full" onClick={acknowledgeDay}>Acknowledge as worked</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Watering dialog ── */}
       <Dialog open={wateringOpen} onOpenChange={setWateringOpen}>

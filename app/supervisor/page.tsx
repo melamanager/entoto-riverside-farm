@@ -14,14 +14,16 @@ import {
 } from "lucide-react";
 import { DISEASE_LABELS } from "@/lib/types";
 import { useLang } from "@/lib/lang";
+import { useAuth } from "@/lib/auth";
 import { EN, AM } from "@/lib/translations";
 import type { Farmer, Valve, Bed, HarvestRecord, DiseaseReport, Task, AttendanceRecord } from "@/lib/types";
 import type { FollowUp } from "@/lib/erp-types";
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = new Date().toLocaleDateString("en-CA");
 
 export default function SupervisorPage() {
   const { isAm } = useLang();
+  const { user, isManager } = useAuth();
   const t = isAm ? AM : EN;
 
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -31,6 +33,7 @@ export default function SupervisorPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -41,7 +44,8 @@ export default function SupervisorPage() {
       fetch("/api/tasks").then(r => r.json()),
       fetch("/api/attendance").then(r => r.json()),
       fetch("/api/follow-ups").then(r => r.json()),
-    ]).then(([f, v, b, h, tk, a, fu]) => {
+      fetch("/api/diseases").then(r => r.json()),
+    ]).then(([f, v, b, h, tk, a, fu, dz]) => {
       setFarmers(f);
       setValves(v);
       setBeds(b);
@@ -49,13 +53,15 @@ export default function SupervisorPage() {
       setTasks(tk);
       setAttendance(a);
       setFollowUps(fu);
+      setDiseases(dz);
     });
   }, []);
 
-  const supervisors = farmers.filter(f => f.role === "supervisor");
+  // a supervisor sees only their own card; a manager viewing this page sees all
+  const supervisors = farmers.filter(f => f.role === "supervisor" && (isManager || f.id === user?.id));
   const todayAttendance = attendance.filter(a => a.date === TODAY);
   const allBeds = beds;
-  const allDiseases: DiseaseReport[] = [];
+  const allDiseases = diseases;
   const allTasks = tasks;
 
   return (

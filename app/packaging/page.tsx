@@ -33,7 +33,7 @@ const PURPOSE_STYLE: Record<PackagingPurpose, string> = {
 type HarvestRecord = { id: string; bedId: string; date: string; kg: number; farmerId: string; qualityGrade: string; bed?: { valveId: string; variety: string } };
 
 function emptyForm() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA");
   return {
   batchNumber: "", harvestDate: today, packedDate: today,
   valveId: "", variety: "",
@@ -43,6 +43,19 @@ function emptyForm() {
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
   orderId: "",
   };
+}
+
+// Batch numbers are deterministic and collision-safe within a day:
+// PKG-YYYYMMDD-NN  (NN = the Nth batch packed that day)
+function nextBatchNumber(packedDate: string, records: { batchNumber: string; packedDate: string }[]) {
+  const compact = packedDate.replace(/-/g, "");
+  const sameDay = records.filter(r => r.packedDate === packedDate).length;
+  return `PKG-${compact}-${String(sameDay + 1).padStart(2, "0")}`;
+}
+
+// lostKg is never typed — it is whatever the reconciliation leaves unaccounted
+function computeLost(harvestedKg: number, packedKg: number, rejectedKg: number) {
+  return Math.max(0, Math.round((harvestedKg - packedKg - rejectedKg) * 100) / 100);
 }
 
 export default function PackagingPage() {
@@ -111,12 +124,37 @@ export default function PackagingPage() {
       .catch(() => toast.error("Failed to load beds"));
   }, []);
 
-  function openCreate() {
-    const next = String(records.length + 54).padStart(3, "0");
-    setForm({ ...emptyForm(), batchNumber: `PKG-2026-0${next}`, valveId: valves[0]?.id ?? "", packedBy: farmers[0]?.id ?? "" });
+  function openCreate(prefill?: Partial<ReturnType<typeof emptyForm>>) {
+    const base = { ...emptyForm(), valveId: valves[0]?.id ?? "", packedBy: farmers[0]?.id ?? "", ...prefill };
+    setForm({ ...base, batchNumber: nextBatchNumber(base.packedDate, records) });
     setHarvestSource("");
     setCreateOpen(true);
   }
+
+  // Consume the ?bedId=&kg=&grade= hand-off from the Harvest page (once)
+  useEffect(() => {
+    if (typeof window === "undefined" || beds.length === 0 || valves.length === 0) return;
+    const q = new URLSearchParams(window.location.search);
+    const bedId = q.get("bedId");
+    const kg = q.get("kg");
+    if (!bedId && !kg) return;
+    const bed = beds.find(b => b.id === bedId);
+    const harvestedKg = kg ? parseFloat(kg) : 20;
+    const gradeA = q.get("grade") === "A";
+    openCreate({
+      valveId: bed?.valveId ?? valves[0]?.id ?? "",
+      variety: bed?.variety ?? "",
+      harvestedKg,
+      gradedKg: Math.round(harvestedKg * 0.9 * 100) / 100,
+      packedKg: Math.round(harvestedKg * 0.8 * 100) / 100,
+      rejectedKg: Math.round(harvestedKg * 0.1 * 100) / 100,
+      gradeAPct: gradeA ? 90 : 70,
+      gradeBPct: gradeA ? 10 : 30,
+    });
+    // clear the query so a refresh doesn't reopen the dialog
+    window.history.replaceState({}, "", "/packaging");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beds, valves]);
 
   function openEdit(r: PackagingRecord) {
     setForm({
@@ -131,10 +169,26 @@ export default function PackagingPage() {
     setEditTarget(r);
   }
 
+  // returns an error string, or null if valid
+  function validateBatch(f: ReturnType<typeof emptyForm>): string | null {
+    if (!f.valveId) return "Please select a valve";
+    if (!f.variety.trim()) return "Variety is required";
+    if (!f.packedBy) return "Select who packed the batch";
+    if (f.harvestedKg <= 0) return "Harvested kg must be greater than 0";
+    if (f.packedKg + f.rejectedKg > f.harvestedKg + 0.001) {
+      return `Packed (${f.packedKg}) + rejected (${f.rejectedKg}) exceed harvested (${f.harvestedKg}) kg`;
+    }
+    if (f.gradedKg > f.harvestedKg + 0.001) return "Graded kg can't exceed harvested kg";
+    if (f.packedKg > f.gradedKg + 0.001) return "Packed kg can't exceed graded kg";
+    return null;
+  }
+
   async function handleCreate() {
-    if (!form.batchNumber.trim()) { toast.error("Batch number required"); return; }
-    if (!form.valveId)            { toast.error("Please select a valve"); return; }
-    const body = { ...form, orderId: form.orderId || null };
+    const err = validateBatch(form);
+    if (err) { toast.error(err); return; }
+    const lostKg = computeLost(form.harvestedKg, form.packedKg, form.rejectedKg);
+    const batchNumber = form.batchNumber.trim() || nextBatchNumber(form.packedDate, records);
+    const body = { ...form, batchNumber, lostKg, orderId: form.orderId || null };
     const res = await fetch("/api/packaging", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) { toast.error("Failed to create batch"); return; }
     const created = await res.json() as PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string };
@@ -153,7 +207,10 @@ export default function PackagingPage() {
 
   async function handleEdit() {
     if (!editTarget) return;
-    const body = { ...form, orderId: form.orderId || null };
+    const err = validateBatch(form);
+    if (err) { toast.error(err); return; }
+    const lostKg = computeLost(form.harvestedKg, form.packedKg, form.rejectedKg);
+    const body = { ...form, lostKg, orderId: form.orderId || null };
     const res = await fetch(`/api/packaging/${editTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) { toast.error("Failed to update batch"); return; }
     const updated = await res.json() as PackagingRecord & { harvestedKg: number | string; gradedKg: number | string; packedKg: number | string; rejectedKg: number | string; lostKg: number | string };
@@ -279,10 +336,9 @@ export default function PackagingPage() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Batch # <span className="text-red-500">*</span></label>
-            <input value={form.batchNumber}
-              onChange={e => setForm(p => ({ ...p, batchNumber: e.target.value }))}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Batch # <span className="text-muted-foreground font-normal">(auto)</span></label>
+            <input value={form.batchNumber} readOnly
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-muted/50 text-muted-foreground font-mono" />
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Valve <span className="text-red-500">*</span></label>
@@ -372,11 +428,16 @@ export default function PackagingPage() {
               className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-red-700 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost (kg)</label>
-            <input type="number" min={0} step={0.1} value={form.lostKg}
-              onChange={e => setForm(p => ({ ...p, lostKg: Number(e.target.value) }))}
-              className="w-full border border-red-100 rounded-md px-3 py-2 text-sm" />
+            <label className="text-xs font-semibold text-red-700 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost (kg) <span className="text-muted-foreground font-normal">(auto)</span></label>
+            <input type="number" readOnly value={computeLost(form.harvestedKg, form.packedKg, form.rejectedKg)}
+              className="w-full border border-red-100 rounded-md px-3 py-2 text-sm bg-muted/50 text-muted-foreground" />
           </div>
+        </div>
+        <div className="text-[11px] text-muted-foreground -mt-1">
+          Reconciliation: harvested {form.harvestedKg} = packed {form.packedKg} + rejected {form.rejectedKg} + lost {computeLost(form.harvestedKg, form.packedKg, form.rejectedKg)} kg
+          {form.packedKg + form.rejectedKg > form.harvestedKg + 0.001 && (
+            <span className="text-rose-600 font-semibold"> — packed + rejected exceed harvested</span>
+          )}
         </div>
 
         <div>

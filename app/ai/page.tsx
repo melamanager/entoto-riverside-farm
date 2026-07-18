@@ -406,7 +406,7 @@ export default function AIPage() {
             </Badge>
           )}
           <Badge className="bg-primary/10 text-primary border border-primary/30 gap-1">
-            <Activity className="size-3" /> Live
+            <Activity className="size-3" /> Estimates
           </Badge>
         </div>
       </div>
@@ -442,14 +442,14 @@ export default function AIPage() {
           <div className="flex items-center gap-2 mb-1">
             <Zap className="size-4 text-amber-500" />
             <h2 className="font-bold text-foreground">Smart Alerts</h2>
-            <span className="text-xs text-muted-foreground ml-auto">Model v2.1 · Updated just now</span>
+            <span className="text-xs text-muted-foreground ml-auto">Rule-based estimates from farm data</span>
           </div>
 
           {alerts.length === 0 ? (
             <Card className="p-8 text-center border-primary/30 bg-primary/5">
               <CheckCircle2 className="size-10 mx-auto text-primary mb-2" />
               <div className="font-semibold text-primary">All clear — no active alerts</div>
-              <div className="text-sm text-muted-foreground mt-1">Farm is operating normally. Next model scan in 15 minutes.</div>
+              <div className="text-sm text-muted-foreground mt-1">Farm is operating normally. Estimates refresh from live records.</div>
             </Card>
           ) : (
             alerts.map(alert => {

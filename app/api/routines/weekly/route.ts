@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { todayAddis } from "@/lib/dates";
+import { complianceForRange, countedDaySet } from "@/lib/compliance";
 
 function isoDate(d: Date) {
   return d.toISOString().split("T")[0];
@@ -12,6 +13,10 @@ function isoDate(d: Date) {
 export async function GET(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // weekly report exposes expenses, sales income and wages — manager only
+  if ((session.user as { role: string }).role !== "manager") {
+    return NextResponse.json({ error: "Manager access required" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   // start = Monday of the requested week (defaults to current week)
@@ -75,9 +80,15 @@ export async function GET(req: Request) {
   }
   const DEFAULT_DAILY_WAGE = 400;
 
+  // Business rule: a supervisor's day with no routine records does not count as
+  // worked unless a manager acknowledged it.
+  const compliance = await complianceForRange(start, end);
+  const counted = countedDaySet(compliance);
+  const today = todayAddis();
+
   const perWorker = new Map<
     string,
-    { farmerId: string; name: string; avatar: string; daysWorked: number; hoursWorked: number; overtimeHours: number }
+    { farmerId: string; name: string; avatar: string; daysWorked: number; hoursWorked: number; overtimeHours: number; missedDays: number }
   >();
   for (const a of attendance) {
     if (a.farmer.role === "manager") continue;
@@ -88,10 +99,20 @@ export async function GET(req: Request) {
       daysWorked: 0,
       hoursWorked: 0,
       overtimeHours: 0,
+      missedDays: 0,
     };
-    if (a.status === "present" || a.status === "late") row.daysWorked += 1;
-    row.hoursWorked += a.hoursWorked ?? 0;
-    row.overtimeHours += a.overtimeHours ?? 0;
+    const worked = a.status === "present" || a.status === "late";
+    // supervisors only get credit for days with routine records (or manager ack);
+    // today stays counted until the day is over
+    const supervisorUncounted =
+      a.farmer.role === "supervisor" && a.date < today && !counted.has(`${a.farmerId}|${a.date}`);
+    if (worked && supervisorUncounted) {
+      row.missedDays += 1;
+    } else if (worked) {
+      row.daysWorked += 1;
+      row.hoursWorked += a.hoursWorked ?? 0;
+      row.overtimeHours += a.overtimeHours ?? 0;
+    }
     perWorker.set(a.farmerId, row);
   }
 

@@ -143,7 +143,7 @@ export default function TasksPage() {
   const inProgress = visibleTasks.filter(t => t.status === "in_progress").length;
   const done       = visibleTasks.filter(t => t.status === "done").length;
   const total      = visibleTasks.length;
-  const TODAY = new Date().toISOString().split("T")[0];
+  const TODAY = new Date().toLocaleDateString("en-CA");
   const overdueTasks = visibleTasks.filter(t => t.status !== "done" && t.dueDate < TODAY);
 
   /* ── Proof photo ─────────────────────────────────────────────────── */

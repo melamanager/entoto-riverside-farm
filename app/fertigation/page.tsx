@@ -25,7 +25,7 @@ const METHOD_STYLE: Record<ApplicationMethod, string> = {
   soil_drench: "bg-amber-100 text-amber-700",
 };
 function emptyForm() {
-  const today    = new Date().toISOString().split("T")[0];
+  const today    = new Date().toLocaleDateString("en-CA");
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
   return {
     valveId: "", bedId: "",

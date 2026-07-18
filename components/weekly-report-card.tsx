@@ -34,19 +34,20 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
 
   const weekKg    = weekHarvests.reduce((s, h) => s + h.kg, 0);
   const prevKg    = prevHarvests.reduce((s, h) => s + h.kg, 0);
-  const kgDelta   = prevKg > 0 ? ((weekKg - prevKg) / prevKg) * 100 : 0;
+  const kgDelta   = prevKg > 0 ? ((weekKg - prevKg) / prevKg) * 100 : null;
 
   const weekRevenue = weekKg * MARKET_PRICE_ETB;
+  const revDelta    = kgDelta; // revenue is a fixed multiple of kg, so its % change equals the kg change
 
   const weekDiseases = diseases.filter(d =>
     weekDates.some(date => d.reportedAt.startsWith(date))
   ).length;
 
-  // Attendance rate this week
+  // Attendance rate this week (null when no records — never fabricate a number)
   const weekAtt = attendance.filter(a => weekDates.includes(a.date));
   const attRate = weekAtt.length > 0
     ? Math.round((weekAtt.filter(a => a.status === "present" || a.status === "late").length / weekAtt.length) * 100)
-    : 94;
+    : null;
 
   // Best performing bed
   const bedKg = weekHarvests.reduce<Record<string, number>>((acc, h) => {
@@ -67,9 +68,9 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
       iconColor: "text-primary",
     },
     {
-      label: "Est. Revenue",
+      label: `Est. Revenue @${MARKET_PRICE_ETB}/kg`,
       value: `${(weekRevenue / 1000).toFixed(1)}k ETB`,
-      delta: kgDelta,
+      delta: revDelta,
       icon: TrendingUp,
       color: "text-blue-700",
       bg: "bg-blue-50",
@@ -86,12 +87,12 @@ export function WeeklyReportCard({ harvests, diseases, attendance, beds, today }
     },
     {
       label: "Attendance Rate",
-      value: `${attRate}%`,
+      value: attRate !== null ? `${attRate}%` : "—",
       delta: null,
       icon: Users,
-      color: attRate > 85 ? "text-primary" : "text-amber-700",
-      bg: attRate > 85 ? "bg-primary/10" : "bg-amber-50",
-      iconColor: attRate > 85 ? "text-primary" : "text-amber-600",
+      color: attRate !== null && attRate > 85 ? "text-primary" : "text-amber-700",
+      bg: attRate !== null && attRate > 85 ? "bg-primary/10" : "bg-amber-50",
+      iconColor: attRate !== null && attRate > 85 ? "text-primary" : "text-amber-600",
     },
   ];
 

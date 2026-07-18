@@ -68,7 +68,7 @@ export default function HarvestPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         bedId, kg: +kg, farmerId, qualityGrade: grade,
-        date: new Date().toISOString().split("T")[0],
+        date: new Date().toLocaleDateString("en-CA"),
       }),
     });
     if (res.ok) {
