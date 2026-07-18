@@ -138,7 +138,22 @@ export default function TasksPage() {
     : tasks;
   // Top-level only (no parentTaskId) for the main list
   const topLevelVisible = visibleTasks.filter(t => !t.parentTaskId);
-  const filtered   = topLevelVisible.filter(t => filter === "all" || t.status === filter);
+  const TODAY_STR = new Date().toLocaleDateString("en-CA");
+  const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  // Priority order: open work first; within that overdue, then priority, then
+  // disease treatment, then soonest due — so the day's critical work sits on top.
+  function taskWeight(t: Task): number {
+    let w = 0;
+    if (t.status === "done") w += 10000;                       // done sinks to the bottom
+    if (t.status !== "done" && t.dueDate < TODAY_STR) w -= 500; // overdue floats up
+    w += (PRIORITY_RANK[t.priority] ?? 1) * 100;
+    if (t.category === "disease") w -= 40;                       // disease is priority work
+    return w;
+  }
+  const filtered   = topLevelVisible
+    .filter(t => filter === "all" || t.status === filter)
+    .slice()
+    .sort((a, b) => taskWeight(a) - taskWeight(b) || a.dueDate.localeCompare(b.dueDate));
   const pending    = visibleTasks.filter(t => t.status === "pending").length;
   const inProgress = visibleTasks.filter(t => t.status === "in_progress").length;
   const done       = visibleTasks.filter(t => t.status === "done").length;
@@ -486,6 +501,11 @@ export default function TasksPage() {
                 {task.title}
               </span>
               <Badge className={`text-[10px] capitalize ${CATEGORY_COLORS[task.category]}`}>{task.category}</Badge>
+              {task.priority === "high" && task.status !== "done" && (
+                <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200 hover:bg-red-100 gap-0.5">
+                  <AlertCircle className="size-2.5" /> Priority
+                </Badge>
+              )}
               {overdue && <Badge variant="destructive" className="text-[10px]">Overdue</Badge>}
               {task.requiresImageProof && (
                 <Badge className="text-[10px] bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 gap-0.5">

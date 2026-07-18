@@ -68,6 +68,8 @@ export interface DiseaseReport {
   infectedLengthM?: number;
   suggestedTreatment: string;
   treatmentSteps: string[];
+  treatmentProgress?: boolean[];    // persisted checklist: which protocol steps are done
+  taskId?: string;                  // the auto-created priority treatment task
   treatmentApplied: boolean;
   treatmentAppliedAt?: string;
   treatmentAppliedBy?: string;

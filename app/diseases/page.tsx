@@ -58,6 +58,19 @@ export default function DiseasesPage() {
   const [confirmTarget, setConfirmTarget] = useState<DiseaseReport | null>(null);
   const [treatmentNote, setTreatmentNote] = useState("");
   const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean[]>>({});
+
+  // hydrate the protocol checklist from each report's persisted progress
+  useEffect(() => {
+    setCheckedSteps(prev => {
+      const next = { ...prev };
+      for (const d of diseases) {
+        if (next[d.id] === undefined && Array.isArray(d.treatmentProgress) && d.treatmentProgress.length) {
+          next[d.id] = d.treatmentProgress;
+        }
+      }
+      return next;
+    });
+  }, [diseases]);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [proofImageName, setProofImageName] = useState("");
   const proofInputRef = useRef<HTMLInputElement>(null);
@@ -168,12 +181,20 @@ export default function DiseasesPage() {
 
   async function submitTreatment() {
     if (!confirmTarget || !user) return;
+    const steps = confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type] ?? [];
+    const checks = checkedSteps[confirmTarget.id] ?? [];
+    const doneCount = checks.filter(Boolean).length;
+    if (steps.length > 0 && doneCount < steps.length) {
+      toast.error(`Complete all protocol steps first (${doneCount}/${steps.length} done)`);
+      return;
+    }
     const patchBody = {
       status: "treating" as const,
       treatmentApplied: true,
       treatmentAppliedAt: new Date().toISOString(),
       treatmentAppliedBy: user.id,
       treatmentNote: treatmentNote || "Treatment applied per manager's recommendation.",
+      treatmentProgress: checks,
       proofImageUrl: proofImage ?? undefined,
     };
     const res = await fetch(`/api/diseases/${confirmTarget.id}`, {
@@ -195,12 +216,22 @@ export default function DiseasesPage() {
   }
 
   function toggleStep(diseaseId: string, stepIdx: number, total: number) {
+    let saved: boolean[] = [];
     setCheckedSteps(prev => {
       const current = prev[diseaseId] ?? Array(total).fill(false);
       const next = [...current];
       next[stepIdx] = !next[stepIdx];
+      saved = next;
       return { ...prev, [diseaseId]: next };
     });
+    // persist protocol progress so it survives refresh and is visible to the manager
+    fetch(`/api/diseases/${diseaseId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ treatmentProgress: saved }),
+    }).then(() => {
+      setDiseases(prev => prev.map(d => d.id === diseaseId ? { ...d, treatmentProgress: saved } : d));
+    }).catch(() => toast.error("Couldn't save protocol progress"));
   }
 
   /* ── Status groups for rendering ────────────────────────────────────── */
@@ -610,7 +641,18 @@ export default function DiseasesPage() {
 
               {/* Treatment steps checklist */}
               <div>
-                <div className="text-xs font-semibold text-foreground/80 mb-2">Treatment Protocol Checklist</div>
+                {(() => {
+                  const steps = confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type] ?? [];
+                  const done = (checkedSteps[confirmTarget.id] ?? []).filter(Boolean).length;
+                  return (
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-foreground/80">Treatment Protocol Checklist</span>
+                      <span className={`text-[11px] font-semibold ${done >= steps.length && steps.length > 0 ? "text-primary" : "text-amber-600"}`}>
+                        {done}/{steps.length} steps · {steps.length > 0 && done >= steps.length ? "complete" : "tap each as you do it"}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                   {(confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type]).map((step, i) => {
                     const checks = checkedSteps[confirmTarget.id] ?? Array((confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type]).length).fill(false);
@@ -695,13 +737,21 @@ export default function DiseasesPage() {
                 )}
               </div>
 
-              <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2"
-                disabled={!treatmentNote || (confirmTarget.requiresImageProof && !proofImage)}
-                onClick={submitTreatment}
-              >
-                <CheckCircle2 className="size-4" /> Confirm & Save Treatment Record
-              </Button>
+              {(() => {
+                const steps = confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type] ?? [];
+                const done = (checkedSteps[confirmTarget.id] ?? []).filter(Boolean).length;
+                const stepsIncomplete = steps.length > 0 && done < steps.length;
+                return (
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2"
+                    disabled={!treatmentNote || stepsIncomplete || (confirmTarget.requiresImageProof && !proofImage)}
+                    onClick={submitTreatment}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    {stepsIncomplete ? `Finish protocol (${done}/${steps.length})` : "Confirm & Save Treatment Record"}
+                  </Button>
+                );
+              })()}
             </div>
           )}
         </DialogContent>

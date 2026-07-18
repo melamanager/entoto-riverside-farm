@@ -135,6 +135,7 @@ model DiseaseReport {
   reporterNote         String?
   suggestedTreatment   String
   treatmentSteps       Json          @default("[]")
+  treatmentProgress    Json          @default("[]")
   treatmentApplied     Boolean       @default(false)
   treatmentAppliedAt   DateTime?
   treatmentAppliedBy   String?
@@ -146,6 +147,7 @@ model DiseaseReport {
   managerRecommendation String?
   requiresImageProof   Boolean?
   proofImageUrl        String?
+  taskId               String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
