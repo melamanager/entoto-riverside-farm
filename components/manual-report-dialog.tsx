@@ -113,7 +113,7 @@ export function ManualReportDialog({ onReported }: Props) {
           )}
         />
 
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bug className="size-5 text-red-600" />

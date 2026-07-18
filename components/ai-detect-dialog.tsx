@@ -164,7 +164,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
           )
         }
       />
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="size-5 text-amber-600" />
