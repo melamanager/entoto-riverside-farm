@@ -346,11 +346,17 @@ export default function TasksPage() {
   /* ── Create task ─────────────────────────────────────────────────── */
   async function createTask() {
     if (!newTask.title.trim()) { toast.error("Title is required"); return; }
+    const assignedTo = isSupervisor ? (user?.id ?? "") : newTask.assignedTo;
+    if (!assignedTo) { toast.error("Choose who this task is for"); return; }
+    if (!newTask.dueDate) { toast.error("Pick a due date"); return; }
     const taskBody = {
-      ...newTask,
-      createdBy: user?.id ?? "",
+      title: newTask.title.trim(),
+      description: newTask.description,
+      assignedTo,
+      priority: newTask.priority,
+      category: newTask.category,
+      dueDate: newTask.dueDate,
       status: "pending" as const,
-      createdAt: new Date().toISOString(),
       requiresImageProof: requireImageNew,
       requiresFollowUp: requireFollowUpNew,
       followUpDueDate: requireFollowUpNew ? followUpDateNew : undefined,
@@ -361,6 +367,11 @@ export default function TasksPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(taskBody),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error("Couldn't create task", { description: (err as { error?: string }).error });
+      return;
+    }
     const task: Task = await res.json();
     setTasks(prev => [task, ...prev]);
 
@@ -596,7 +607,8 @@ export default function TasksPage() {
           {canCreateTask && section === "tasks" && (
             <Button
               onClick={() => {
-                setNewTask(p => ({ ...p, assignedTo: isSupervisor ? (user?.id ?? "") : "" }));
+                // managers default to the first supervisor so the select isn't silently empty
+                setNewTask(p => ({ ...p, assignedTo: isSupervisor ? (user?.id ?? "") : (SUPERVISORS[0]?.id ?? "") }));
                 setNewTaskOpen(true);
               }}
               className="bg-primary hover:bg-primary/90 gap-2"
