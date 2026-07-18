@@ -10,6 +10,7 @@ import {
   Send, RefreshCw, ChevronRight, Activity,
 } from "lucide-react";
 import { useLang } from "@/lib/lang";
+import { useAuth } from "@/lib/auth";
 import { EN, AM } from "@/lib/translations";
 import type { Bed, HarvestRecord, DiseaseReport, Valve, Farmer } from "@/lib/types";
 import type { CustomerOrder, FertigationRecord, WorkerAssignment } from "@/lib/erp-types";
@@ -289,8 +290,10 @@ const SEVERITY_STYLES = {
 
 export default function AIPage() {
   const { isAm } = useLang();
+  const { isManager } = useAuth();
   const t = isAm ? AM : EN;
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA");
+  const [aiMode, setAiMode] = useState<"unknown" | "live" | "limited">("unknown");
 
   const [beds, setBeds] = useState<Bed[]>([]);
   const [harvests, setHarvests] = useState<HarvestRecord[]>([]);
@@ -335,12 +338,14 @@ export default function AIPage() {
 
   useEffect(() => {
     if (loaded) {
+      const openD = diseases.filter(d => d.status !== "resolved").length;
       setMessages([{
         role: "ai",
-        text: `Hello! I'm your farm AI assistant. I've analysed all current data across **${beds.length} beds**, **${farmers.length} staff**, and **${customerOrders.length} orders**. Ask me anything — harvest timing, disease risk, revenue forecasts, or worker recommendations.`,
-        ts: "Just now",
+        text: `Hi — I'm your farm assistant. Right now I'm looking at **${beds.length} beds**, **${openD} active disease report${openD === 1 ? "" : "s"}**, and today's operations. Ask me about harvest timing, what needs attention, watering, stock, workers${isManager ? ", or revenue" : ""} — I answer from live farm data.`,
+        ts: "",
       }]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
   const [input, setInput] = useState("");
@@ -360,18 +365,36 @@ export default function AIPage() {
     "Recommend actions for today",
   ];
 
-  function sendMessage(text?: string) {
+  async function sendMessage(text?: string) {
     const q = (text ?? input).trim();
-    if (!q) return;
-    const userMsg: QAMessage = { role: "user", text: q, ts: "Just now" };
-    setMessages(prev => [...prev, userMsg]);
+    if (!q || typing) return;
+    const history = [...messages, { role: "user" as const, text: q, ts: "" }];
+    setMessages(history);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history.map(m => ({ role: m.role, text: m.text })) }),
+      });
+      const data = await res.json();
+      if (res.ok && data.mode === "live" && data.reply) {
+        setAiMode("live");
+        setMessages(prev => [...prev, { role: "ai", text: data.reply, ts: "" }]);
+      } else {
+        // graceful fallback: answer from local farm data (no LLM key configured)
+        setAiMode("limited");
+        const answer = aiAnswer(q, beds, harvests, diseases, valves, farmers, customerOrders, fertigationRecords, workerAssignments, today);
+        setMessages(prev => [...prev, { role: "ai", text: answer, ts: "" }]);
+      }
+    } catch {
+      setAiMode("limited");
       const answer = aiAnswer(q, beds, harvests, diseases, valves, farmers, customerOrders, fertigationRecords, workerAssignments, today);
-      setMessages(prev => [...prev, { role: "ai", text: answer, ts: "Just now" }]);
+      setMessages(prev => [...prev, { role: "ai", text: answer, ts: "" }]);
+    } finally {
       setTyping(false);
-    }, 800 + Math.random() * 600);
+    }
   }
 
   const criticalCount = alerts.filter(a => a.severity === "critical").length;
@@ -462,9 +485,8 @@ export default function AIPage() {
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <Badge className={`text-[10px] ${s.badge}`}>{alert.category}</Badge>
                         <span className="font-semibold text-sm text-foreground">{alert.title}</span>
-                        <span className="ml-auto text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">
-                          <Sparkles className="size-3 inline mr-0.5 text-amber-400" />
-                          {alert.confidence}% confidence
+                        <span className={`ml-auto text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap ${s.icon}`}>
+                          {alert.severity}
                         </span>
                       </div>
                       <p className="text-xs text-foreground/70 leading-relaxed">{alert.detail}</p>
@@ -559,7 +581,13 @@ export default function AIPage() {
         <div className="flex items-center gap-2 mb-3">
           <Bot className="size-4 text-amber-600" />
           <h2 className="font-bold text-foreground">Farm AI Assistant</h2>
-          <span className="text-xs text-muted-foreground ml-2">Ask anything about your farm data</span>
+          <span className="text-xs text-muted-foreground ml-2">Answers from live farm data</span>
+          {aiMode === "live" && (
+            <Badge className="bg-primary/10 text-primary border border-primary/30 gap-1 ml-auto"><Sparkles className="size-3" /> Gemini</Badge>
+          )}
+          {aiMode === "limited" && (
+            <Badge className="bg-amber-100 text-amber-700 border border-amber-200 ml-auto" title="Set GOOGLE_GENERATIVE_AI_API_KEY to enable full conversational AI">Basic mode — connect an AI key for full answers</Badge>
+          )}
         </div>
 
         <Card className="overflow-hidden">
