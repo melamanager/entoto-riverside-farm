@@ -37,16 +37,29 @@ export default function ReportsPage() {
       setDiseases(d);
       setValves(v);
       setFarmers(f);
-      setCustomerOrders(o);
-      setPackagingRecords(pk);
+      setCustomerOrders((o as Array<Record<string, unknown>>).map(x => ({
+        ...x,
+        quantityKg:  parseFloat(String(x.quantityKg)),
+        pricePerKg:  parseFloat(String(x.pricePerKg)),
+        totalAmount: parseFloat(String(x.totalAmount)),
+        advancePaid: parseFloat(String(x.advancePaid)),
+      })) as typeof o);
+      setPackagingRecords((pk as Array<Record<string, unknown>>).map(x => ({
+        ...x,
+        harvestedKg: parseFloat(String(x.harvestedKg)),
+        gradedKg:    parseFloat(String(x.gradedKg)),
+        packedKg:    parseFloat(String(x.packedKg)),
+        rejectedKg:  parseFloat(String(x.rejectedKg)),
+        lostKg:      parseFloat(String(x.lostKg)),
+      })) as typeof pk);
     });
   }, []);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA");
 
   const totalKg = harvests.reduce((s, h) => s + parseFloat(h.kg.toString()), 0);
   const revenue = customerOrders.reduce((s, o) => s + o.totalAmount, 0);
-  const collected = customerOrders.reduce((s, o) => s + o.advancePaid, 0);
+  const collected = customerOrders.reduce((s, o) => s + (o.paymentStatus === "paid" ? o.totalAmount : o.advancePaid), 0);
 
   // by variety
   const byVariety: Record<string, number> = {};
