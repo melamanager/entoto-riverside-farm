@@ -1,8 +1,7 @@
-import { prisma } from "@/lib/prisma";
-
-// Farm operational configuration — editable on the Settings page, stored as
-// AppSetting rows, with sensible defaults so the app always works. These replace
-// magic numbers that used to be hardcoded across the codebase.
+// Farm operational configuration — client-safe (no server-only imports).
+// Editable on the Settings page, stored as AppSetting rows, with sensible
+// defaults so the app always works. Server-side reading lives in
+// lib/config-server.ts (which touches Prisma).
 
 export type FarmConfig = {
   farmName: string;
@@ -31,14 +30,14 @@ export const CONFIG_DEFAULTS: FarmConfig = {
 };
 
 // AppSetting key ↔ config field
-const NUM_KEYS: Record<string, keyof FarmConfig> = {
+export const NUM_KEYS: Record<string, keyof FarmConfig> = {
   harvest_daily_target_kg: "harvestDailyTargetKg",
   default_daily_wage: "defaultDailyWage",
   workday_hours: "workdayHours",
   overtime_multiplier: "overtimeMultiplier",
   target_kg_per_m: "targetKgPerM",
 };
-const BOOL_KEYS: Record<string, keyof FarmConfig> = {
+export const BOOL_KEYS: Record<string, keyof FarmConfig> = {
   notify_disease: "notifyDisease",
   notify_lowstock: "notifyLowStock",
   notify_tasks: "notifyTasks",
@@ -50,24 +49,3 @@ export const CONFIG_KEYS = [
   ...Object.keys(NUM_KEYS),
   ...Object.keys(BOOL_KEYS),
 ];
-
-// server-side: read the live config (falls back to defaults on any error)
-export async function getFarmConfig(): Promise<FarmConfig> {
-  try {
-    const rows = await prisma.appSetting.findMany({ where: { key: { in: CONFIG_KEYS } } });
-    const map = new Map(rows.map((r) => [r.key, r.value]));
-    const cfg: FarmConfig = { ...CONFIG_DEFAULTS };
-    if (map.has("farm_name")) cfg.farmName = map.get("farm_name")!;
-    for (const [k, field] of Object.entries(NUM_KEYS)) {
-      const v = map.get(k);
-      if (v != null && Number.isFinite(Number(v))) (cfg[field] as number) = Number(v);
-    }
-    for (const [k, field] of Object.entries(BOOL_KEYS)) {
-      const v = map.get(k);
-      if (v != null) (cfg[field] as boolean) = v === "true" || v === "1";
-    }
-    return cfg;
-  } catch {
-    return { ...CONFIG_DEFAULTS };
-  }
-}

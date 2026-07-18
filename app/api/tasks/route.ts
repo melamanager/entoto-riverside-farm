@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/notifications";
-import { getFarmConfig } from "@/lib/config";
+import { getFarmConfig } from "@/lib/config-server";
 
 export async function GET(req: Request) {
   const session = await auth();

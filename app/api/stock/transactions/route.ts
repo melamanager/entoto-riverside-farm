@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { sendTelegram } from "@/lib/notifications";
-import { getFarmConfig } from "@/lib/config";
+import { getFarmConfig } from "@/lib/config-server";
 
 export async function GET(req: Request) {
   const session = await auth();

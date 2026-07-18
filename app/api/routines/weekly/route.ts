@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { todayAddis } from "@/lib/dates";
 import { complianceForRange, countedDaySet } from "@/lib/compliance";
-import { getFarmConfig } from "@/lib/config";
+import { getFarmConfig } from "@/lib/config-server";
 
 function isoDate(d: Date) {
   return d.toISOString().split("T")[0];

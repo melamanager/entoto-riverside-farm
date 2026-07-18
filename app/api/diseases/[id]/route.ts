@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/notifications";
 import { todayAddis } from "@/lib/dates";
-import { getFarmConfig } from "@/lib/config";
+import { getFarmConfig } from "@/lib/config-server";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();

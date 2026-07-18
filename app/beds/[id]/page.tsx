@@ -10,7 +10,7 @@ import { BedQR } from "@/components/bed-qr";
 import { HarvestChart } from "@/components/harvest-chart";
 import { DISEASE_LABELS, GROWTH_STAGE_LABELS } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
-import { getFarmConfig } from "@/lib/config";
+import { getFarmConfig } from "@/lib/config-server";
 
 const STAGES = ["planted", "vegetative", "flowering", "fruiting", "ripening", "harvest"] as const;
 
