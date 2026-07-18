@@ -11,7 +11,8 @@ export function normalizeOrderMoney(body: Record<string, unknown>) {
   const total = Math.round(qty * price * 100) / 100;
   let advance = Math.max(0, Number(body.advancePaid) || 0);
   if (advance > total) advance = total;
-  const paymentStatus = advance <= 0 ? "pending" : advance >= total ? "paid" : "partial";
+  const paymentStatus: "pending" | "partial" | "paid" =
+    advance <= 0 ? "pending" : advance >= total ? "paid" : "partial";
   return {
     quantityKg: new Prisma.Decimal(qty),
     pricePerKg: new Prisma.Decimal(price),
