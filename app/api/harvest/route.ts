@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { sendTelegram } from "@/lib/notifications";
+import { todayAddis } from "@/lib/dates";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
       kg: new Prisma.Decimal(body.kg),
       farmerId: body.farmerId,
       qualityGrade: body.qualityGrade ?? "A",
-      date: body.date ?? new Date().toISOString().split("T")[0],
+      date: body.date ?? todayAddis(),
     },
   });
 

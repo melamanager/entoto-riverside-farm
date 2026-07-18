@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { todayAddis } from "@/lib/dates";
 
 function isoDate(d: Date) {
   return d.toISOString().split("T")[0];
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   // start = Monday of the requested week (defaults to current week)
   let start = searchParams.get("start");
   if (!start) {
-    const now = new Date();
+    const now = new Date(`${todayAddis()}T00:00:00.000Z`);
     const day = now.getUTCDay() === 0 ? 7 : now.getUTCDay();
     now.setUTCDate(now.getUTCDate() - (day - 1));
     start = isoDate(now);
@@ -130,10 +131,12 @@ export async function GET(req: Request) {
       sessions: irrigationLogs.length,
       skipped: irrigationLogs.filter((l) => l.status === "skipped").length,
     },
+    // stock-in value is reported separately (store.inValueETB): purchases are
+    // normally also logged as Expenses, so adding both would double-count spend
     net: {
       incomeETB: salesETB,
-      spendETB: expensesETB + stockInETB,
-      balanceETB: salesETB - expensesETB - stockInETB,
+      spendETB: expensesETB,
+      balanceETB: salesETB - expensesETB,
     },
     overtime: {
       totalHours: overtimeRows.reduce((s, w) => s + w.overtimeHours, 0),

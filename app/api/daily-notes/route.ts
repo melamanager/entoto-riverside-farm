@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { todayAddis } from "@/lib/dates";
 
 const NOTE_TYPES = ["instruction", "report", "issue", "note"] as const;
 
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
+  const date = searchParams.get("date") ?? todayAddis();
 
   const notes = await prisma.dailyNote.findMany({
     where: { date },
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   if (!text) return NextResponse.json({ error: "Note body is required" }, { status: 400 });
   if (text.length > 2000) return NextResponse.json({ error: "Note too long (max 2000 chars)" }, { status: 400 });
   const type = NOTE_TYPES.includes(body.type) ? body.type : "note";
-  const date: string = body.date ?? new Date().toISOString().split("T")[0];
+  const date: string = body.date ?? todayAddis();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
   }

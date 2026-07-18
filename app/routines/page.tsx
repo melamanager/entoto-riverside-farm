@@ -79,7 +79,7 @@ type AttendanceRec = {
 /* ── helpers ────────────────────────────────────────────────────────── */
 
 function today() {
-  return new Date().toISOString().split("T")[0];
+  return new Date().toLocaleDateString("en-CA");
 }
 
 function shiftDate(ds: string, days: number) {
@@ -273,7 +273,7 @@ export default function RoutinesPage() {
   }
 
   async function postNote() {
-    if (!noteBody.trim()) return;
+    if (posting || !noteBody.trim()) return;
     setPosting(true);
     const res = await fetch("/api/daily-notes", {
       method: "POST",

@@ -10,6 +10,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const body = await req.json();
 
+  // closing out a disease is the manager's call — supervisors confirm treatment only
+  if (body.status === "resolved" && (session.user as { role: string }).role !== "manager") {
+    return NextResponse.json({ error: "Only the manager can resolve a report" }, { status: 403 });
+  }
+
   const before = await prisma.diseaseReport.findUnique({ where: { id }, select: { status: true } });
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

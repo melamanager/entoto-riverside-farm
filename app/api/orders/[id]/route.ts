@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role = (session.user as { role: string }).role;
+  if (role !== "manager") return NextResponse.json({ error: "Manager access required" }, { status: 403 });
 
   const { id } = await params;
   const body = await req.json();
@@ -16,6 +18,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role = (session.user as { role: string }).role;
+  if (role !== "manager") return NextResponse.json({ error: "Manager access required" }, { status: 403 });
 
   const { id } = await params;
   await prisma.customerOrder.delete({ where: { id } });

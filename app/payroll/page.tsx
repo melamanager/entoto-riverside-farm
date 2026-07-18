@@ -64,6 +64,7 @@ export default function PayrollPage() {
   async function processAll() {
     // persist any auto-calculated overrides and mark pending records processed
     const updated: PayrollRecord[] = [];
+    let failures = 0;
     for (const rec of records) {
       const patch: Partial<PayrollRecord> = {
         ...overrides[rec.id],
@@ -76,14 +77,19 @@ export default function PayrollPage() {
         body: JSON.stringify(patch),
       });
       if (res.ok) updated.push(parsePayrollRecord(await res.json() as Record<string, unknown>));
+      else failures += 1;
     }
     if (updated.length > 0) {
       setAllRecords(prev => prev.map(r => updated.find(u => u.id === r.id) ?? r));
       setOverrides({});
     }
-    toast.success(`Processed ${pendingCount} payroll records`, {
-      description: `Total disbursement: ${totalNetPay.toLocaleString()} ETB`,
-    });
+    if (failures > 0) {
+      toast.error(`${failures} record(s) failed to save`, { description: `${updated.length} saved. Retry to process the rest.` });
+    } else {
+      toast.success(`Processed ${updated.length} payroll records`, {
+        description: `Total disbursement: ${totalNetPay.toLocaleString()} ETB`,
+      });
+    }
   }
 
   // Flow 7: auto-calculate days & hours from attendance

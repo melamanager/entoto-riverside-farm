@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { todayAddis } from "@/lib/dates";
 
 // Aggregated status of every daily routine area for one date.
 export async function GET(req: Request) {
@@ -8,7 +9,7 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
+  const date = searchParams.get("date") ?? todayAddis();
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
 

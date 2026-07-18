@@ -38,7 +38,7 @@ export default function AttendancePage() {
     label: s.label,
     color: s.color ?? "bg-slate-400",
   }));
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA");
 
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [valves, setValves] = useState<Valve[]>([]);
@@ -113,10 +113,13 @@ export default function AttendancePage() {
           farmerId: f.id,
           date: today,
           status,
-          checkInTime: checkIn ?? null,
-          checkOutTime: checkOut ?? null,
-          hoursWorked: hours ?? undefined,
-          overtimeHours: hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - 8) * 10) / 10) : 0,
+          // undefined leaves an existing value untouched on re-save; absent/leave explicitly clears
+          checkInTime: working ? checkIn : null,
+          checkOutTime: working ? (checkOut ?? undefined) : null,
+          hoursWorked: working ? (hours ?? undefined) : 0,
+          overtimeHours: working
+            ? (hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - 8) * 10) / 10) : undefined)
+            : 0,
           recordedBy: user.id,
         };
       });

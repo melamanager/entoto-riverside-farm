@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { todayAddis } from "@/lib/dates";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   const entityType = searchParams.get("entityType");
 
   // lazy overdue sweep: pending follow-ups past their due date become overdue
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayAddis();
   await prisma.followUp.updateMany({
     where: { status: "pending", dueDate: { lt: today } },
     data: { status: "overdue" },

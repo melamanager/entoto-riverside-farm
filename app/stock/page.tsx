@@ -80,6 +80,7 @@ export default function StockPage() {
   useEffect(() => {
     fetch("/api/stock").then(r => r.json()).then((data: Record<string, unknown>[]) => setItems(data.map(parseStockItem)));
     fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/stock/transactions").then(r => r.json()).then((data: Record<string, unknown>[]) => setTx(data.map(parseTransaction)));
   }, []);
 
   const filtered = useMemo(() =>
@@ -101,10 +102,15 @@ export default function StockPage() {
 
   async function handleTx() {
     if (!txForm.itemId) { toast.error("Select an item"); return; }
-    if (txForm.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
+    if (txForm.type === "adjustment") {
+      if (txForm.quantity === 0) { toast.error("Adjustment can't be zero", { description: "Use + to increase, − to decrease the counted stock." }); return; }
+    } else if (txForm.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
     const item = items.find(i => i.id === txForm.itemId);
     if (!item) return;
-    if (txForm.type === "stock_out" && txForm.quantity > item.currentQty) {
+    const removes = txForm.type === "stock_out" || txForm.type === "waste"
+      ? txForm.quantity
+      : txForm.type === "adjustment" && txForm.quantity < 0 ? -txForm.quantity : 0;
+    if (removes > item.currentQty) {
       toast.error("Not enough stock", { description: `Only ${item.currentQty} ${item.unit} available` });
       return;
     }
@@ -112,7 +118,7 @@ export default function StockPage() {
       itemId: txForm.itemId,
       type: txForm.type,
       quantity: txForm.quantity,
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toLocaleDateString("en-CA"),
       referenceType: "manual",
       performedBy: txForm.performedBy,
       notes: txForm.notes || undefined,
@@ -122,10 +128,15 @@ export default function StockPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!res.ok) { toast.error("Failed to record transaction"); return; }
-    // Refresh stock items
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error("Failed to record transaction", { description: (err as { error?: string }).error });
+      return;
+    }
+    // Refresh stock items + transactions
     const updated = await fetch("/api/stock").then(r => r.json()) as Record<string, unknown>[];
     setItems(updated.map(parseStockItem));
+    fetch("/api/stock/transactions").then(r => r.json()).then((data: Record<string, unknown>[]) => setTx(data.map(parseTransaction)));
     toast.success(txForm.type === "stock_in" ? `${item.name} restocked +${txForm.quantity} ${item.unit}` : `${item.name} usage recorded`);
     setTxDialogOpen(false);
   }
@@ -365,7 +376,7 @@ export default function StockPage() {
               <label className="text-xs font-semibold text-foreground/80 block mb-1">
                 Quantity ({items.find(i => i.id === txForm.itemId)?.unit ?? "units"})
               </label>
-              <input type="number" min={0.01} step={0.01} value={txForm.quantity}
+              <input type="number" min={txForm.type === "adjustment" ? undefined : 0.01} step={0.01} value={txForm.quantity}
                 onChange={e => setTxForm(p => ({ ...p, quantity: Number(e.target.value) }))}
                 className="w-full border border-border rounded-md px-3 py-2 text-sm" />
             </div>

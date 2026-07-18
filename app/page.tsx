@@ -75,7 +75,7 @@ export default function DashboardPage() {
   const [tasks, setTasks]           = useState<Task[]>([]);
   const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
   const [watering, setWatering] = useState<{ valvesWatered: number; totalValves: number; sessions: number; waterVolumeL: number } | null>(null);
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA");
 
   useEffect(() => {
     const from = new Date();
@@ -90,7 +90,7 @@ export default function DashboardPage() {
     fetch("/api/attendance").then(r => r.json()).then(setAttendance);
     fetch("/api/tasks").then(r => r.json()).then(setTasks);
     fetch("/api/packaging").then(r => r.json()).then(setPackagingRecords);
-    fetch(`/api/routines/daily?date=${new Date().toISOString().split("T")[0]}`)
+    fetch(`/api/routines/daily?date=${new Date().toLocaleDateString("en-CA")}`)
       .then(r => r.json())
       .then(d => setWatering(d.watering ?? null));
   }, []);

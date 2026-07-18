@@ -53,6 +53,7 @@ export default function OrdersPage() {
   const [orders, setOrders]             = useState<CustomerOrder[]>([]);
   const [packagingRecords, setPackagingRecords] = useState<PackagingRecord[]>([]);
   const [fertigationRecords, setFertigationRecords] = useState<FertigationRecord[]>([]);
+  const [payrollMonthTotal, setPayrollMonthTotal] = useState(0);
   const [filter, setFilter]             = useState<"all" | PaymentStatus>("all");
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<CustomerOrder | null>(null);
@@ -94,8 +95,16 @@ export default function OrdersPage() {
   useEffect(() => {
     fetch("/api/fertigation")
       .then(r => r.json())
-      .then((data: FertigationRecord[]) => setFertigationRecords(data))
+      .then((data: Array<Record<string, unknown>>) =>
+        setFertigationRecords(data.map(f => ({ ...f, cost: parseFloat(String(f.cost)) })) as unknown as FertigationRecord[]))
       .catch(() => toast.error("Failed to load fertigation records"));
+    fetch("/api/payroll")
+      .then(r => r.json())
+      .then((data: Array<{ month: string; netPay: unknown }>) =>
+        setPayrollMonthTotal(data
+          .filter(p => p.month === new Date().toISOString().slice(0, 7))
+          .reduce((s, p) => s + parseFloat(String(p.netPay)), 0)))
+      .catch(() => setPayrollMonthTotal(0));
   }, []);
 
   function openCreate() { setForm(EMPTY_FORM); setCreateOpen(true); }
@@ -185,16 +194,23 @@ export default function OrdersPage() {
 
   const records      = filter === "all" ? orders : orders.filter(o => o.paymentStatus === filter);
   const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
-  const collected    = orders.reduce((s, o) => s + o.advancePaid, 0);
+  // an order marked fully paid counts at its full amount; otherwise only the advance is in hand
+  const collected    = orders.reduce((s, o) => s + (o.paymentStatus === "paid" ? o.totalAmount : o.advancePaid), 0);
   const outstanding  = totalRevenue - collected;
   const delivered    = orders.filter(o => o.deliveryStatus === "delivered").length;
   const pending      = orders.filter(o => o.deliveryStatus === "pending").length;
 
-  // Revenue tab data
-  const fertCost   = fertigationRecords.filter(r => r.status === "applied").reduce((s, r) => s + r.cost, 0);
-  const payrollMay = 0; // payroll not fetched here; keep structure but default to 0
-  const totalCosts = fertCost + payrollMay;
-  const grossProfit = collected - totalCosts;
+  // Revenue tab data — P&L scoped to the current month
+  const monthKey   = new Date().toISOString().slice(0, 7);
+  const monthLabel = new Date().toLocaleDateString("en", { month: "long", year: "numeric" });
+  const monthCollected = orders
+    .filter(o => o.orderDate.startsWith(monthKey))
+    .reduce((s, o) => s + (o.paymentStatus === "paid" ? o.totalAmount : o.advancePaid), 0);
+  const fertCost   = fertigationRecords
+    .filter(r => r.status === "applied" && r.applicationDate.startsWith(monthKey))
+    .reduce((s, r) => s + r.cost, 0);
+  const totalCosts = fertCost + payrollMonthTotal;
+  const grossProfit = monthCollected - totalCosts;
   const totalKg    = orders.reduce((s, o) => s + o.quantityKg, 0);
   const avgPrice   = totalKg > 0 ? totalRevenue / totalKg : 0;
   const byType     = orders.reduce<Record<string, { revenue: number; kg: number; count: number }>>((acc, o) => {
@@ -539,12 +555,12 @@ export default function OrdersPage() {
 
           {/* P&L */}
           <Card className="p-5 border-border">
-            <h3 className="font-semibold text-foreground mb-4">Simplified P&L — May 2026</h3>
+            <h3 className="font-semibold text-foreground mb-4">Simplified P&L — {monthLabel}</h3>
             <div className="space-y-2">
               {[
-                { label: "Revenue Collected",  value: collected,   color: "text-primary" },
+                { label: "Revenue Collected",  value: monthCollected,   color: "text-primary" },
                 { label: "Fertigation Inputs", value: -fertCost,   color: "text-red-600" },
-                { label: "Payroll (May)",       value: -payrollMay, color: "text-red-600" },
+                { label: `Payroll (${monthLabel.split(" ")[0]})`, value: -payrollMonthTotal, color: "text-red-600" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm">
                   <span className="text-muted-foreground">{label}</span>
