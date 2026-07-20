@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sendTelegram } from "@/lib/notifications";
+import { sendTelegramToFarmer } from "@/lib/notifications";
 import { todayAddis } from "@/lib/dates";
 import { getFarmConfig } from "@/lib/config-server";
 
@@ -28,18 +28,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const label = report.type.replace(/_/g, " ");
 
     if (body.status === "notified" && before.status !== "notified") {
-      // 1) alert the supervisor
+      // the responsible supervisor (bed → valve → supervisor), falling back to the reporter.
+      const bed = await prisma.bed.findUnique({ where: { id: report.bedId }, include: { valve: true } });
+      const assigneeId = bed?.valve?.supervisorId ?? report.reportedBy;
+
+      // 1) alert THAT supervisor on their own Telegram
       const tg = (await getFarmConfig()).notifyDisease
-        ? await sendTelegram(
-            `📋 <b>Treatment Recommendation — Entoto Farm</b>\n\n<b>Bed:</b> <code>${report.bedId}</code>\n<b>Disease:</b> ${label}\n\n${report.managerRecommendation ?? ""}\n\nOpen the ERP → Diseases to confirm treatment.`
+        ? await sendTelegramToFarmer(
+            assigneeId,
+            `🩺 <b>Treatment needed — Entoto Farm</b>\n\n<b>Bed:</b> <code>${report.bedId}</code>\n<b>Disease:</b> ${label}\n\n${report.managerRecommendation ?? ""}\n\nOpen the app → Daily Tasks to confirm treatment.`
           )
         : { ok: false };
       const channels = tg.ok ? ["telegram"] : [];
 
-      // 2) turn the recommendation into a PRIORITY daily task for the responsible
-      //    supervisor (bed → valve → supervisor), falling back to the reporter.
-      const bed = await prisma.bed.findUnique({ where: { id: report.bedId }, include: { valve: true } });
-      const assigneeId = bed?.valve?.supervisorId ?? report.reportedBy;
       const steps = Array.isArray(report.treatmentSteps) ? (report.treatmentSteps as string[]) : [];
       const desc = `${report.managerRecommendation ?? report.suggestedTreatment}` +
         (steps.length ? `\n\nProtocol:\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}` : "");

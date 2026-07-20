@@ -30,6 +30,8 @@ model Farmer {
   assignedValves   Json       @default("[]")
   nationalId       String?
   emergencyContact String?
+  telegramChatId   String?   // personal Telegram chat, once linked
+  telegramLinkCode String?   // one-time code used during linking
 
   user                  User?
   supervisedValves      Valve[]             @relation("ValveSupervisor")

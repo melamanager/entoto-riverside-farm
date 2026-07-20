@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { todayAddis } from "@/lib/dates";
+import { sendTelegramToFarmer } from "@/lib/notifications";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -40,5 +41,27 @@ export async function POST(req: Request) {
   // accountability: creator is always the signed-in user, never client-supplied
   body.createdBy = (session.user as { id: string }).id;
   const record = await prisma.followUp.create({ data: body });
+
+  // notify the assignee (in-app + their Telegram)
+  try {
+    if (record.assignedTo && record.assignedTo !== body.createdBy) {
+      await prisma.notification.create({
+        data: {
+          type: "task",
+          channel: "in_app",
+          message: `🔔 Follow-up for you: "${record.title}" (due ${record.dueDate})`,
+          link: "/tasks?tab=followups",
+          recipientId: record.assignedTo,
+        },
+      });
+      await sendTelegramToFarmer(
+        record.assignedTo,
+        `🔔 <b>Follow-up assigned — Entoto Farm</b>\n\n<b>${record.title}</b>\nDue: ${record.dueDate}\n\nOpen the app → Tasks → Follow-ups.`
+      );
+    }
+  } catch (e) {
+    console.error("follow-up assignment notification failed", e);
+  }
+
   return NextResponse.json(record, { status: 201 });
 }

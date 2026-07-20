@@ -10,7 +10,8 @@ export default auth((req) => {
 
   const isPublic =
     nextUrl.pathname.startsWith("/login") ||
-    nextUrl.pathname.startsWith("/api/auth");
+    nextUrl.pathname.startsWith("/api/auth") ||
+    nextUrl.pathname.startsWith("/api/cron"); // secret-protected server cron
 
   if (!isLoggedIn && !isPublic) {
     return NextResponse.redirect(new URL("/login", nextUrl));

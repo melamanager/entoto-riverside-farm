@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sendTelegram } from "@/lib/notifications";
+import { sendTelegramToFarmer } from "@/lib/notifications";
 import { getFarmConfig } from "@/lib/config-server";
 
 export async function GET(req: Request) {
@@ -75,9 +75,12 @@ export async function POST(req: Request) {
         recipientId: task.assignedTo, // the assignee (usually a supervisor) sees it
       },
     });
-    if (task.priority === "high" && (await getFarmConfig()).notifyTasks) {
-      await sendTelegram(
-        `📋 <b>High-priority task — Entoto Farm</b>\n\n<b>${task.title}</b>\nAssigned to: ${task.assignee.name}\nDue: ${task.dueDate}`
+    if ((await getFarmConfig()).notifyTasks) {
+      // deliver to the assignee's own Telegram (no-op if they haven't linked)
+      const pri = task.priority === "high" ? "🔴 PRIORITY task" : "📋 New task";
+      await sendTelegramToFarmer(
+        task.assignedTo,
+        `${pri} — Entoto Farm\n\n<b>${task.title}</b>\n${task.description ? task.description.slice(0, 200) + "\n" : ""}Due: ${task.dueDate}\n\nOpen the app → Daily Tasks.`
       );
     }
   } catch (e) {

@@ -33,11 +33,14 @@ export async function sendSmsEthiopia(to: string, message: string) {
   }
 }
 
-export async function sendTelegram(html: string) {
-  const botToken = await getSetting("telegram_token");
-  const chatId   = await getSetting("telegram_chat_id");
-  if (!botToken || !chatId) return { ok: false, error: "Telegram not configured" };
+export async function getTelegramToken() {
+  return getSetting("telegram_token");
+}
 
+// Send to a specific chat id.
+export async function sendTelegramTo(chatId: string, html: string) {
+  const botToken = await getSetting("telegram_token");
+  if (!botToken || !chatId) return { ok: false, error: "Telegram not configured" };
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
@@ -49,6 +52,20 @@ export async function sendTelegram(html: string) {
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+// Send to the farm's default chat (the manager / team group).
+export async function sendTelegram(html: string) {
+  const chatId = await getSetting("telegram_chat_id");
+  if (!chatId) return { ok: false, error: "Telegram not configured" };
+  return sendTelegramTo(chatId, html);
+}
+
+// Send to a specific farmer's personal Telegram, if they've linked one.
+export async function sendTelegramToFarmer(farmerId: string, html: string) {
+  const farmer = await prisma.farmer.findUnique({ where: { id: farmerId }, select: { telegramChatId: true } });
+  if (!farmer?.telegramChatId) return { ok: false, error: "Farmer has no Telegram linked" };
+  return sendTelegramTo(farmer.telegramChatId, html);
 }
 
 export async function notifyDisease(params: {

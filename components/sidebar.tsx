@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Map, Sprout, Users, Bug, Wheat,
-  FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks, ClipboardCheck, BookOpen,
+  FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks, ClipboardCheck, BookOpen, MessageSquare,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   DollarSign, Beaker,
   BarChart3, CalendarDays, Zap, Warehouse, Languages, Settings,
@@ -86,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/ai",       labelKey: "aiAlerts",   icon: Zap,      roles: ["manager", "supervisor"] },
       { href: "/guide",    labelKey: "guide",      icon: BookOpen, roles: ["manager", "supervisor"] },
+      { href: "/connect",  labelKey: "connectTelegram", icon: MessageSquare, roles: ["manager", "supervisor"] },
       { href: "/settings", labelKey: "settings",   icon: Settings, roles: ["manager"] },
     ],
   },
