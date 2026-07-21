@@ -1,5 +1,6 @@
 import type { Bed, HarvestRecord, DiseaseReport, GrowthStage } from "@/lib/types";
 import type { PackagingRecord } from "@/lib/erp-types";
+import { OriginInsight } from "@/components/origin-insight";
 
 interface Props {
   beds: Bed[];
@@ -523,64 +524,22 @@ export function OriginPerformance({ beds, harvests, diseases, packagingRecords }
         </div>
       </div>
 
-      {/* ── AI Summary ───────────────────────────────────────────────────── */}
+      {/* ── AI Summary — text generated from the computed stats (/api/ai/origin-insight) ── */}
       {rows.length >= 2 && (() => {
         const efficiencyLeader = rows[0];
         const volumeLeader     = [...rows].sort((a, b) => b.kg - a.kg)[0];
-        const split            = efficiencyLeader.origin !== volumeLeader.origin;
+        const weakest          = rows[rows.length - 1];
         return (
-          <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-purple-500/10 to-fuchsia-500/10 p-5 shadow-sm">
-            {/* Header */}
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="size-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 grid place-items-center shrink-0 shadow-sm shadow-violet-200">
-                <span className="text-white text-sm">✨</span>
-              </div>
-              <div>
-                <div className="text-sm font-bold text-violet-200">ማጠቃለያ (Summary)</div>
-                <div className="text-[10px] text-violet-300 font-medium">AI-generated origin insight</div>
-              </div>
-              <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">
-                AI Insight
-              </span>
-            </div>
-
-            {/* Body */}
-            <p className="text-sm text-foreground leading-7 mb-4">
-              ምንም እንኳን የፍሎሪዳ ዘር በአንድ ሜትር የሚሰጠው ምርት{" "}
-              <span className="font-semibold text-blue-300">(efficiency)</span>{" "}
-              ቢበልጥም፣ ካሊፎርኒያ በድምሩ የሚሰጠው የምርት መጠን{" "}
-              <span className="font-semibold text-primary">(volume)</span>{" "}
-              ይበልጣል። ይህ የሚያሳየው የካሊፎርኒያ እርሻ ቦታ ሰፊ መሆኑን፣ ፍሎሪዳው ዘር ግን
-              በአነስተኛ ቦታ የተሻለ ምርት ማግኘቷን ነው።
-            </p>
-
-            {/* Data chips */}
-            <div className="flex items-center gap-2 flex-wrap mb-4">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 border border-blue-200 text-xs font-semibold text-blue-700">
-                🏅 Best efficiency: {efficiencyLeader.origin} · {efficiencyLeader.kgPerM.toFixed(2)} kg/m
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-xs font-semibold text-primary">
-                🌾 Highest volume: {volumeLeader.origin} · {volumeLeader.kg.toFixed(0)} kg total
-              </div>
-              {split && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-700">
-                  ⚡ Efficiency ≠ Volume leader
-                </div>
-              )}
-            </div>
-
-            {/* Question prompt */}
-            <div className="rounded-xl border border-violet-500/30 bg-card px-4 py-3.5">
-              <div className="flex items-start gap-2.5">
-                <span className="text-base shrink-0 mt-0.5">💬</span>
-                <p className="text-sm text-violet-200 font-medium leading-relaxed">
-                  <span className="font-bold">ጥያቄ፦</span>{" "}
-                  የካሊፎርኒያን ምርታማነት ማሻሻል ይፈልጋሉ ወይስ በአውስትራሊያ ያለውን ስራ
-                  መጀመር ይፈልጋሉ?
-                </p>
-              </div>
-            </div>
-          </div>
+          <OriginInsight stats={{
+            regions: rows.length,
+            effLeader: { origin: efficiencyLeader.origin, kgPerM: +efficiencyLeader.kgPerM.toFixed(2) },
+            volLeader: { origin: volumeLeader.origin, kg: +volumeLeader.kg.toFixed(1) },
+            sameLeader: efficiencyLeader.origin === volumeLeader.origin,
+            runnerUp: rows[1] ? { origin: rows[1].origin, kgPerM: +rows[1].kgPerM.toFixed(2) } : null,
+            weakest: { origin: weakest.origin, kgPerM: +weakest.kgPerM.toFixed(2) },
+            totalKg: +totalKg.toFixed(1),
+            leaderSharePct: totalKg > 0 ? Math.round((volumeLeader.kg / totalKg) * 100) : 0,
+          }} />
         );
       })()}
 
