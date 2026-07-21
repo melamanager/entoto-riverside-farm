@@ -11,8 +11,24 @@ const ANSWER_MODEL = "gemini-2.5-flash";
 const TTS_MODEL = "gemini-2.5-flash-preview-tts";
 const TTS_VOICE = "Sulafat"; // handles Amharic + English well
 
-export type AgentAnswer = { transcript: string; lang: "am" | "en"; reply: string };
 export type LangPref = "auto" | "am" | "en";
+export type ChatTurn = { role: "user" | "model"; text: string };
+
+export type OrderProposal = {
+  customerName: string;
+  quantityKg: number;
+  pricePerKg: number;
+  advancePaid?: number;
+  customerType?: string;
+  variety?: string;
+  phone?: string;
+  deliveryDate?: string;
+  notes?: string;
+};
+
+export type AgentTurn =
+  | { kind: "reply"; transcript: string; lang: "am" | "en"; text: string }
+  | { kind: "order"; transcript: string; lang: "am" | "en"; speak: string; order: OrderProposal };
 
 // ── Telegram transport ────────────────────────────────────────────────────────
 
@@ -23,7 +39,9 @@ export async function tg(token: string, method: string, payload?: Record<string,
     body: JSON.stringify(payload ?? {}),
     signal: AbortSignal.timeout(30_000),
   });
-  return res.json().catch(() => null);
+  const j = await res.json().catch(() => null);
+  if (j && j.ok === false) console.error(`[tg] ${method} failed:`, j.description);
+  return j;
 }
 
 export async function tgSendVoice(token: string, chatId: string | number, ogg: Buffer, caption?: string) {
@@ -57,63 +75,149 @@ export async function tgDownloadFile(token: string, fileId: string): Promise<{ b
   return { buf, mime };
 }
 
-// ── Gemini: transcribe + answer in one grounded call ─────────────────────────
+// ── Gemini agent turn: forced tool call — reply OR propose_order ─────────────
+// Every model turn must come back through exactly one declared function
+// (tool_config mode ANY), which gives us structured output without JSON-parse
+// fragility AND lets the model take actions. Add future tools here.
 
-function agentSystem(userName: string, role: string, langPref: LangPref) {
+const REPLY_DECL = {
+  name: "reply",
+  description: "Answer the user with short speakable text. Also used to ask for missing order details.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      transcript: { type: "STRING", description: "Verbatim transcript of the user's message, in its original language" },
+      lang: { type: "STRING", enum: ["am", "en"], description: "Language of your reply" },
+      text: { type: "STRING", description: "The answer. Plain speakable text: 1-4 short sentences, no markdown/emojis/lists" },
+    },
+    required: ["transcript", "lang", "text"],
+  },
+};
+
+const ORDER_DECL = {
+  name: "propose_order",
+  description:
+    "Propose a customer strawberry order. The user then confirms via buttons before it is saved. " +
+    "Call ONLY when customerName, quantityKg and pricePerKg are ALL explicitly stated by the user " +
+    "(in this or earlier turns). If anything required is missing or ambiguous, call reply and ask for it. " +
+    "If the user corrects a pending order, call propose_order again with the corrected values.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      transcript: { type: "STRING", description: "Verbatim transcript of the user's message, in its original language" },
+      lang: { type: "STRING", enum: ["am", "en"] },
+      speak: { type: "STRING", description: "Short spoken confirmation question in the user's language summarising the order and asking to confirm" },
+      customerName: { type: "STRING" },
+      quantityKg: { type: "NUMBER" },
+      pricePerKg: { type: "NUMBER", description: "ETB per kg" },
+      advancePaid: { type: "NUMBER", description: "ETB already paid, omit if none" },
+      customerType: { type: "STRING", enum: ["hotel", "supermarket", "restaurant", "direct", "export"], description: "Omit if not stated; defaults to direct" },
+      variety: { type: "STRING", description: "Strawberry variety, only if stated" },
+      phone: { type: "STRING", description: "Customer phone, only if stated" },
+      deliveryDate: { type: "STRING", description: "YYYY-MM-DD; convert relative dates (tomorrow/ነገ) using today's date" },
+      notes: { type: "STRING" },
+    },
+    required: ["transcript", "lang", "speak", "customerName", "quantityKg", "pricePerKg"],
+  },
+};
+
+function agentSystem(opts: { userName: string; role: string; langPref: LangPref; today: string; canTakeOrders: boolean }) {
   const langRule =
-    langPref === "am" ? "Always reply in Amharic, whatever language the user used." :
-    langPref === "en" ? "Always reply in English, whatever language the user used." :
-    "Reply in the SAME language the user used (Amharic question → Amharic answer, English → English).";
-  return `You are the voice assistant of Entoto Riverside Farm, a strawberry farm above Addis Ababa. You are talking to ${userName} (role: ${role}) on Telegram.
+    opts.langPref === "am" ? "Always reply in Amharic, whatever language the user used." :
+    opts.langPref === "en" ? "Always reply in English, whatever language the user used." :
+    "Reply in the SAME language the user used (Amharic → Amharic, English → English).";
+  const orderRule = opts.canTakeOrders
+    ? `You can RECORD CUSTOMER ORDERS (strawberry sales). Required: customer name, quantity in kg, price per kg in ETB. Optional: advance paid, customer type, variety, phone, delivery date, notes. Ask for missing required details one short question at a time (reply). Today is ${opts.today} in Africa/Addis_Ababa — convert relative dates like "tomorrow"/"ነገ" to YYYY-MM-DD. When all required details are known, call propose_order; the user confirms with a button before anything is saved.`
+    : `You CANNOT record orders for this user: only managers and supervisors may. If asked, say so politely and suggest contacting a supervisor.`;
+  return `You are the assistant of Entoto Riverside Farm, a strawberry farm above Addis Ababa. You are talking to ${opts.userName} (role: ${opts.role}) on Telegram, often by voice message.
 
-Ground every answer ONLY in the CONTEXT block (live farm snapshot). Cite real bed IDs, kg and names from it. If the needed data is not in the context, say so briefly and name the app page to check or record it on. Never invent figures.
+Ground every factual answer ONLY in the CONTEXT block (live farm snapshot). Cite real bed IDs, kg and names from it. If the needed data is not there, say so briefly and name the app page for it. Never invent figures.
+
+${orderRule}
 
 ${langRule}
 
-Your reply will be READ ALOUD: 1–4 short conversational sentences. No markdown, no emojis, no lists, no headings. Numbers in plain words where natural (ETB, kg).
+Replies are READ ALOUD: 1–4 short conversational sentences, no markdown, no emojis, no lists.
 
-Return STRICT JSON only: {"transcript": "<what the user said, in its original language>", "lang": "am" | "en", "reply": "<your answer>"}. "lang" is the language OF YOUR REPLY.`;
+You MUST respond by calling exactly one of the provided functions.`;
 }
 
-export async function geminiAgentAnswer(
+export async function geminiAgentTurn(
   key: string,
   input: { audio?: { mime: string; dataB64: string }; text?: string },
-  meta: { userName: string; role: string; langPref: LangPref; context: string },
-): Promise<AgentAnswer | null> {
+  meta: {
+    userName: string; role: string; langPref: LangPref; context: string;
+    today: string; canTakeOrders: boolean; history: ChatTurn[];
+  },
+): Promise<AgentTurn | null> {
   const parts: Array<Record<string, unknown>> = [];
   if (input.audio) parts.push({ inline_data: { mime_type: input.audio.mime, data: input.audio.dataB64 } });
   parts.push({
     text: `${input.audio ? "The user sent the attached voice message." : `The user wrote: ${input.text}`}\n\nCONTEXT (live farm snapshot):\n${meta.context}`,
   });
 
+  // prior turns, text-only; Gemini requires the history to start with "user"
+  const history = meta.history.map((t) => ({ role: t.role, parts: [{ text: t.text }] }));
+  while (history.length && history[0].role !== "user") history.shift();
+
+  const allowed = meta.canTakeOrders ? ["reply", "propose_order"] : ["reply"];
   const res = await fetch(`${GEMINI}/${ANSWER_MODEL}:generateContent?key=${key}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: agentSystem(meta.userName, meta.role, meta.langPref) }] },
-      contents: [{ role: "user", parts }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
+      system_instruction: { parts: [{ text: agentSystem(meta) }] },
+      contents: [...history, { role: "user", parts }],
+      tools: [{ function_declarations: meta.canTakeOrders ? [REPLY_DECL, ORDER_DECL] : [REPLY_DECL] }],
+      tool_config: { function_calling_config: { mode: "ANY", allowed_function_names: allowed } },
+      generationConfig: { temperature: 0.4 },
     }),
     signal: AbortSignal.timeout(60_000),
   });
   const j = await res.json().catch(() => null);
-  const raw: string | undefined = j?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!raw) {
-    console.error("[tg-agent] answer failed:", JSON.stringify(j)?.slice(0, 400));
+  const respParts: Array<{ functionCall?: { name: string; args: Record<string, unknown> }; text?: string }> =
+    j?.candidates?.[0]?.content?.parts ?? [];
+  const call = respParts.find((p) => p.functionCall)?.functionCall;
+
+  if (!call) {
+    // model slipped out of tool mode — salvage any text as a plain reply
+    const text = respParts.find((p) => p.text)?.text?.trim();
+    if (text) return { kind: "reply", transcript: "", lang: "en", text };
+    console.error("[tg-agent] turn failed:", JSON.stringify(j)?.slice(0, 400));
     return null;
   }
-  try {
-    const parsed = JSON.parse(raw.replace(/^```(?:json)?/m, "").replace(/```$/m, "").trim());
-    if (typeof parsed?.reply !== "string" || !parsed.reply) return null;
-    return {
-      transcript: typeof parsed.transcript === "string" ? parsed.transcript : "",
-      lang: parsed.lang === "am" ? "am" : "en",
-      reply: parsed.reply,
+
+  const a = call.args ?? {};
+  const transcript = typeof a.transcript === "string" ? a.transcript : "";
+  const lang = a.lang === "am" ? "am" as const : "en" as const;
+
+  if (call.name === "propose_order") {
+    const order: OrderProposal = {
+      customerName: String(a.customerName ?? "").trim(),
+      quantityKg: Number(a.quantityKg) || 0,
+      pricePerKg: Number(a.pricePerKg) || 0,
+      advancePaid: a.advancePaid != null ? Math.max(0, Number(a.advancePaid) || 0) : undefined,
+      customerType: typeof a.customerType === "string" ? a.customerType : undefined,
+      variety: typeof a.variety === "string" && a.variety ? a.variety : undefined,
+      phone: typeof a.phone === "string" && a.phone ? a.phone : undefined,
+      deliveryDate: typeof a.deliveryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(a.deliveryDate) ? a.deliveryDate : undefined,
+      notes: typeof a.notes === "string" && a.notes ? a.notes : undefined,
     };
-  } catch {
-    // model ignored JSON instruction — salvage as a plain reply
-    return { transcript: "", lang: "en", reply: raw.trim() };
+    const speak = typeof a.speak === "string" && a.speak ? a.speak : "";
+    if (order.customerName && order.quantityKg > 0 && order.pricePerKg > 0 && speak) {
+      return { kind: "order", transcript, lang, speak, order };
+    }
+    // model called the tool with holes — turn it into a clarification request
+    return {
+      kind: "reply", transcript, lang,
+      text: lang === "am"
+        ? "ትዕዛዙን ለመመዝገብ የደንበኛ ስም፣ መጠን በኪሎ እና ዋጋ በኪሎ ያስፈልጉኛል።"
+        : "To record the order I need the customer name, quantity in kg and price per kg.",
+    };
   }
+
+  const text = typeof a.text === "string" ? a.text.trim() : "";
+  if (!text) return null;
+  return { kind: "reply", transcript, lang, text };
 }
 
 // ── Gemini TTS → PCM → OGG/Opus (Telegram voice format) ──────────────────────
