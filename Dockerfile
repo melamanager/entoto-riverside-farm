@@ -21,7 +21,8 @@ RUN npx prisma generate && npx next build
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 FROM base AS runner
-RUN apk add --no-cache openssl
+# ffmpeg: PCM→OGG/Opus for Telegram voice replies (lib/telegram-agent.ts)
+RUN apk add --no-cache openssl ffmpeg
 WORKDIR /app
 
 ENV NODE_ENV=production

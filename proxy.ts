@@ -11,7 +11,9 @@ export default auth((req) => {
   const isPublic =
     nextUrl.pathname.startsWith("/login") ||
     nextUrl.pathname.startsWith("/api/auth") ||
-    nextUrl.pathname.startsWith("/api/cron"); // secret-protected server cron
+    nextUrl.pathname.startsWith("/api/cron") || // secret-protected server cron
+    nextUrl.pathname === "/api/telegram/webhook" || // secret-header-protected (Telegram)
+    nextUrl.pathname === "/api/telegram/setup"; // CRON_SECRET-protected
 
   if (!isLoggedIn && !isPublic) {
     return NextResponse.redirect(new URL("/login", nextUrl));

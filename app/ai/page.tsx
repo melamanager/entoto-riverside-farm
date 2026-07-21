@@ -281,8 +281,8 @@ function aiAnswer(
 // ── Severity style helpers ────────────────────────────────────────────────────
 
 const SEVERITY_STYLES = {
-  critical: { card: "border-red-200 bg-red-50/50",   badge: "bg-red-100 text-red-700", icon: "text-red-500",    dot: "bg-red-500"    },
-  warning:  { card: "border-amber-200 bg-amber-50/50", badge: "bg-amber-100 text-amber-700", icon: "text-amber-500", dot: "bg-amber-500"  },
+  critical: { card: "border-red-500/30 bg-red-500/10",   badge: "bg-red-100 text-red-700", icon: "text-red-500",    dot: "bg-red-500"    },
+  warning:  { card: "border-amber-500/30 bg-amber-500/10", badge: "bg-amber-100 text-amber-700", icon: "text-amber-500", dot: "bg-amber-500"  },
   info:     { card: "border-primary/30 bg-primary/5", badge: "bg-primary/15 text-primary", icon: "text-primary", dot: "bg-primary" },
 };
 

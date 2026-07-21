@@ -32,6 +32,8 @@ model Farmer {
   emergencyContact String?
   telegramChatId   String?   // personal Telegram chat, once linked
   telegramLinkCode String?   // one-time code used during linking
+  telegramLang     String?   // bot reply language: auto (default) | am | en
+  telegramMode     String?   // bot reply mode: auto (match input, default) | voice | text
 
   user                  User?
   supervisedValves      Valve[]             @relation("ValveSupervisor")
