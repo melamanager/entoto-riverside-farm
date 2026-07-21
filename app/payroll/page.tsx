@@ -242,11 +242,11 @@ export default function PayrollPage() {
           <div className="text-xs text-muted-foreground font-medium mt-0.5">{t.payroll.basePay}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-lg font-bold text-blue-700 tabular-nums">{(totalOT / 1000).toFixed(1)}k</div>
+          <div className="text-lg font-bold text-blue-400 tabular-nums">{(totalOT / 1000).toFixed(1)}k</div>
           <div className="text-xs text-blue-600 font-medium mt-0.5">{t.payroll.overtime}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-lg font-bold text-amber-700 tabular-nums">{(totalBonus / 1000).toFixed(1)}k</div>
+          <div className="text-lg font-bold text-amber-400 tabular-nums">{(totalBonus / 1000).toFixed(1)}k</div>
           <div className="text-xs text-amber-600 font-medium mt-0.5">{t.payroll.bonuses}</div>
         </Card>
         <Card className="p-4 bg-red-50 border-red-200">

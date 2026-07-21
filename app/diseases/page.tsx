@@ -253,10 +253,10 @@ export default function DiseasesPage() {
   };
 
   const STATUS_GROUPS: StatusEntry[] = [
-    { key: "open",     label: t.diseases.groupOpen,     color: "text-red-700",     dot: "bg-red-500",     border: "border-red-200",     strip: "bg-red-500",     items: open },
-    { key: "notified", label: t.diseases.groupNotified, color: "text-orange-700", dot: "bg-orange-500", border: "border-orange-200", strip: "bg-orange-500", items: notified },
-    { key: "treating", label: t.diseases.groupTreating, color: "text-blue-700",   dot: "bg-blue-500",   border: "border-blue-200",   strip: "bg-blue-500",   items: treating },
-    { key: "resolved", label: t.diseases.groupResolved, color: "text-emerald-700",dot: "bg-emerald-500",border: "border-emerald-200",strip: "bg-emerald-500",items: resolved },
+    { key: "open",     label: t.diseases.groupOpen,     color: "text-red-400",     dot: "bg-red-500",     border: "border-red-200",     strip: "bg-red-500",     items: open },
+    { key: "notified", label: t.diseases.groupNotified, color: "text-orange-400", dot: "bg-orange-500", border: "border-orange-200", strip: "bg-orange-500", items: notified },
+    { key: "treating", label: t.diseases.groupTreating, color: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-200",   strip: "bg-blue-500",   items: treating },
+    { key: "resolved", label: t.diseases.groupResolved, color: "text-emerald-400",dot: "bg-emerald-500",border: "border-emerald-200",strip: "bg-emerald-500",items: resolved },
   ];
 
   const visibleGroups = STATUS_GROUPS;
@@ -701,7 +701,7 @@ export default function DiseasesPage() {
 
               {/* Photo proof upload */}
               <div>
-                <label className={`text-xs font-semibold block mb-1.5 ${confirmTarget.requiresImageProof ? "text-purple-700" : "text-foreground/80"}`}>
+                <label className={`text-xs font-semibold block mb-1.5 ${confirmTarget.requiresImageProof ? "text-purple-400" : "text-foreground/80"}`}>
                   Photo Proof {confirmTarget.requiresImageProof ? <span className="text-red-500">* (Required by manager)</span> : "(Optional)"}
                 </label>
                 <input

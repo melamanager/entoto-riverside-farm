@@ -102,7 +102,7 @@ export function ManualReportDialog({ onReported }: Props) {
       <Dialog open={open} onOpenChange={o => { if (!o) reset(); setOpen(o); }}>
         <DialogTrigger
           render={(props) => (
-            <Button variant="outline" className="gap-2 border-red-300 text-red-700 hover:bg-red-50" {...props}>
+            <Button variant="outline" className="gap-2 border-red-300 text-red-400 hover:bg-red-500/10" {...props}>
               <Bug className="size-4" /> Report Manually
             </Button>
           )}
@@ -171,7 +171,7 @@ export function ManualReportDialog({ onReported }: Props) {
             {/* Severity */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-slate-700">Severity</label>
+                <label className="text-xs font-semibold text-foreground/80">Severity</label>
                 <Badge variant="outline" className={`text-xs font-bold ${severityColor}`}>
                   {severity}%
                 </Badge>
@@ -201,7 +201,7 @@ export function ManualReportDialog({ onReported }: Props) {
               return (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-700">
+                    <label className="text-xs font-semibold text-foreground/80">
                       Infected Length (metres)
                     </label>
                     {bedLen > 0 && (

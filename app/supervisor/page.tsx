@@ -76,7 +76,7 @@ export default function SupervisorPage() {
           <p className="text-muted-foreground text-sm">{t.supervisor.subtitle} · {new Date(TODAY).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/attendance" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90">
+          <Link href="/attendance" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90">
             <CalendarCheck className="size-4" /> {t.supervisor.takeAttendance}
           </Link>
           <Link href="/tasks" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-foreground text-sm font-semibold hover:bg-accent">
@@ -111,7 +111,7 @@ export default function SupervisorPage() {
             {/* Supervisor header row */}
             <div className="flex items-center gap-4 px-6 py-4 bg-muted border-b border-border">
               <Avatar className="size-12 ring-2 ring-primary/30">
-                <AvatarFallback className="bg-primary/80 text-white font-bold text-sm">{sup.avatar}</AvatarFallback>
+                <AvatarFallback className="bg-primary/80 text-primary-foreground font-bold text-sm">{sup.avatar}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
@@ -248,9 +248,9 @@ export default function SupervisorPage() {
                         {shownFUs.map(fu => {
                           const isOverdue = new Date(fu.dueDate) < new Date(TODAY_STR);
                           return (
-                            <div key={fu.id} className={`p-2 rounded-md border text-xs ${isOverdue ? "bg-red-50 border-red-200" : fu.priority === "urgent" ? "bg-amber-50 border-amber-200" : "bg-muted border-border"}`}>
-                              <div className={`font-semibold truncate ${isOverdue ? "text-red-700" : "text-foreground"}`}>{fu.title}</div>
-                              <div className={`text-[10px] mt-0.5 ${isOverdue ? "text-red-600 font-bold" : "text-muted-foreground"}`}>
+                            <div key={fu.id} className={`p-2 rounded-md border text-xs ${isOverdue ? "bg-red-500/10 border-red-500/30" : fu.priority === "urgent" ? "bg-amber-500/10 border-amber-500/30" : "bg-muted border-border"}`}>
+                              <div className={`font-semibold truncate ${isOverdue ? "text-red-300" : "text-foreground"}`}>{fu.title}</div>
+                              <div className={`text-[10px] mt-0.5 ${isOverdue ? "text-red-300 font-bold" : "text-muted-foreground"}`}>
                                 {isOverdue ? `Overdue: ${fu.dueDate}` : `Due: ${fu.dueDate}`}
                               </div>
                             </div>

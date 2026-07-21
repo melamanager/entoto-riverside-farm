@@ -428,7 +428,7 @@ export default function StockPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <span className={`text-sm font-semibold ${isIn ? "text-primary" : "text-rose-700"}`}>
+                      <span className={`text-sm font-semibold ${isIn ? "text-primary" : "text-rose-400"}`}>
                         {isIn ? "+" : "−"}{tx.quantity} {historyItem.unit}
                       </span>
                       <span className="text-[10px] text-muted-foreground">

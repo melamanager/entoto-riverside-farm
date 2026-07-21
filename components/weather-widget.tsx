@@ -38,7 +38,7 @@ export function WeatherWidget() {
     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden h-full flex flex-col">
 
       {/* ── Conditions header ───────────────────────────────────────────── */}
-      <div className="px-5 py-4 bg-gradient-to-br from-sky-50 via-blue-50 to-white border-b border-border">
+      <div className="px-5 py-4 bg-gradient-to-br from-sky-500/10 via-blue-500/10 to-transparent border-b border-border">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">

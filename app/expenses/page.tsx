@@ -301,7 +301,7 @@ export default function ExpensesPage() {
       {/* Delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={v => { if (!v) setDeleteTarget(null); }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="text-red-700">Delete Expense?</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-red-400">Delete Expense?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">{deleteTarget?.description} — <strong>{deleteTarget?.amountETB.toLocaleString()} ETB</strong></p>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>

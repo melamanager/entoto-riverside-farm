@@ -330,7 +330,7 @@ export default function ValvesIndex() {
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-700">
+            <DialogTitle className="flex items-center gap-2 text-red-400">
               <Trash2 className="size-4" /> Delete {deleteTarget?.name}?
             </DialogTitle>
           </DialogHeader>

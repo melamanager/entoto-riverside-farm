@@ -375,7 +375,7 @@ export function AssignmentsSection() {
 
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="flex items-center gap-2 text-red-700"><Trash2 className="size-4" /> Delete Assignment?</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2 text-red-400"><Trash2 className="size-4" /> Delete Assignment?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Remove this assignment?</p>
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>

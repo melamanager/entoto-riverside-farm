@@ -276,10 +276,10 @@ export default function PlantingPage() {
 
       {/* ── Overdue alert banner ──────────────────────────────────────────────── */}
       {totalOverdue > 0 && (
-        <div className="rounded-xl border-2 border-red-200 bg-red-50 overflow-hidden">
+        <div className="rounded-xl border-2 border-red-500/30 bg-red-500/10 overflow-hidden">
           <button
             onClick={() => setOverdueOpen(o => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left gap-3 hover:bg-red-100 transition-colors">
+            className="w-full flex items-center justify-between px-4 py-3 text-left gap-3 hover:bg-red-500/15 transition-colors">
             <div className="flex items-center gap-2.5">
               <AlertTriangle className="size-4 text-red-600 shrink-0" />
               <span className="font-bold text-red-800 text-sm">
@@ -449,7 +449,7 @@ export default function PlantingPage() {
                       const isOverdueHarv = (rec.status === "growing" || rec.status === "planted") && rec.expectedHarvestDate < TODAY;
                       const isOverduePlnt = rec.status === "planned" && rec.plannedDate < TODAY;
                       return (
-                        <tr key={rec.id} className={`group ${isOverdueHarv || isOverduePlnt ? "bg-red-50/60" : ""}`}>
+                        <tr key={rec.id} className={`group ${isOverdueHarv || isOverduePlnt ? "bg-red-500/10" : ""}`}>
                           <td className="font-mono font-semibold text-foreground">{rec.bedId}</td>
                           <td><span className="text-xs font-semibold" style={{ color: valve?.color }}>{valve?.name ?? rec.valveId}</span></td>
                           <td className="font-medium">{rec.variety}</td>

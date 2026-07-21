@@ -77,22 +77,22 @@ export default function MapPage() {
         {[
           {
             icon: "🌿", label: "Healthy",   count: healthyCount,
-            color: "#22c55e", bg: "bg-emerald-50", border: "border-emerald-200",
+            color: "#22c55e", bg: "bg-emerald-500/10", border: "border-emerald-500/30",
             desc: "Routine inspection only",
           },
           {
             icon: "⚠️", label: "Warning",   count: warningCount,
-            color: "#f59e0b", bg: "bg-amber-50",   border: "border-amber-200",
+            color: "#f59e0b", bg: "bg-amber-500/10",   border: "border-amber-500/30",
             desc: "Monitor closely this week",
           },
           {
             icon: "🚨", label: "Infected",  count: infectedCount,
-            color: "#ef4444", bg: "bg-red-50",     border: "border-red-200",
+            color: "#ef4444", bg: "bg-red-500/10",     border: "border-red-500/30",
             desc: "Immediate treatment needed",
           },
           {
             icon: "🍓", label: "Ready",     count: readyCount,
-            color: "#a855f7", bg: "bg-violet-50",  border: "border-violet-200",
+            color: "#a855f7", bg: "bg-violet-500/10",  border: "border-violet-500/30",
             desc: "Peak ripeness — harvest now",
           },
         ].map(({ icon, label, count, color, bg, border, desc }) => (

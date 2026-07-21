@@ -237,13 +237,13 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
               const bed = beds.find(b => b.id === d.bedId);
               return (
                 <div key={i} className="relative">
-                  <div className={`${iconClass} bg-red-100 border-red-400 dark:bg-red-950/40`}><Bug className="size-2.5 text-red-700" /></div>
-                  <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs dark:bg-red-950/20 dark:border-red-900/40">
+                  <div className={`${iconClass} bg-red-500/15 border-red-500/40`}><Bug className="size-2.5 text-red-300" /></div>
+                  <div className="bg-red-500/10 border border-red-500/25 rounded-lg px-3 py-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-red-800 dark:text-red-400">{DISEASE_LABELS[d.type]} · {bed?.id}</span>
-                      <span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short" })}</span>
+                      <span className="font-semibold text-red-300">{DISEASE_LABELS[d.type]} · {bed?.id}</span>
+                      <span className="text-red-400 tabular-nums">{new Date(entry.date).toLocaleDateString("en", { day: "numeric", month: "short" })}</span>
                     </div>
-                    <div className="text-red-600 dark:text-red-500 mt-0.5 flex items-center gap-2">
+                    <div className="text-red-400 mt-0.5 flex items-center gap-2">
                       Severity {d.severity}%
                       {d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}
                     </div>

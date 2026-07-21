@@ -52,6 +52,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TOMORROW_IO_API_KEY: ${TOMORROW_IO_API_KEY:-}
+      CRON_SECRET: ${CRON_SECRET:-}
     ports:
       - "3000:3000"
     networks:

@@ -256,7 +256,7 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
             ) : (
               <div className="space-y-2">
                 {diseases.map(d => (
-                  <div key={d.id} className="border border-border rounded-lg p-3 bg-rose-50/50 dark:bg-rose-950/20">
+                  <div key={d.id} className="border border-border rounded-lg p-3 bg-rose-500/10">
                     <div className="flex items-center justify-between">
                       <div className="font-semibold text-sm">{DISEASE_LABELS[d.type]}</div>
                       <Badge variant="destructive" className="text-[10px]">{d.severity}%</Badge>
@@ -315,13 +315,13 @@ export default async function BedPage({ params }: { params: Promise<{ id: string
                 const d = entry.data as (typeof diseases)[number];
                 return (
                   <div key={i} className="relative">
-                    <div className={`${iconClass} bg-red-100 border-red-400 dark:bg-red-950/40`}><Bug className="size-2.5 text-red-700" /></div>
-                    <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs dark:bg-red-950/20 dark:border-red-900/40">
+                    <div className={`${iconClass} bg-red-500/15 border-red-500/40`}><Bug className="size-2.5 text-red-300" /></div>
+                    <div className="bg-red-500/10 border border-red-500/25 rounded-lg px-3 py-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-red-800 dark:text-red-400">{DISEASE_LABELS[d.type]}</span>
-                        <span className="text-red-500 tabular-nums">{new Date(entry.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
+                        <span className="font-semibold text-red-300">{DISEASE_LABELS[d.type]}</span>
+                        <span className="text-red-400 tabular-nums">{new Date(entry.date).toLocaleDateString("en",{day:"numeric",month:"short"})}</span>
                       </div>
-                      <div className="text-red-600 dark:text-red-500 mt-0.5 flex items-center gap-2">
+                      <div className="text-red-400 mt-0.5 flex items-center gap-2">
                         Severity {d.severity}%
                         {d.treatmentApplied && <span className="flex items-center gap-0.5 text-primary"><CheckCircle2 className="size-2.5" /> Treated</span>}
                       </div>

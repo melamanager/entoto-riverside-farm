@@ -529,15 +529,15 @@ export function OriginPerformance({ beds, harvests, diseases, packagingRecords }
         const volumeLeader     = [...rows].sort((a, b) => b.kg - a.kg)[0];
         const split            = efficiencyLeader.origin !== volumeLeader.origin;
         return (
-          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 p-5 shadow-sm">
+          <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-purple-500/10 to-fuchsia-500/10 p-5 shadow-sm">
             {/* Header */}
             <div className="flex items-center gap-2.5 mb-4">
               <div className="size-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 grid place-items-center shrink-0 shadow-sm shadow-violet-200">
                 <span className="text-white text-sm">✨</span>
               </div>
               <div>
-                <div className="text-sm font-bold text-violet-900">ማጠቃለያ (Summary)</div>
-                <div className="text-[10px] text-violet-500 font-medium">AI-generated origin insight</div>
+                <div className="text-sm font-bold text-violet-200">ማጠቃለያ (Summary)</div>
+                <div className="text-[10px] text-violet-300 font-medium">AI-generated origin insight</div>
               </div>
               <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">
                 AI Insight
@@ -547,7 +547,7 @@ export function OriginPerformance({ beds, harvests, diseases, packagingRecords }
             {/* Body */}
             <p className="text-sm text-foreground leading-7 mb-4">
               ምንም እንኳን የፍሎሪዳ ዘር በአንድ ሜትር የሚሰጠው ምርት{" "}
-              <span className="font-semibold text-blue-700">(efficiency)</span>{" "}
+              <span className="font-semibold text-blue-300">(efficiency)</span>{" "}
               ቢበልጥም፣ ካሊፎርኒያ በድምሩ የሚሰጠው የምርት መጠን{" "}
               <span className="font-semibold text-primary">(volume)</span>{" "}
               ይበልጣል። ይህ የሚያሳየው የካሊፎርኒያ እርሻ ቦታ ሰፊ መሆኑን፣ ፍሎሪዳው ዘር ግን
@@ -570,10 +570,10 @@ export function OriginPerformance({ beds, harvests, diseases, packagingRecords }
             </div>
 
             {/* Question prompt */}
-            <div className="rounded-xl border border-violet-200 bg-card px-4 py-3.5">
+            <div className="rounded-xl border border-violet-500/30 bg-card px-4 py-3.5">
               <div className="flex items-start gap-2.5">
                 <span className="text-base shrink-0 mt-0.5">💬</span>
-                <p className="text-sm text-violet-800 font-medium leading-relaxed">
+                <p className="text-sm text-violet-200 font-medium leading-relaxed">
                   <span className="font-bold">ጥያቄ፦</span>{" "}
                   የካሊፎርኒያን ምርታማነት ማሻሻል ይፈልጋሉ ወይስ በአውስትራሊያ ያለውን ስራ
                   መጀመር ይፈልጋሉ?

@@ -581,7 +581,7 @@ export default function RoutinesPage() {
                 <p className="text-xs text-muted-foreground py-6 text-center">{t.routines.noNotes}</p>
               )}
               {notes.map(n => (
-                <div key={n.id} className={`rounded-lg border p-2.5 space-y-1.5 ${n.pinned ? "border-amber-300 bg-amber-50/60" : "border-border bg-muted/30"}`}>
+                <div key={n.id} className={`rounded-lg border p-2.5 space-y-1.5 ${n.pinned ? "border-amber-500/40 bg-amber-500/10" : "border-border bg-muted/30"}`}>
                   <div className="flex items-center gap-2">
                     <div className={`size-6 shrink-0 rounded-full grid place-items-center text-[9px] font-bold text-white ${n.author.role === "manager" ? "bg-amber-500" : "bg-blue-500"}`}>
                       {n.author.avatar}
@@ -761,7 +761,7 @@ export default function RoutinesPage() {
                                 : <span className="text-muted-foreground">0</span>}
                             </td>
                             <td className="py-1.5 pr-4 text-right">{w.hoursWorked.toFixed(1)}</td>
-                            <td className="py-1.5 pr-4 text-right font-semibold text-indigo-600">{w.overtimeHours.toFixed(1)}</td>
+                            <td className="py-1.5 pr-4 text-right font-semibold text-indigo-300">{w.overtimeHours.toFixed(1)}</td>
                             <td className="py-1.5 pr-4 text-right">{w.dailyWage.toLocaleString()}</td>
                             <td className="py-1.5 text-right font-semibold">{w.overtimePay.toLocaleString()}</td>
                           </tr>
@@ -769,7 +769,7 @@ export default function RoutinesPage() {
                         <tr className="font-bold">
                           <td className="py-2 pr-4">Total</td>
                           <td /><td /><td />
-                          <td className="py-2 pr-4 text-right text-indigo-700">{weekly.overtime.totalHours.toFixed(1)}</td>
+                          <td className="py-2 pr-4 text-right text-indigo-300">{weekly.overtime.totalHours.toFixed(1)}</td>
                           <td />
                           <td className="py-2 text-right">{weekly.overtime.totalPayETB.toLocaleString()}</td>
                         </tr>

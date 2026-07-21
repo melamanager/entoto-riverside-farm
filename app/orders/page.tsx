@@ -603,7 +603,7 @@ export default function OrdersPage() {
               ))}
               <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-border text-sm font-bold">
                 <span className="text-foreground">Gross Profit</span>
-                <span className={`tabular-nums text-base ${grossProfit >= 0 ? "text-primary" : "text-red-700"}`}>
+                <span className={`tabular-nums text-base ${grossProfit >= 0 ? "text-primary" : "text-red-400"}`}>
                   {grossProfit >= 0 ? "+" : "−"} {Math.abs(grossProfit).toLocaleString()} ETB
                 </span>
               </div>
@@ -690,7 +690,7 @@ export default function OrdersPage() {
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-700">
+            <DialogTitle className="flex items-center gap-2 text-red-400">
               <Trash2 className="size-4" /> Delete Order?
             </DialogTitle>
           </DialogHeader>

@@ -428,7 +428,7 @@ export default function PackagingPage() {
               className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-red-700 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost (kg) <span className="text-muted-foreground font-normal">(auto)</span></label>
+            <label className="text-xs font-semibold text-red-400 block mb-1 flex items-center gap-1"><AlertCircle className="size-3 text-red-500" /> Lost (kg) <span className="text-muted-foreground font-normal">(auto)</span></label>
             <input type="number" readOnly value={computeLost(form.harvestedKg, form.packedKg, form.rejectedKg)}
               className="w-full border border-red-100 rounded-md px-3 py-2 text-sm bg-muted/50 text-muted-foreground" />
           </div>
@@ -646,7 +646,7 @@ export default function PackagingPage() {
                       {trackBeds.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {trackBeds.map(b => (
-                            <span key={b!.id} className="text-[11px] font-mono bg-card border border-blue-200 rounded px-2 py-0.5 text-blue-700">{b!.id}</span>
+                            <span key={b!.id} className="text-[11px] font-mono bg-card border border-blue-200 rounded px-2 py-0.5 text-blue-400">{b!.id}</span>
                           ))}
                         </div>
                       ) : (
@@ -681,7 +681,7 @@ export default function PackagingPage() {
                           <div key={f!.id} className="flex items-center gap-1.5 bg-card border border-purple-200 rounded-lg px-2.5 py-1.5">
                             <div className="size-5 rounded-full bg-purple-100 grid place-items-center text-[10px] font-bold text-purple-700">{f!.avatar}</div>
                             <div>
-                              <div className="text-xs font-medium text-purple-900">{f!.name}</div>
+                              <div className="text-xs font-medium text-purple-300">{f!.name}</div>
                               <div className="text-[10px] text-purple-500 capitalize">{f!.role}</div>
                             </div>
                           </div>
@@ -699,11 +699,11 @@ export default function PackagingPage() {
                       <div className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5"><Package className="size-3" /> Packaging details</div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-card rounded border border-border p-2">
-                          <div className="text-base font-bold text-purple-700">{trackResult.cartonCount}</div>
+                          <div className="text-base font-bold text-purple-400">{trackResult.cartonCount}</div>
                           <div className="text-[10px] text-muted-foreground">Cartons</div>
                         </div>
                         <div className="bg-card rounded border border-border p-2">
-                          <div className="text-base font-bold text-sky-700">{trackResult.plateCount}</div>
+                          <div className="text-base font-bold text-sky-400">{trackResult.plateCount}</div>
                           <div className="text-[10px] text-muted-foreground">Plates</div>
                         </div>
                         <div className="bg-card rounded border border-red-200 p-2">
@@ -775,7 +775,7 @@ export default function PackagingPage() {
                         const ord = orders.find(o => o.id === rec.orderId);
                         return ord ? (
                           <div className="text-xs">
-                            <div className="font-semibold text-indigo-700 truncate max-w-[120px]">{ord.customerName}</div>
+                            <div className="font-semibold text-indigo-400 truncate max-w-[120px]">{ord.customerName}</div>
                             <div className="text-[10px] text-muted-foreground">{ord.quantityKg} kg</div>
                           </div>
                         ) : <span className="text-muted-foreground/40 text-xs">—</span>;
@@ -787,8 +787,8 @@ export default function PackagingPage() {
                     <td className="tabular-nums font-semibold">{rec.harvestedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-primary font-semibold">{rec.packedKg.toFixed(1)}</td>
                     <td className="tabular-nums text-red-600 font-semibold">{rec.rejectedKg.toFixed(1)}</td>
-                    <td className="tabular-nums text-center font-bold text-purple-700">{rec.cartonCount}</td>
-                    <td className="tabular-nums text-center font-bold text-sky-700">{rec.plateCount}</td>
+                    <td className="tabular-nums text-center font-bold text-purple-400">{rec.cartonCount}</td>
+                    <td className="tabular-nums text-center font-bold text-sky-400">{rec.plateCount}</td>
                     <td className={`tabular-nums text-center font-bold ${rec.lostKg > 0 ? "text-red-600" : "text-muted-foreground/40"}`}>{rec.lostKg > 0 ? `${rec.lostKg.toFixed(1)}` : "—"}</td>
                     <td className="tabular-nums text-center text-muted-foreground text-xs">{rec.packageCount}</td>
                     <td>

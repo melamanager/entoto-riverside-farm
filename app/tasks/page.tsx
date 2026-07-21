@@ -1026,7 +1026,7 @@ export default function TasksPage() {
                   {selectedTask.status !== "done" && (
                     <>
                       <div>
-                        <label className={`text-xs font-semibold block mb-1.5 ${selectedTask.requiresImageProof ? "text-purple-700" : "text-foreground/80"}`}>
+                        <label className={`text-xs font-semibold block mb-1.5 ${selectedTask.requiresImageProof ? "text-purple-400" : "text-foreground/80"}`}>
                           Completion Photo {selectedTask.requiresImageProof
                             ? <span className="text-red-500">* (Required)</span>
                             : <span className="text-muted-foreground font-normal">(Optional)</span>}
@@ -1152,7 +1152,7 @@ export default function TasksPage() {
                           </div>
                         ) : (
                           <div className="space-y-2.5">
-                            <div className="text-xs font-semibold text-amber-800">Create Correction Task</div>
+                            <div className="text-xs font-semibold text-amber-400">Create Correction Task</div>
                             <div>
                               <label className="text-[11px] font-semibold text-foreground/80 block mb-1">Title</label>
                               <input

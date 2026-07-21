@@ -170,11 +170,11 @@ export default function ProductivityPage() {
                   <div className="text-[10px] text-muted-foreground">Grade A</div>
                 </div>
                 <div className="text-center bg-muted rounded-lg py-2.5">
-                  <div className="text-base font-bold text-blue-700 tabular-nums">{totalHours.toFixed(0)}h</div>
+                  <div className="text-base font-bold text-blue-400 tabular-nums">{totalHours.toFixed(0)}h</div>
                   <div className="text-[10px] text-muted-foreground">hours</div>
                 </div>
                 <div className="text-center bg-muted rounded-lg py-2.5">
-                  <div className="text-base font-bold text-indigo-700 tabular-nums">{completed}</div>
+                  <div className="text-base font-bold text-indigo-400 tabular-nums">{completed}</div>
                   <div className="text-[10px] text-muted-foreground">jobs done</div>
                 </div>
               </div>
