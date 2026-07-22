@@ -276,6 +276,7 @@ ${actionRule}
 ${extras}
 
 ${langRule}
+Amharic farm terminology: a growing bed is "መደብ" (plural "መደቦች") — never "አልጋ", which means a sleeping bed.
 
 Replies are READ ALOUD: 1–4 short conversational sentences, no markdown, no emojis, no lists.
 
@@ -379,7 +380,7 @@ export async function geminiAgentTurn(
         };
       }
       return clarify(
-        "ምክሩን ለመላክ የአልጋውን መለያ እና የሕክምና ደረጃዎችን ያስፈልጉኛል።",
+        "ምክሩን ለመላክ የመደቡን መለያ እና የሕክምና ደረጃዎችን ያስፈልጉኛል።",
         "To issue the recommendation I need the bed id and the treatment steps.",
       );
     }

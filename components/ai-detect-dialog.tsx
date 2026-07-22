@@ -175,10 +175,10 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
         {!bedId && (
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">
-              {isAm ? "የትኛው አልጋ? *" : "Which bed? *"}
+              {isAm ? "የትኛው መደብ? *" : "Which bed? *"}
             </label>
             <select value={pickedBedId} onChange={e => setPickedBedId(e.target.value)} className={inputCls}>
-              <option value="">{isAm ? "አልጋ ምረጥ…" : "Select a bed…"}</option>
+              <option value="">{isAm ? "መደብ ምረጥ…" : "Select a bed…"}</option>
               {beds.map(b => (
                 <option key={b.id} value={b.id}>{b.id} — {b.variety}{b.health !== "healthy" ? ` ⚠ ${b.health}` : ""}</option>
               ))}
@@ -206,7 +206,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
           ) : (
             <div className="p-4 space-y-3">
               <div className="text-center text-sm font-medium text-foreground/80">
-                {isAm ? "የስትሮቤሪ አልጋ ፎቶ ያስገቡ — AI ይመረምረዋል" : "Add a photo — the AI analyses it instantly"}
+                {isAm ? "የስትሮቤሪ መደብ ፎቶ ያስገቡ — AI ይመረምረዋል" : "Add a photo — the AI analyses it instantly"}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted hover:bg-accent cursor-pointer transition">
@@ -296,7 +296,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
               const pct = bedLen > 0 ? Math.round((displayLen / bedLen) * 100) : 0;
               return (
                 <div className="rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 p-3 space-y-2">
-                  <div className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">📏 {isAm ? "የተጎዳ የአልጋ ርዝመት" : "Infected bed length"}</div>
+                  <div className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">📏 {isAm ? "የተጎዳ የመደብ ርዝመት" : "Infected bed length"}</div>
                   <div className="flex items-center gap-2">
                     <input type="number" min={0} max={bedLen || 999} step={0.5} value={infectedLengthM || ""} placeholder={`${autoEst} (auto)`}
                       onChange={e => setInfectedLengthM(Number(e.target.value))}
@@ -317,7 +317,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
                 </Button>
               ) : (
                 <div className="text-center text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-md py-2">
-                  {isAm ? "ሪፖርት ለማስገባት ከላይ አልጋ ይምረጡ" : "Pick a bed above to file this as a report"}
+                  {isAm ? "ሪፖርት ለማስገባት ከላይ መደብ ይምረጡ" : "Pick a bed above to file this as a report"}
                 </div>
               )
             )}
