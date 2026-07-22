@@ -20,9 +20,8 @@ function authorized(req: Request) {
 }
 
 function addisNow(): { hhmm: string; dow: number } {
-  // en-GB + hour12:false for a real 24h clock — hourCycle alone was ignored on
-  // this Node/ICU and silently produced 12-hour times ("22:12" became "10:12",
-  // so evening jobs never fired). "24" guard: hour12:false midnight quirk.
+  // en-GB + hour12:false → 24h clock; the "24" guard covers the hour12:false
+  // midnight quirk where some ICU versions emit "24:00" instead of "00:00".
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Addis_Ababa",
     hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short",
