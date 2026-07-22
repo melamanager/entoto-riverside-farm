@@ -13,6 +13,7 @@ import {
   Phone, Activity, Bell,
 } from "lucide-react";
 import { DISEASE_LABELS } from "@/lib/types";
+import { RoutineStatusCard } from "@/components/routine-status-card";
 import { useLang } from "@/lib/lang";
 import { useAuth } from "@/lib/auth";
 import { EN, AM } from "@/lib/translations";
@@ -84,6 +85,9 @@ export default function SupervisorPage() {
           </Link>
         </div>
       </div>
+
+      {/* Daily Routines — mandatory, so it leads the page */}
+      <RoutineStatusCard mode={isManager ? "manager" : "supervisor"} supervisorId={user?.id} />
 
       {/* Per-Supervisor cards */}
       {supervisors.map(sup => {

@@ -16,6 +16,7 @@ import { HarvestForecast } from "@/components/harvest-forecast";
 import { RipenessHeatmap } from "@/components/ripeness-heatmap";
 import { WeeklyReportCard } from "@/components/weekly-report-card";
 import { OriginPerformance } from "@/components/origin-performance";
+import { RoutineStatusCard } from "@/components/routine-status-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -241,6 +242,9 @@ export default function DashboardPage() {
 
       {/* ── Quick Actions ───────────────────────────────────────────────── */}
       <QuickActions />
+
+      {/* ── Routine compliance (mandatory daily routines, all supervisors) ── */}
+      <RoutineStatusCard mode="manager" />
 
       {/* ── Stat strip ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
