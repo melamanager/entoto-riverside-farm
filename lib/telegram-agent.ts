@@ -297,7 +297,7 @@ export async function geminiAgentTurn(
   const history = meta.history.map((t) => ({ role: t.role, parts: [{ text: t.text }] }));
   while (history.length && history[0].role !== "user") history.shift();
 
-  const decls = [REPLY_DECL];
+  const decls: Array<{ name: string }> = [REPLY_DECL];
   if (meta.canTakeOrders) decls.push(ORDER_DECL, TASK_DECL, SCHEDULE_DECL, LIST_JOBS_DECL, CANCEL_JOB_DECL);
   if (meta.isManager) decls.push(RECOMMEND_DECL);
 
