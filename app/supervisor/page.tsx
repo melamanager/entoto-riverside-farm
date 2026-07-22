@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { DISEASE_LABELS } from "@/lib/types";
 import { RoutineStatusCard } from "@/components/routine-status-card";
+import { useDashboard } from "@/lib/use-dashboard";
 import { useLang } from "@/lib/lang";
 import { useAuth } from "@/lib/auth";
 import { EN, AM } from "@/lib/translations";
@@ -36,27 +37,19 @@ export default function SupervisorPage() {
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
 
+  // one batched request (+ sessionStorage warm start) instead of 8 round trips
+  const dash = useDashboard();
   useEffect(() => {
-    Promise.all([
-      fetch("/api/farmers").then(r => r.json()),
-      fetch("/api/valves").then(r => r.json()),
-      fetch("/api/beds").then(r => r.json()),
-      fetch("/api/harvest").then(r => r.json()),
-      fetch("/api/tasks").then(r => r.json()),
-      fetch("/api/attendance").then(r => r.json()),
-      fetch("/api/follow-ups").then(r => r.json()),
-      fetch("/api/diseases").then(r => r.json()),
-    ]).then(([f, v, b, h, tk, a, fu, dz]) => {
-      setFarmers(f);
-      setValves(v);
-      setBeds(b);
-      setHarvests(h.map((rec: HarvestRecord & { kg: string | number }) => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
-      setTasks(tk);
-      setAttendance(a);
-      setFollowUps(fu);
-      setDiseases(dz);
-    });
-  }, []);
+    if (!dash) return;
+    setFarmers(dash.farmers as Farmer[]);
+    setValves(dash.valves as Valve[]);
+    setBeds(dash.beds as Bed[]);
+    setHarvests((dash.harvests as Array<HarvestRecord & { kg: string | number }>).map(rec => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
+    setTasks(dash.tasks as Task[]);
+    setAttendance(dash.attendance as AttendanceRecord[]);
+    setFollowUps(dash.followUps as FollowUp[]);
+    setDiseases(dash.diseases as DiseaseReport[]);
+  }, [dash]);
 
   // a supervisor sees only their own card; a manager viewing this page sees all
   const supervisors = farmers.filter(f => f.role === "supervisor" && (isManager || f.id === user?.id));

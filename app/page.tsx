@@ -17,6 +17,7 @@ import { RipenessHeatmap } from "@/components/ripeness-heatmap";
 import { WeeklyReportCard } from "@/components/weekly-report-card";
 import { OriginPerformance } from "@/components/origin-performance";
 import { RoutineStatusCard } from "@/components/routine-status-card";
+import { useDashboard } from "@/lib/use-dashboard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -78,19 +79,25 @@ export default function DashboardPage() {
   const [watering, setWatering] = useState<{ valvesWatered: number; totalValves: number; sessions: number; waterVolumeL: number } | null>(null);
   const today = new Date().toLocaleDateString("en-CA");
 
-  useEffect(() => {
+  // one batched request (+ sessionStorage warm start) instead of 9 round trips
+  const [harvestFrom] = useState(() => {
     const from = new Date();
     from.setDate(from.getDate() - 13);
-    const fromStr = from.toISOString().split("T")[0];
-    fetch("/api/beds").then(r => r.json()).then(setBeds);
-    fetch("/api/valves").then(r => r.json()).then(setValves);
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
-    fetch(`/api/harvest?from=${fromStr}`).then(r => r.json()).then((data: Array<Record<string, unknown>>) =>
-      setHarvests(data.map(h => ({ ...h, kg: parseFloat(String(h.kg)) })) as unknown as HarvestRecord[]));
-    fetch("/api/diseases").then(r => r.json()).then(setDiseases);
-    fetch("/api/attendance").then(r => r.json()).then(setAttendance);
-    fetch("/api/tasks").then(r => r.json()).then(setTasks);
-    fetch("/api/packaging").then(r => r.json()).then(setPackagingRecords);
+    return from.toISOString().split("T")[0];
+  });
+  const dash = useDashboard(harvestFrom);
+  useEffect(() => {
+    if (!dash) return;
+    setBeds(dash.beds as Bed[]);
+    setValves(dash.valves as Valve[]);
+    setFarmers(dash.farmers as Farmer[]);
+    setHarvests(dash.harvests.map(h => ({ ...h, kg: parseFloat(String(h.kg)) })) as unknown as HarvestRecord[]);
+    setDiseases(dash.diseases as DiseaseReport[]);
+    setAttendance(dash.attendance as AttendanceRecord[]);
+    setTasks(dash.tasks as Task[]);
+    setPackagingRecords(dash.packagingRecords as PackagingRecord[]);
+  }, [dash]);
+  useEffect(() => {
     fetch(`/api/routines/daily?date=${new Date().toLocaleDateString("en-CA")}`)
       .then(r => r.json())
       .then(d => setWatering(d.watering ?? null));
