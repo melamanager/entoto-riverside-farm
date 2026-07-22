@@ -44,7 +44,7 @@ export default function SupervisorPage() {
     setFarmers(dash.farmers as Farmer[]);
     setValves(dash.valves as Valve[]);
     setBeds(dash.beds as Bed[]);
-    setHarvests((dash.harvests as Array<HarvestRecord & { kg: string | number }>).map(rec => ({ ...rec, kg: parseFloat(rec.kg.toString()) })));
+    setHarvests(dash.harvests.map(rec => ({ ...rec, kg: parseFloat(String(rec.kg)) })) as unknown as HarvestRecord[]);
     setTasks(dash.tasks as Task[]);
     setAttendance(dash.attendance as AttendanceRecord[]);
     setFollowUps(dash.followUps as FollowUp[]);
