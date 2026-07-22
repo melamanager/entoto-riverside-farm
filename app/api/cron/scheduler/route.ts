@@ -20,13 +20,17 @@ function authorized(req: Request) {
 }
 
 function addisNow(): { hhmm: string; dow: number } {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  // en-GB + hour12:false for a real 24h clock — hourCycle alone was ignored on
+  // this Node/ICU and silently produced 12-hour times ("22:12" became "10:12",
+  // so evening jobs never fired). "24" guard: hour12:false midnight quirk.
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Addis_Ababa",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short",
+    hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short",
   }).formatToParts(new Date());
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   const dow = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[get("weekday")] ?? 0;
-  return { hhmm: `${get("hour")}:${get("minute")}`, dow };
+  const hh = get("hour") === "24" ? "00" : get("hour");
+  return { hhmm: `${hh}:${get("minute")}`, dow };
 }
 
 export async function GET(req: Request) {
