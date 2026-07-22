@@ -59,6 +59,23 @@ model Farmer {
   dailyNotes            DailyNote[]         @relation("DailyNoteAuthor")
   routineAcksReceived   RoutineAck[]        @relation("AckSupervisor")
   routineAcksGiven      RoutineAck[]        @relation("AckManager")
+  scheduledJobs         ScheduledJob[]
+}
+
+// Personal recurring AI jobs created from the Telegram agent ("every day at
+// 5pm send me the harvest summary"). Fired by /api/cron/scheduler, which the
+// server crontab hits every 5 minutes.
+model ScheduledJob {
+  id          String   @id @default(cuid())
+  farmerId    String
+  farmer      Farmer   @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  title       String
+  prompt      String   // run against the live farm context at fire time
+  timeHHMM    String   // "17:00" in Africa/Addis_Ababa
+  daysOfWeek  Json     @default("[0,1,2,3,4,5,6]") // 0=Sun … 6=Sat
+  active      Boolean  @default(true)
+  lastRunDate String?  // "YYYY-MM-DD" Addis — once-per-day idempotency
+  createdAt   DateTime @default(now())
 }
 
 model Valve {
