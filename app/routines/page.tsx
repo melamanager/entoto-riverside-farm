@@ -36,6 +36,7 @@ type DailyData = {
     transactions: { id: string; type: string; item: string; quantity: number; unit: string }[];
   };
   overtime: { workers: number; totalHours: number; records: { farmerId: string; name: string; hours: number }[] };
+  nilReports?: { area: string; by: string; note: string | null }[];
 };
 
 type WeeklyData = {
@@ -116,11 +117,13 @@ function fmtShort(ds: string) {
   return new Date(`${ds}T00:00:00`).toLocaleDateString("en", { month: "short", day: "numeric" });
 }
 
-type RoutineStatus = "done" | "partial" | "pending";
+type RoutineStatus = "done" | "partial" | "pending" | "none";
 
 function StatusBadge({ status, t }: { status: RoutineStatus; t: typeof EN | typeof AM }) {
   if (status === "done")
     return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 gap-1"><CheckCircle2 className="size-3" />{t.routines.done}</Badge>;
+  if (status === "none")
+    return <Badge className="bg-primary/15 text-primary border-primary/30 gap-1"><CheckCircle2 className="size-3" />{t.routines.noneToday}</Badge>;
   if (status === "partial")
     return <Badge className="bg-amber-100 text-amber-700 border-amber-300 gap-1"><CircleDot className="size-3" />{t.routines.partial}</Badge>;
   return <Badge className="bg-muted text-muted-foreground border-border gap-1"><CircleDashed className="size-3" />{t.routines.pendingStatus}</Badge>;
@@ -215,18 +218,70 @@ export default function RoutinesPage() {
     fetch("/api/farmers").then(r => r.json()).then((all: Farmer[]) => setFarmers(all.filter(f => f.role !== "manager")));
   }, []);
 
+  /* ── "nothing to report today" declarations ── */
+  const nilAreas = new Set((daily?.nilReports ?? []).map(n => n.area));
+  const nilBy = (area: string) => daily?.nilReports?.find(n => n.area === area);
+  // an empty area that's been explicitly declared reads "none" (attended to), not "pending"
+  const nilOr = (area: string, base: RoutineStatus): RoutineStatus =>
+    base === "pending" && nilAreas.has(area) ? "none" : base;
+  // which of the declarable areas actually have activity today (hides the button)
+  const activity = {
+    fertigation: !!daily && (daily.fertigation.applied > 0 || daily.fertigation.scheduled > 0 || daily.fertigation.treatmentsApplied > 0),
+    harvest:     !!daily && daily.harvest.records > 0,
+    maintenance: !!daily && daily.maintenance.total > 0,
+    sales:       !!daily && daily.sales.orders > 0,
+    store:       !!daily && (daily.stock.inCount + daily.stock.outCount) > 0,
+  };
+
   /* ── statuses ── */
   const statuses: Record<string, RoutineStatus> = daily ? {
     attendance: daily.attendance.marked === 0 ? "pending" : daily.attendance.marked < daily.attendance.totalWorkers ? "partial" : "done",
     watering: daily.watering.valvesWatered === 0 ? "pending" : daily.watering.valvesWatered < daily.watering.totalValves ? "partial" : "done",
-    fertigation: daily.fertigation.scheduled > 0 ? "partial" : (daily.fertigation.applied > 0 || daily.fertigation.treatmentsApplied > 0) ? "done" : "pending",
-    harvest: daily.harvest.records > 0 ? "done" : "pending",
-    maintenance: daily.maintenance.total === 0 ? "pending" : daily.maintenance.done === daily.maintenance.total ? "done" : "partial",
-    sales: daily.sales.orders > 0 ? "done" : "pending",
-    stock: (daily.stock.inCount + daily.stock.outCount) > 0 ? "done" : "pending",
+    fertigation: nilOr("fertigation", daily.fertigation.scheduled > 0 ? "partial" : (daily.fertigation.applied > 0 || daily.fertigation.treatmentsApplied > 0) ? "done" : "pending"),
+    harvest: nilOr("harvest", daily.harvest.records > 0 ? "done" : "pending"),
+    maintenance: nilOr("maintenance", daily.maintenance.total === 0 ? "pending" : daily.maintenance.done === daily.maintenance.total ? "done" : "partial"),
+    sales: nilOr("sales", daily.sales.orders > 0 ? "done" : "pending"),
+    stock: nilOr("store", (daily.stock.inCount + daily.stock.outCount) > 0 ? "done" : "pending"),
     overtime: daily.overtime.workers > 0 ? "done" : "pending",
   } : {};
-  const doneCount = Object.values(statuses).filter(s => s === "done").length;
+  const doneCount = Object.values(statuses).filter(s => s === "done" || s === "none").length;
+
+  async function declareNil(area: string) {
+    const res = await fetch("/api/routines/nil", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, area }),
+    });
+    if (!res.ok) { toast.error("Couldn't save that"); return; }
+    toast.success(t.routines.noneMarked);
+    loadDaily();
+  }
+  async function undoNil(area: string) {
+    const res = await fetch("/api/routines/nil", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, area }),
+    });
+    if (!res.ok) { toast.error("Couldn't undo that"); return; }
+    loadDaily();
+  }
+
+  // the "no activity → declare / declared" row shown at the bottom of activity cards
+  function NilRow({ area, active }: { area: string; active: boolean }) {
+    if (active) return null;
+    const nr = nilBy(area);
+    if (nr) return (
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 mt-1">
+        <span className="text-[11px] text-primary font-medium flex items-center gap-1 min-w-0">
+          <CheckCircle2 className="size-3 shrink-0" /> <span className="truncate">{t.routines.noneToday} · {nr.by}</span>
+        </span>
+        <button onClick={() => undoNil(area)} className="text-[10px] text-muted-foreground hover:text-foreground shrink-0">{isAm ? "ተመለስ" : "Undo"}</button>
+      </div>
+    );
+    return (
+      <Button variant="outline" size="sm" className="w-full gap-1 mt-1 border-dashed text-muted-foreground" onClick={() => declareNil(area)}>
+        <CheckCircle2 className="size-3" /> {t.routines.markNoneToday}
+      </Button>
+    );
+  }
 
   /* ── actions ── */
   async function saveWatering() {
@@ -479,6 +534,7 @@ export default function RoutinesPage() {
                   <Link href="/fertigation" className="flex-1"><Button variant="outline" size="sm" className="w-full gap-1"><ExternalLink className="size-3" /> Fertigation</Button></Link>
                   <Link href="/diseases" className="flex-1"><Button variant="outline" size="sm" className="w-full gap-1"><ExternalLink className="size-3" /> Diseases</Button></Link>
                 </div>
+                <NilRow area="fertigation" active={activity.fertigation} />
               </Card>
 
               {/* 4. Harvesting */}
@@ -490,6 +546,7 @@ export default function RoutinesPage() {
                 <div className="text-2xl font-bold">{daily.harvest.totalKg.toFixed(1)}<span className="text-sm text-muted-foreground font-normal"> kg</span></div>
                 <div className="text-xs text-muted-foreground">{daily.harvest.records} record{daily.harvest.records === 1 ? "" : "s"} · {daily.harvest.beds} bed{daily.harvest.beds === 1 ? "" : "s"}</div>
                 <Link href="/harvest"><Button variant="outline" size="sm" className="w-full gap-1 mt-1"><ExternalLink className="size-3" /> Open Harvest Log</Button></Link>
+                <NilRow area="harvest" active={activity.harvest} />
               </Card>
 
               {/* 5. Maintenance */}
@@ -508,6 +565,7 @@ export default function RoutinesPage() {
                 <Button size="sm" variant="outline" className="w-full gap-1" onClick={() => setMaintOpen(true)}>
                   <Plus className="size-3" /> {t.routines.addMaintTask}
                 </Button>
+                <NilRow area="maintenance" active={activity.maintenance} />
               </Card>
 
               {/* 6. Sales */}
@@ -523,6 +581,7 @@ export default function RoutinesPage() {
                 </div>
                 <div className="text-xs text-muted-foreground">{daily.sales.orders} order{daily.sales.orders === 1 ? "" : "s"} · {daily.sales.totalKg.toFixed(1)} kg</div>
                 {isManager && <Link href="/orders"><Button variant="outline" size="sm" className="w-full gap-1 mt-1"><ExternalLink className="size-3" /> Open Orders</Button></Link>}
+                <NilRow area="sales" active={activity.sales} />
               </Card>
 
               {/* 7. Store */}
@@ -541,6 +600,7 @@ export default function RoutinesPage() {
                   {daily.stock.transactions.length === 0 && <span>No movements recorded</span>}
                 </div>
                 <Link href="/stock"><Button variant="outline" size="sm" className="w-full gap-1"><ExternalLink className="size-3" /> Open Store</Button></Link>
+                <NilRow area="store" active={activity.store} />
               </Card>
 
               {/* 8. Overtime */}

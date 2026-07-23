@@ -40,6 +40,12 @@ export async function GET(req: Request) {
     prisma.stockTransaction.findMany({ where: { date }, include: { item: { select: { name: true, unit: true, costPerUnit: true } } } }),
   ]);
 
+  // "nothing to report today" declarations for this date
+  const nil = await prisma.routineNilReport.findMany({
+    where: { date },
+    include: { declarer: { select: { name: true } } },
+  });
+
   const present = attendance.filter((a) => a.status === "present" || a.status === "late");
   const wateredValveIds = new Set(irrigationLogs.filter((l) => l.status !== "skipped").map((l) => l.valveId));
   const overtimeRecords = attendance.filter((a) => (a.overtimeHours ?? 0) > 0);
@@ -115,5 +121,6 @@ export async function GET(req: Request) {
         hours: a.overtimeHours ?? 0,
       })),
     },
+    nilReports: nil.map((n) => ({ area: n.area, by: n.declarer.name, note: n.note })),
   });
 }

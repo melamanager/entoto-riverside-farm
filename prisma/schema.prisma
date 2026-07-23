@@ -60,6 +60,23 @@ model Farmer {
   routineAcksReceived   RoutineAck[]        @relation("AckSupervisor")
   routineAcksGiven      RoutineAck[]        @relation("AckManager")
   scheduledJobs         ScheduledJob[]
+  routineNilReports     RoutineNilReport[]  @relation("NilReportDeclarer")
+}
+
+// "Nothing to report today" declaration for a routine area (harvest, sales,
+// fertigation, maintenance, store). Lets a supervisor positively affirm a quiet
+// day — so an empty area reads "None today ✓" (attended to) instead of the
+// ambiguous "pending" (did they forget, or was there genuinely nothing?).
+model RoutineNilReport {
+  id         String   @id @default(cuid())
+  date       String   // YYYY-MM-DD (Africa/Addis_Ababa) — farm-wide for the day
+  area       String   // fertigation | harvest | sales | maintenance | store
+  declaredBy String
+  declarer   Farmer   @relation("NilReportDeclarer", fields: [declaredBy], references: [id])
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@unique([date, area])
 }
 
 // Personal recurring AI jobs created from the Telegram agent ("every day at
