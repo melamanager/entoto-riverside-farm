@@ -40,11 +40,12 @@ export async function GET(req: Request) {
         orderBy: { date: "desc" },
       }),
       prisma.task.findMany({
+        omit: { proofImageUrl: true }, // base64 photos — dashboards never render them
         include: {
           assignee: true,
           creator: true,
           bed: true,
-          children: { include: { assignee: true, creator: true }, orderBy: { createdAt: "asc" } },
+          children: { omit: { proofImageUrl: true }, include: { assignee: true, creator: true }, orderBy: { createdAt: "asc" } },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -57,6 +58,10 @@ export async function GET(req: Request) {
         orderBy: [{ status: "asc" }, { dueDate: "asc" }],
       }),
       prisma.diseaseReport.findMany({
+        // photo + proofImageUrl are multi-MB base64 blobs (20+ MB across the
+        // table) and made the payload undownloadable on farm connections;
+        // the dashboards never render them
+        omit: { photo: true, proofImageUrl: true },
         include: { bed: true, reporter: true },
         orderBy: { reportedAt: "desc" },
       }),
