@@ -1,5 +1,6 @@
 # TLS reverse proxy for the farm app. Telegram webhooks require HTTPS, and
 # Caddy gets/renews the Let's Encrypt certificate automatically.
 entoto.melaverse.net {
+	encode zstd gzip
 	reverse_proxy app:3000
 }
