@@ -16,7 +16,7 @@ export async function buildFarmContext(role: "manager" | "supervisor" | "farmer"
 
   const [
     beds, valves, farmers, diseases, harvests, attendanceToday,
-    stock, orders, fertToday, irrigationWeek, tasksOpen, compliance, weather,
+    stock, orders, fertToday, irrigationWeek, tasksOpen, compliance, weather, plantings,
   ] = await Promise.all([
     prisma.bed.findMany({ select: { id: true, valveId: true, variety: true, stage: true, health: true, lengthM: true } }),
     prisma.valve.findMany({ select: { id: true, name: true, irrigationSchedule: true } }),
@@ -35,6 +35,10 @@ export async function buildFarmContext(role: "manager" | "supervisor" | "farmer"
     prisma.task.findMany({ where: { status: { not: "done" } }, select: { title: true, priority: true, dueDate: true, category: true, assignee: { select: { name: true } } } }),
     complianceForRange(today, today),
     getWeather().catch(() => null),
+    prisma.plantingRecord.findMany({
+      where: { status: { in: ["planned", "planted", "growing"] } },
+      select: { bedId: true, variety: true, status: true, plannedDate: true, expectedHarvestDate: true, seedSource: true },
+    }),
   ]);
 
   const isManager = role === "manager";
@@ -55,6 +59,16 @@ export async function buildFarmContext(role: "manager" | "supervisor" | "farmer"
   const readyBeds = beds.filter(b => b.stage === "ripening" || b.stage === "harvest").map(b => `${b.id}(${b.variety})`);
   L.push(`BEDS: ${beds.length} total across ${valves.length} valves. Stages: ${Object.entries(byStage).map(([s, n]) => `${n} ${s}`).join(", ")}. Health: ${beds.filter(b => b.health === "healthy").length} healthy, ${warning.length} warning${warning.length ? " (" + warning.join(", ") + ")" : ""}, ${infected.length} infected${infected.length ? " (" + infected.join(", ") + ")" : ""}.`);
   if (readyBeds.length) L.push(`HARVEST-READY BEDS (ripening/harvest stage): ${readyBeds.join(", ")}.`);
+
+  // Planting pipeline
+  const toPlant = plantings.filter(p => p.status === "planned");
+  const overduePlant = toPlant.filter(p => p.plannedDate <= today);
+  const growing = plantings.filter(p => p.status !== "planned");
+  const dueHarvest = growing.filter(p => p.expectedHarvestDate <= today);
+  const soonHarvest = growing.filter(p => p.expectedHarvestDate > today).sort((a, b) => a.expectedHarvestDate.localeCompare(b.expectedHarvestDate)).slice(0, 5);
+  if (plantings.length) {
+    L.push(`PLANTING PIPELINE: ${toPlant.length} planned (${overduePlant.length} due/overdue to plant now${overduePlant.length ? ": " + overduePlant.slice(0, 6).map(p => `${p.bedId} ${p.variety}`).join(", ") : ""}), ${growing.length} in the ground.${dueHarvest.length ? ` ${dueHarvest.length} at/past expected harvest: ${dueHarvest.slice(0, 6).map(p => `${p.bedId}(${p.variety})`).join(", ")}.` : ""}${soonHarvest.length ? ` Next harvest windows: ${soonHarvest.map(p => `${p.bedId} ${p.variety} ~${p.expectedHarvestDate}`).join(", ")}.` : ""}`);
+  }
 
   // Diseases
   if (diseases.length) {

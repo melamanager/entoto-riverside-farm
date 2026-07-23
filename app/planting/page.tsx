@@ -11,6 +11,9 @@ import {
 import { toast } from "sonner";
 import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
 import type { Bed, Valve, Farmer } from "@/lib/types";
+import { PlantingPlanner } from "@/components/planting-planner";
+import { liveAgeDays, liveStage } from "@/lib/planting";
+import { GROWTH_STAGE_LABELS } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
@@ -386,6 +389,9 @@ export default function PlantingPage() {
         </Card>
       </div>
 
+      {/* Planning: harvest window forecast + bed occupancy */}
+      <PlantingPlanner plantings={plantings} beds={beds} today={TODAY} />
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Variety breakdown */}
         <Card className="p-5 lg:col-span-1">
@@ -462,7 +468,14 @@ export default function PlantingPage() {
                             {new Date(rec.expectedHarvestDate).toLocaleDateString("en", { month: "short", day: "numeric", year: "2-digit" })}
                             {isOverdueHarv && <span className="ml-1 text-[9px] text-red-500">overdue</span>}
                           </td>
-                          <td className="tabular-nums font-semibold text-foreground">{rec.ageInDays}d</td>
+                          <td className="tabular-nums font-semibold text-foreground">
+                            {rec.status === "planned"
+                              ? <span className="text-muted-foreground/60">—</span>
+                              : <>
+                                  {liveAgeDays(rec, TODAY)}d
+                                  <span className="ml-1.5 text-[9px] text-muted-foreground font-normal">{GROWTH_STAGE_LABELS[liveStage(rec, TODAY)]}</span>
+                                </>}
+                          </td>
                           <td>
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.badge}`}>
                               <span className={`size-1.5 rounded-full ${s.dot}`} />

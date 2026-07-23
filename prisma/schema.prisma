@@ -277,6 +277,7 @@ model PlantingRecord {
   seedSource          String
   status              PlantingStatus @default(planned)
   notes               String?
+  taskId              String?        // the "plant this bed" task once generated (dedup, like DiseaseReport)
   createdBy           String
   creator             Farmer         @relation(fields: [createdBy], references: [id])
 
