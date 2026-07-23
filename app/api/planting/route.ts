@@ -30,9 +30,19 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  // age is derived, not trusted from the client — keep the stored column honest
+  // defensive validity guard (the client validates too, but this route is directly callable)
+  if (!body.bedId) return NextResponse.json({ error: "Bed is required" }, { status: 400 });
+  if (!body.expectedHarvestDate) return NextResponse.json({ error: "Expected harvest date is required" }, { status: 400 });
+  const plantDate = body.actualDate || body.plannedDate;
+  if (plantDate && body.expectedHarvestDate <= plantDate)
+    return NextResponse.json({ error: "Expected harvest date must be after the planting date" }, { status: 400 });
+
   const record = await prisma.plantingRecord.create({
-    data: { ...body, ageInDays: liveAgeDays(body, todayAddis()) },
+    data: {
+      ...body,
+      createdBy: (session.user as { id: string }).id, // accountability: the real user, not a client value
+      ageInDays: liveAgeDays(body, todayAddis()),       // age is derived, never trusted from the client
+    },
   });
   await syncBedFromPlanting(record.id); // close the Bed loop
   return NextResponse.json(record, { status: 201 });

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { PlantingRecord, PlantingStatus } from "@/lib/erp-types";
-import type { Bed, Valve, Farmer } from "@/lib/types";
+import type { Bed, Valve } from "@/lib/types";
 import { PlantingPlanner } from "@/components/planting-planner";
 import { liveAgeDays, liveStage } from "@/lib/planting";
 import { GROWTH_STAGE_LABELS } from "@/lib/types";
@@ -70,7 +70,6 @@ export default function PlantingPage() {
   const [plantings, setPlantings]       = useState<PlantingRecord[]>([]);
   const [beds, setBeds]                 = useState<Bed[]>([]);
   const [valves, setValves]             = useState<Valve[]>([]);
-  const [farmers, setFarmers]           = useState<Farmer[]>([]);
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<PlantingRecord | null>(null);
   const [form, setForm]                 = useState(EMPTY_FORM);
@@ -81,7 +80,6 @@ export default function PlantingPage() {
     fetch("/api/planting").then(r => r.json()).then(setPlantings);
     fetch("/api/beds").then(r => r.json()).then(setBeds);
     fetch("/api/valves").then(r => r.json()).then(setValves);
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
   }, []);
 
   // ── Overdue detection ────────────────────────────────────────────────────
@@ -106,13 +104,26 @@ export default function PlantingPage() {
 
   // ── Form handlers ────────────────────────────────────────────────────────
   function openCreate() {
+    const v0 = valves[0]?.id ?? "";
     setForm({
       ...EMPTY_FORM,
-      bedId:     beds[0]?.id ?? "",
-      valveId:   valves[0]?.id ?? "",
-      createdBy: farmers.find(f => f.role === "manager")?.id ?? "",
+      valveId: v0,
+      bedId:   beds.find(b => b.valveId === v0)?.id ?? "", // first bed OF that valve, not just beds[0]
     });
     setCreateOpen(true);
+  }
+
+  // A planting record must be internally consistent. Returns an error string or null.
+  function validatePlanting(f: typeof EMPTY_FORM): string | null {
+    if (!f.bedId) return "Please select a bed";
+    if (!f.expectedHarvestDate) return "Expected harvest date is required";
+    const plantDate = f.actualDate || f.plannedDate; // ISO YYYY-MM-DD → string compare is date order
+    if (f.expectedHarvestDate <= plantDate) return "Expected harvest date must be after the planting date";
+    if (f.status === "planned" && f.actualDate)
+      return "A “planned” record can't have an actual planting date. Set status to “planted”, or clear the actual date.";
+    if ((f.status === "planted" || f.status === "growing" || f.status === "harvested") && !f.actualDate)
+      return `A “${f.status}” planting needs an actual planting date.`;
+    return null;
   }
 
   function openEdit(r: PlantingRecord) {
@@ -127,8 +138,11 @@ export default function PlantingPage() {
   }
 
   async function handleCreate() {
-    if (!form.bedId)               { toast.error("Please select a bed"); return; }
-    if (!form.expectedHarvestDate) { toast.error("Expected harvest date is required"); return; }
+    const err = validatePlanting(form);
+    if (err) { toast.error(err); return; }
+    // one active crop per bed — don't let two live plantings share a bed
+    const active = plantings.find(p => p.bedId === form.bedId && (p.status === "planted" || p.status === "growing"));
+    if (active) { toast.error(`${form.bedId} already has an active planting (${active.variety}). Harvest or fail it first.`); return; }
     const body = {
       bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
@@ -150,6 +164,8 @@ export default function PlantingPage() {
 
   async function handleEdit() {
     if (!editTarget) return;
+    const err = validatePlanting(form);
+    if (err) { toast.error(err); return; }
     const body = {
       bedId: form.bedId, valveId: form.valveId, variety: form.variety,
       plannedDate: form.plannedDate, actualDate: form.actualDate || undefined,
@@ -198,10 +214,14 @@ export default function PlantingPage() {
         </div>
         <div>
           <label className="text-xs font-semibold text-foreground/80 block mb-1">Variety</label>
-          <input value={form.variety}
+          {/* datalist: canonical varieties as suggestions, but a custom one is still allowed */}
+          <input value={form.variety} list="variety-options"
             onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
             placeholder="e.g. Festival"
-            className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card" />
+          <datalist id="variety-options">
+            {options.varieties.map(v => <option key={v.value} value={v.value} />)}
+          </datalist>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -212,8 +232,13 @@ export default function PlantingPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Actual Date (if planted)</label>
+            {/* entering a real planting date auto-promotes a still-"planned" record to "planted" */}
             <input type="date" value={form.actualDate}
-              onChange={e => setForm(p => ({ ...p, actualDate: e.target.value }))}
+              onChange={e => setForm(p => ({
+                ...p,
+                actualDate: e.target.value,
+                status: e.target.value && p.status === "planned" ? "planted" : p.status,
+              }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
@@ -244,7 +269,7 @@ export default function PlantingPage() {
         <div>
           <label className="text-xs font-semibold text-foreground/80 block mb-1">Status</label>
           <select value={form.status}
-            onChange={e => setForm(p => ({ ...p, status: e.target.value as PlantingStatus }))}
+            onChange={e => { const s = e.target.value as PlantingStatus; setForm(p => ({ ...p, status: s, actualDate: s === "planned" ? "" : p.actualDate })); }}
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card capitalize">
             {options.plantingStatuses.map(s => <option key={s.value} value={s.value} className="capitalize">{s.label}</option>)}
           </select>
