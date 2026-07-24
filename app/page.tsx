@@ -537,7 +537,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="p-3 md:p-4">
-          <FarmMap valves={valves} beds={beds} harvestKgByBed={harvestKgByBed} />
+          <FarmMap valves={valves} beds={beds} harvestKgByBed={harvestKgByBed} embed />
         </div>
       </Card>
 

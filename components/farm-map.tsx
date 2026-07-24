@@ -1,618 +1,383 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useMemo } from "react";
-import type { Bed, Valve } from "@/lib/types";
+import { useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
+import { Space_Grotesk, Space_Mono } from "next/font/google";
+import type { Bed, Valve, GrowthStage, HealthStatus } from "@/lib/types";
 
-type ViewMode = "health" | "yield" | "stage";
+// Redesigned Farm Bed Map (from the "Farm bed map redesign" Claude Design
+// project). Two layouts — aerial 2D field lanes and an iso 3D field — toggled
+// live, plus Health/Yield/Stage recolouring, search, valve/crop filters, a bed
+// detail drawer, clickable status cards, and bulk flagged-bed selection. Wired
+// to the app's real beds/valves/harvest; "Assign task" creates a real task.
+// `embed` renders a compact version (dashboard) without the toolbar/footer.
 
-interface Props {
-  valves: Valve[];
-  beds: Bed[];
-  harvestKgByBed: Record<string, number>;
-  highlightValves?: string[];
+const grotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap" });
+const mono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"], display: "swap" });
+
+type ValveWithSup = Valve & { supervisorId?: string };
+type Props = { valves: ValveWithSup[]; beds: Bed[]; harvestKgByBed: Record<string, number>; embed?: boolean };
+
+const HEALTH: Record<HealthStatus, { c: string; l: string }> = {
+  healthy: { c: "#35c46f", l: "Healthy" },
+  warning: { c: "#f5a623", l: "Warning" },
+  infected: { c: "#e5484d", l: "Infected" },
+};
+const STAGE: Record<GrowthStage, { c: string; l: string }> = {
+  planted: { c: "#86efac", l: "Planted" },
+  vegetative: { c: "#34d399", l: "Vegetative" },
+  flowering: { c: "#a78bfa", l: "Flowering" },
+  fruiting: { c: "#fbbf24", l: "Fruiting" },
+  ripening: { c: "#fb7185", l: "Ripening" },
+  harvest: { c: "#fb7185", l: "Harvest" },
+};
+const READY: Record<GrowthStage, number> = { planted: 8, vegetative: 28, flowering: 48, fruiting: 72, ripening: 90, harvest: 98 };
+const RULER_MAX = 45;
+
+function mix(a: string, b: string, t: number) {
+  const p = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const [r1, g1, b1] = p(a), [r2, g2, b2] = p(b);
+  const m = (x: number, y: number) => Math.round(x + (y - x) * t).toString(16).padStart(2, "0");
+  return "#" + m(r1, r2) + m(g1, g2) + m(b1, b2);
+}
+function yieldColor(v: number) {
+  return v >= 85 ? "#fb7185" : v >= 65 ? "#fbbf24" : v >= 40 ? "#84cc16" : v >= 15 ? "#4d7c5a" : "#3a4a3a";
 }
 
-// ─── Oblique projection constants ────────────────────────────────────────
-const ORIG_X  = 80;
-const ORIG_Y  = 500;
-const LX      = 5.0;
-const LY      = 0.22;
-const DX      = -5;
-const DY      = 18;
-const HY      = 22;
+type Mode = "health" | "yield" | "stage";
+type View = "2d" | "3d";
 
-const BED_DEPTH   = 0.68;
-const BED_HEIGHT  = 1.0;
-const ROW_SPACING = 1.0;
-const ZONE_EXTRA  = 0.8;
+export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("health");
+  const [view, setView] = useState<View>("2d");
+  const [query, setQuery] = useState("");
+  const [valveF, setValveF] = useState<string[]>([]);
+  const [cropF, setCropF] = useState<string[]>([]);
+  const [statusF, setStatusF] = useState<HealthStatus[]>([]);
+  const [readyF, setReadyF] = useState(false);
+  const [sel, setSel] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-// Palette
-const MULCH_TOP = "#c6cad4";
-const MULCH_FNT = "#8a8e97";
-const MULCH_END = "#5e6269";
-const SHINE     = "#e2e6f0";
-
-const VALVE_COLORS = ["#10b981", "#3b82f6", "#a855f7"] as const;
-const HEALTH_COLOR = { healthy: "#22c55e", warning: "#f59e0b", infected: "#ef4444" } as const;
-const STAGE_COLOR: Record<string, string> = {
-  planted: "#94a3b8", vegetative: "#4ade80", flowering: "#f9a8d4",
-  fruiting: "#fb923c", ripening: "#f87171", harvest: "#22c55e",
-};
-const STAGE_LABEL: Record<string, string> = {
-  planted: "Planted", vegetative: "Vegetative", flowering: "Flowering",
-  fruiting: "Fruiting", ripening: "Ripening", harvest: "Harvest",
-};
-const STAGE_TEXT_COLOR: Record<string, string> = {
-  planted: "#475569", vegetative: "#15803d", flowering: "#be185d",
-  fruiting: "#c2410c", ripening: "#b91c1c", harvest: "#15803d",
-};
-
-function iso(len: number, row: number, h: number) {
-  return {
-    x: ORIG_X + len * LX + row * DX,
-    y: ORIG_Y + len * LY - row * DY - h * HY,
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2600);
   };
-}
-function pts(ps: { x: number; y: number }[]) {
-  return ps.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-}
+  const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-export function FarmMap({ valves, beds, harvestKgByBed, highlightValves }: Props) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("health");
+  const bedColor = (b: Bed) =>
+    mode === "health" ? HEALTH[b.health].c : mode === "stage" ? STAGE[b.stage].c : yieldColor(READY[b.stage]);
+  const metricText = (b: Bed) =>
+    mode === "health" ? HEALTH[b.health].l : mode === "stage" ? STAGE[b.stage].l : `${READY[b.stage]}% ready`;
 
-  const selectedBed = beds.find(b => b.id === selected);
-  const maxLen      = Math.max(...beds.map(b => b.lengthM), 1);
-  const maxYield    = Math.max(...beds.map(b => harvestKgByBed[b.id] ?? 0), 1);
+  const isDim = (b: Bed) => {
+    const q = query.trim().toLowerCase();
+    if (q && !`${b.id} ${b.variety} ${b.valveId}`.toLowerCase().includes(q)) return true;
+    if (valveF.length && !valveF.includes(b.valveId)) return true;
+    if (cropF.length && !cropF.includes(b.variety)) return true;
+    if (statusF.length && !statusF.includes(b.health)) return true;
+    if (readyF && b.stage !== "ripening" && b.stage !== "harvest") return true;
+    return false;
+  };
 
-  const bedLayout = useMemo(() => {
-    const out: Array<{ bed: Bed; rowStart: number; vi: number }> = [];
-    let row = 0;
-    valves.forEach((valve, vi) => {
-      beds.filter(b => b.valveId === valve.id).forEach(bed => {
-        out.push({ bed, rowStart: row, vi });
-        row += ROW_SPACING;
-      });
-      row += ZONE_EXTRA;
+  const crops = useMemo(() => [...new Set(beds.map((b) => b.variety))], [beds]);
+  const flagged = useMemo(() => beds.filter((b) => b.health !== "healthy"), [beds]);
+  const supByValve = useMemo(() => Object.fromEntries(valves.map((v) => [v.id, v.supervisorId])), [valves]);
+
+  // ── real action: create an inspection/treatment task for one or more beds ─
+  async function assignTask(bedIds: string[]) {
+    const first = beds.find((b) => b.id === bedIds[0]);
+    if (!first) return;
+    const assignee = supByValve[first.valveId];
+    if (!assignee) { showToast("No supervisor set for this valve"); return; }
+    const anyInfected = beds.some((b) => bedIds.includes(b.id) && b.health === "infected");
+    const title = bedIds.length === 1
+      ? `Inspect ${first.id} — ${first.variety}`
+      : `Treat ${bedIds.length} flagged beds: ${bedIds.join(", ")}`;
+    const res = await fetch("/api/tasks", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title, assignedTo: assignee, bedId: bedIds.length === 1 ? first.id : undefined, valveId: first.valveId,
+        category: anyInfected ? "disease" : "inspection", priority: anyInfected ? "high" : "medium",
+        description: `Raised from the farm map. ${bedIds.length === 1 ? `Bed ${first.id} (${first.variety}).` : `Beds: ${bedIds.join(", ")}.`}`,
+      }),
     });
-    return out;
-  }, [valves, beds]);
-
-  const paintOrder = useMemo(() => [...bedLayout].reverse(), [bedLayout]);
-
-  const zoneStarts = useMemo(() => {
-    const out: Array<{ valve: Valve; vi: number; rowStart: number }> = [];
-    let row = 0;
-    valves.forEach((valve, vi) => {
-      out.push({ valve, vi, rowStart: row });
-      beds.filter(b => b.valveId === valve.id).forEach(() => { row += ROW_SPACING; });
-      row += ZONE_EXTRA;
-    });
-    return out;
-  }, [valves, beds]);
-
-  const totalRows = useMemo(() => {
-    let r = 0;
-    valves.forEach(valve => {
-      beds.filter(b => b.valveId === valve.id).forEach(() => { r += ROW_SPACING; });
-      r += ZONE_EXTRA;
-    });
-    return r;
-  }, [valves, beds]);
-
-  const topLeft    = iso(0,      totalRows + BED_DEPTH, BED_HEIGHT);
-  const bottomLeft = iso(0,      0, 0);
-  const topRight   = iso(maxLen, totalRows, BED_HEIGHT);
-  const botRight   = iso(maxLen, 0, 0);
-
-  const minX = Math.min(topLeft.x, bottomLeft.x) - 44;
-  const maxX = Math.max(topRight.x, botRight.x)  + 28;
-  const rawMinY = topLeft.y - 16;
-  const skyH = 86;
-  const minY = rawMinY - skyH;
-  const maxY = Math.max(bottomLeft.y, botRight.y) + 46;
-
-  const VW = maxX - minX;
-  const VH = maxY - minY;
-  const viewBox = `${minX.toFixed(0)} ${minY.toFixed(0)} ${VW.toFixed(0)} ${VH.toFixed(0)}`;
-
-  const horizonY = rawMinY + 4;
-  const sunX = maxX - VW * 0.16;
-  const sunY = horizonY - 22;
-
-  function plantColor(bed: Bed): string {
-    if (viewMode === "stage") return STAGE_COLOR[bed.stage] ?? "#4ade80";
-    if (viewMode === "yield") {
-      const r = (harvestKgByBed[bed.id] ?? 0) / maxYield;
-      return r > 0.75 ? "#14532d" : r > 0.45 ? "#16a34a" : r > 0.1 ? "#4ade80" : "#bbf7d0";
-    }
-    return HEALTH_COLOR[bed.health] ?? "#22c55e";
+    if (!res.ok) { showToast("Couldn't create the task"); return; }
+    showToast(bedIds.length === 1 ? `Task assigned for ${first.id}` : `Treatment task assigned to ${bedIds.length} beds`);
+    setPicked([]);
   }
 
+  const grouped = valves.map((v) => {
+    const vb = beds.filter((b) => b.valveId === v.id).sort((a, b) => a.id.localeCompare(b.id));
+    const ready = vb.filter((b) => b.stage === "ripening" || b.stage === "harvest").length;
+    return { valve: v, beds: vb, ready };
+  });
+
+  const cnt = (h: HealthStatus) => beds.filter((b) => b.health === h).length;
+  const readyCount = beds.filter((b) => b.stage === "ripening" || b.stage === "harvest").length;
+  const selBed = sel ? beds.find((b) => b.id === sel) : null;
+  const selValve = selBed ? valves.find((v) => v.id === selBed.valveId) : null;
+
+  const chipStyle = (active: boolean) => active
+    ? { background: "rgba(199,240,77,.14)", borderColor: "rgba(199,240,77,.4)", color: "#c7f04d" }
+    : { background: "#0b0f09", borderColor: "rgba(180,200,160,.14)", color: "#93a68c" };
+
+  const legendItems = mode === "health"
+    ? [{ c: "#35c46f", l: "Healthy" }, { c: "#f5a623", l: "Warning" }, { c: "#e5484d", l: "Infected" }]
+    : mode === "stage"
+      ? [STAGE.vegetative, STAGE.flowering, STAGE.fruiting, STAGE.ripening].map((x) => ({ c: x.c, l: x.l }))
+      : [{ c: "#3a4a3a", l: "Early" }, { c: "#84cc16", l: "Growing" }, { c: "#fbbf24", l: "Filling" }, { c: "#fb7185", l: "Ready" }];
+
+  const modeBtns: { key: Mode; label: string; emoji: string }[] = [
+    { key: "health", label: "Health", emoji: "🌿" },
+    { key: "yield", label: "Yield", emoji: "🌾" },
+    { key: "stage", label: "Stage", emoji: "🌸" },
+  ];
+
+  const summary = [
+    { key: "healthy" as const, emoji: "🌿", label: "Healthy", count: cnt("healthy"), sub: "Routine inspection", color: "#35c46f", active: statusF.includes("healthy"), onClick: () => setStatusF((f) => toggle(f, "healthy")) },
+    { key: "warning" as const, emoji: "⚠️", label: "Warning", count: cnt("warning"), sub: "Monitor this week", color: "#f5a623", active: statusF.includes("warning"), onClick: () => setStatusF((f) => toggle(f, "warning")) },
+    { key: "infected" as const, emoji: "🦠", label: "Infected", count: cnt("infected"), sub: "Treat immediately", color: "#e5484d", active: statusF.includes("infected"), onClick: () => setStatusF((f) => toggle(f, "infected")) },
+    { key: "ready" as const, emoji: "🍓", label: "Ready", count: readyCount, sub: "Harvest now", color: "#fb7185", active: readyF, onClick: () => setReadyF((r) => !r) },
+  ];
+
+  const segBtn = (active: boolean): CSSProperties => ({
+    cursor: "pointer", border: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+    padding: "8px 13px", borderRadius: 9, transition: "all .15s",
+    color: active ? "#0e130c" : "#b7c7ad", background: active ? "#c7f04d" : "transparent",
+  });
+
   return (
-    <div className="space-y-3">
+    <div className={grotesk.className} style={{ width: "100%", color: "#e7f0e2", background: "#0e130c", border: "1px solid rgba(180,200,160,.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 24px 60px -20px rgba(0,0,0,.6)" }}>
+      <style>{`
+        @keyframes fm-drawer{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes fm-toast{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes fm-pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.55)}50%{box-shadow:0 0 0 6px rgba(229,72,77,0)}}
+        .fm-scroll::-webkit-scrollbar{width:8px;height:8px}
+        .fm-scroll::-webkit-scrollbar-thumb{background:rgba(180,200,160,.18);border-radius:8px}
+      `}</style>
 
-      {/* View mode controls */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {(["health", "yield", "stage"] as ViewMode[]).map(m => (
-          <button key={m} onClick={() => setViewMode(m)}
-            className={`text-[11px] px-3.5 py-1.5 rounded-full font-semibold transition-all shadow-sm ${
-              viewMode === m
-                ? "bg-foreground text-background shadow-foreground/30"
-                : "bg-card text-muted-foreground border border-border hover:border-muted-foreground hover:shadow"
-            }`}>
-            {m === "health" ? "🌿 Health" : m === "yield" ? "🌾 Yield" : "🌸 Stage"}
-          </button>
-        ))}
-        <span className="ml-auto text-[10px] text-muted-foreground hidden sm:block">Tap any bed for details</span>
-      </div>
-
-      {/* Map canvas */}
-      <div className="overflow-x-auto rounded-2xl border border-border shadow-2xl">
-        <div style={{ minWidth: Math.max(320, VW) }}>
-          <svg viewBox={viewBox} width="100%" style={{ display: "block" }}>
-            <defs>
-              {/* Sky gradient — deep blue → golden horizon */}
-              <linearGradient id="fmSky" gradientUnits="userSpaceOnUse"
-                x1="0" y1={minY} x2="0" y2={horizonY}>
-                <stop offset="0%"   stopColor="#1a4a8c" />
-                <stop offset="28%"  stopColor="#2a7bd0" />
-                <stop offset="62%"  stopColor="#78b6e8" />
-                <stop offset="85%"  stopColor="#c4dcf0" />
-                <stop offset="100%" stopColor="#f2c96c" />
-              </linearGradient>
-              {/* Sun radial glow */}
-              <radialGradient id="fmSunGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%"   stopColor="#fff9d0" stopOpacity="0.95" />
-                <stop offset="35%"  stopColor="#ffd04a" stopOpacity="0.5"  />
-                <stop offset="100%" stopColor="#ff9820" stopOpacity="0"    />
-              </radialGradient>
-              {/* Soil texture */}
-              <pattern id="fmSoil" width="32" height="32" patternUnits="userSpaceOnUse">
-                <rect width="32" height="32" fill="#5a2210" />
-                <rect width="32" height="32" fill="#6b3318" opacity="0.65" />
-                <circle cx="6"  cy="9"  r="2.2" fill="#3c1404" opacity="0.44" />
-                <circle cx="20" cy="20" r="1.7" fill="#3c1404" opacity="0.32" />
-                <circle cx="14" cy="4"  r="1.2" fill="#7a2e12" opacity="0.26" />
-                <circle cx="26" cy="13" r="1.9" fill="#4a1a08" opacity="0.36" />
-                <circle cx="2"  cy="25" r="1.4" fill="#7a2e12" opacity="0.22" />
-                <rect x="8"  y="17" width="5"   height="0.8" rx="0.4" fill="#280c04" opacity="0.26" transform="rotate(-15 10 17)" />
-                <rect x="19" y="6"  width="3.5" height="0.7" rx="0.3" fill="#280c04" opacity="0.2"  transform="rotate(20 20 6)"   />
-              </pattern>
-              {/* Silver plastic mulch — diagonal sheen with double stripe */}
-              <pattern id="fmMulch" width="14" height="14" patternUnits="userSpaceOnUse"
-                patternTransform="rotate(42)">
-                <rect width="14" height="14" fill={MULCH_TOP} />
-                <rect x="0" width="3"   height="14" fill={SHINE} opacity="0.52" />
-                <rect x="7" width="1.5" height="14" fill={SHINE} opacity="0.22" />
-              </pattern>
-              {/* Animations */}
-              <style>{`
-                @keyframes fmpulse { 0%,100%{opacity:.92} 50%{opacity:.18} }
-                .fmpulse { animation: fmpulse 1.6s ease-in-out infinite; }
-                @keyframes fmberry { 0%,100%{transform:scale(1)} 50%{transform:scale(1.22)} }
-                .fmberry { animation: fmberry 2.4s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
-                @keyframes fmwarn { 0%,100%{opacity:1} 50%{opacity:.62} }
-                .fmwarn { animation: fmwarn 1.1s ease-in-out infinite; }
-              `}</style>
-            </defs>
-
-            {/* ── Sky ─────────────────────────────────────────────────────── */}
-            <rect x={minX} y={minY} width={VW + 24} height={horizonY - minY + 8} fill="url(#fmSky)" />
-
-            {/* Sun glow + disc */}
-            <ellipse cx={sunX} cy={sunY} rx="38" ry="24" fill="url(#fmSunGlow)" />
-            <circle  cx={sunX} cy={sunY} r="7"   fill="#fff9a0" opacity="0.9" />
-            <circle  cx={sunX} cy={sunY} r="4.5" fill="#fffde8" opacity="0.98" />
-
-            {/* Clouds — fluffy overlapping ellipses */}
-            {[
-              { cx: minX + VW * 0.21, cy: minY + 22 },
-              { cx: minX + VW * 0.57, cy: minY + 14 },
-            ].map((cloud, ci) => (
-              <g key={ci} opacity="0.84">
-                <ellipse cx={cloud.cx - 18} cy={cloud.cy + 6}  rx="18" ry="7"  fill="white" />
-                <ellipse cx={cloud.cx}      cy={cloud.cy}       rx="24" ry="11" fill="white" />
-                <ellipse cx={cloud.cx + 20} cy={cloud.cy + 7}  rx="17" ry="7"  fill="white" />
-                <ellipse cx={cloud.cx + 6}  cy={cloud.cy + 5}  rx="14" ry="8"  fill="white" />
-                <ellipse cx={cloud.cx - 10} cy={cloud.cy + 10} rx="11" ry="5"  fill="#ddeef8" />
-              </g>
-            ))}
-
-            {/* Distant misty hills */}
-            <path
-              d={`M${minX},${horizonY+2}
-                C${minX+VW*0.10},${horizonY-24} ${minX+VW*0.22},${horizonY-16} ${minX+VW*0.32},${horizonY-30}
-                C${minX+VW*0.41},${horizonY-40} ${minX+VW*0.50},${horizonY-32} ${minX+VW*0.57},${horizonY-44}
-                C${minX+VW*0.64},${horizonY-52} ${minX+VW*0.73},${horizonY-34} ${minX+VW*0.82},${horizonY-42}
-                C${minX+VW*0.91},${horizonY-22} ${minX+VW*0.97},${horizonY-10} ${maxX+24},${horizonY+2} Z`}
-              fill="#2a5040" opacity="0.32" />
-            {/* Near hills */}
-            <path
-              d={`M${minX},${horizonY+5}
-                C${minX+VW*0.06},${horizonY-10} ${minX+VW*0.18},${horizonY-5} ${minX+VW*0.28},${horizonY-18}
-                C${minX+VW*0.38},${horizonY-26} ${minX+VW*0.46},${horizonY-20} ${minX+VW*0.53},${horizonY-28}
-                C${minX+VW*0.60},${horizonY-33} ${minX+VW*0.70},${horizonY-17} ${minX+VW*0.80},${horizonY-24}
-                C${minX+VW*0.89},${horizonY-13} ${minX+VW*0.95},${horizonY-6} ${maxX+24},${horizonY+5} Z`}
-              fill="#1e5228" opacity="0.78" />
-            {/* Hill highlight ridge */}
-            <path
-              d={`M${minX},${horizonY+5}
-                C${minX+VW*0.06},${horizonY-10} ${minX+VW*0.18},${horizonY-5} ${minX+VW*0.28},${horizonY-18}
-                C${minX+VW*0.38},${horizonY-26} ${minX+VW*0.46},${horizonY-20} ${minX+VW*0.53},${horizonY-28}
-                C${minX+VW*0.60},${horizonY-33} ${minX+VW*0.70},${horizonY-17} ${minX+VW*0.80},${horizonY-24}
-                C${minX+VW*0.89},${horizonY-13} ${minX+VW*0.95},${horizonY-6} ${maxX+24},${horizonY+5}`}
-              fill="none" stroke="#4a8838" strokeWidth="1.3" opacity="0.5" />
-
-            {/* ── Soil background ──────────────────────────────────────────── */}
-            <rect x={minX} y={horizonY} width={VW + 24} height={maxY - horizonY + 24} fill="url(#fmSoil)" />
-
-            {/* ── Zone flags ───────────────────────────────────────────────── */}
-            {zoneStarts.map(({ valve, vi, rowStart }) => {
-              const zc       = VALVE_COLORS[vi % 3];
-              const postBase = iso(-0.6, rowStart + BED_DEPTH * 0.5, 0);
-              const postTop  = iso(-0.6, rowStart + BED_DEPTH * 0.5, BED_HEIGHT + 2.5);
-              const lp       = iso(-1.4, rowStart + BED_DEPTH * 0.5, BED_HEIGHT + 1.2);
-              return (
-                <g key={valve.id}>
-                  {/* Post — dark core + light edge */}
-                  <line x1={postBase.x} y1={postBase.y} x2={postTop.x} y2={postTop.y}
-                    stroke="#6a4620" strokeWidth="2.4" />
-                  <line x1={postBase.x} y1={postBase.y} x2={postTop.x} y2={postTop.y}
-                    stroke="#c09460" strokeWidth="0.9" opacity="0.38" />
-                  {/* Rectangular flag body */}
-                  <rect x={postTop.x} y={postTop.y - 1.5} width="19" height="11"
-                    rx="2" fill={zc} opacity="0.96" />
-                  {/* Flag sheen */}
-                  <rect x={postTop.x} y={postTop.y - 1.5} width="19" height="5"
-                    rx="2" fill="white" opacity="0.18" />
-                  {/* Zone label */}
-                  <text x={lp.x - 24} y={lp.y + 4}
-                    fontSize="9" fontWeight="800" fill={zc} opacity="0.96" textAnchor="end">
-                    {valve.name}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* ── Lateral supply lines ─────────────────────────────────────── */}
-            {zoneStarts.map(({ vi, rowStart }) => {
-              const zc    = VALVE_COLORS[vi % 3];
-              const left  = iso(-0.4, rowStart, 0);
-              const right = iso(maxLen + 0.3, rowStart, 0);
-              return (
-                <g key={vi}>
-                  <line x1={left.x} y1={left.y + 2} x2={right.x} y2={right.y + 2}
-                    stroke="#280e04" strokeWidth="4.2" opacity="0.72" />
-                  <line x1={left.x} y1={left.y + 2} x2={right.x} y2={right.y + 2}
-                    stroke={zc} strokeWidth="1.5" opacity="0.6" />
-                </g>
-              );
-            })}
-
-            {/* ── Beds (back → front, painter's algorithm) ─────────────────── */}
-            {paintOrder.map(({ bed, rowStart, vi }) => {
-              const L        = bed.lengthM;
-              const rowEnd   = rowStart + BED_DEPTH;
-              const zc       = VALVE_COLORS[vi % 3];
-              const isDimmed = highlightValves && !highlightValves.includes(bed.valveId);
-              const pc       = plantColor(bed);
-              const isSel    = selected === bed.id;
-              const yieldKg  = harvestKgByBed[bed.id] ?? 0;
-              const infected = bed.health === "infected";
-              const warn     = bed.health === "warning";
-              const hasBerry = bed.stage === "fruiting" || bed.stage === "ripening" || bed.stage === "harvest";
-              const berryClr = bed.stage === "ripening" || bed.stage === "harvest" ? "#c81010" : "#e05020";
-
-              // 8 box corners
-              const A = iso(0, rowStart, 0);
-              const B = iso(L, rowStart, 0);
-              const C = iso(L, rowEnd,   0);
-              const D = iso(0, rowEnd,   0);
-              const E = iso(0, rowStart, BED_HEIGHT);
-              const F = iso(L, rowStart, BED_HEIGHT);
-              const G = iso(L, rowEnd,   BED_HEIGHT);
-              const H = iso(0, rowEnd,   BED_HEIGHT);
-
-              // Zone colour strip along near edge
-              const stripeLen = Math.min(2.8, L);
-              const Es = iso(stripeLen, rowStart, BED_HEIGHT);
-              const Hs = iso(stripeLen, rowEnd,   BED_HEIGHT);
-
-              // Plant positions (2 staggered rows)
-              const nPlants = Math.max(3, Math.floor(L / 3.2));
-              const plants  = Array.from({ length: nPlants }, (_, i) => {
-                const t = (i + 0.5) / nPlants;
-                return {
-                  p1: iso(t * L,                      rowStart + BED_DEPTH * 0.27, BED_HEIGHT),
-                  p2: iso(t * L + L / nPlants * 0.5,  rowStart + BED_DEPTH * 0.73, BED_HEIGHT),
-                  hasBerry1: hasBerry && i % 3 !== 0,
-                  hasBerry2: hasBerry && i % 3 === 0,
-                };
-              });
-
-              // Drip tape
-              const dt1 = iso(0, rowStart + BED_DEPTH * 0.5, BED_HEIGHT);
-              const dt2 = iso(L, rowStart + BED_DEPTH * 0.5, BED_HEIGHT);
-
-              // Infected plants look sickly yellow-brown
-              const plantFill = infected ? "#b09820" : pc;
-
-              return (
-                <g key={bed.id} opacity={isDimmed ? 0.27 : 1}
-                  className="cursor-pointer"
-                  onClick={() => setSelected(isSel ? null : bed.id)}>
-
-                  {/* Front face */}
-                  <polygon points={pts([A, B, F, E])}
-                    fill={isSel ? zc : MULCH_FNT}
-                    opacity={isSel ? 0.88 : 1}
-                    stroke={isSel ? zc : "#3e424a"}
-                    strokeWidth={isSel ? "2" : "0.5"} />
-                  {/* Top-edge shine */}
-                  <line x1={E.x} y1={E.y} x2={F.x} y2={F.y}
-                    stroke={SHINE} strokeWidth="1.7" opacity="0.72" />
-                  {/* Bottom-edge shadow */}
-                  <line x1={A.x} y1={A.y} x2={B.x} y2={B.y}
-                    stroke="#0e0400" strokeWidth="1.4" opacity="0.82" />
-                  {/* Bed label */}
-                  <text x={(E.x + F.x) / 2} y={(E.y + A.y) / 2 + 3.5}
-                    textAnchor="middle" fontSize="6.5" fontWeight="700"
-                    fill={isSel ? "white" : "#ced2da"} opacity="0.95">
-                    {bed.id.replace("-BED-", " ")} · {L}m
-                  </text>
-
-                  {/* Right end-cap */}
-                  <polygon points={pts([B, C, G, F])}
-                    fill={MULCH_END} stroke="#2a2d34" strokeWidth="0.45" />
-                  <line x1={F.x} y1={F.y} x2={G.x} y2={G.y}
-                    stroke="#88909a" strokeWidth="0.8" opacity="0.55" />
-
-                  {/* Top face — silver plastic mulch */}
-                  <polygon points={pts([E, F, G, H])}
-                    fill="url(#fmMulch)" stroke="#90949c" strokeWidth="0.5" />
-
-                  {/* Zone colour strip */}
-                  <polygon points={pts([E, Es, Hs, H])} fill={zc} opacity="0.8" />
-                  <polygon points={pts([E, Es, Hs, H])} fill="white" opacity="0.13" />
-
-                  {/* Health tint overlay */}
-                  {viewMode === "health" && bed.health !== "healthy" && (
-                    <polygon points={pts([E, F, G, H])}
-                      fill={HEALTH_COLOR[bed.health]} opacity="0.2" />
-                  )}
-
-                  {/* Drip tape */}
-                  <line x1={dt1.x} y1={dt1.y} x2={dt2.x} y2={dt2.y}
-                    stroke="#182850" strokeWidth="1" strokeDasharray="5,3.5" opacity="0.44" />
-
-                  {/* ── Plant rosettes ────────────────────────────────────── */}
-                  {plants.map(({ p1, p2, hasBerry1, hasBerry2 }, pi) => (
-                    <g key={pi}>
-                      {/* Row 1 — drop shadow + rosette */}
-                      <ellipse cx={p1.x} cy={p1.y + 1} rx="5" ry="1.5" fill="black" opacity="0.2" />
-                      <circle  cx={p1.x} cy={p1.y}     r="4.6"          fill="#0a0200" opacity="0.52" />
-                      {Array.from({ length: 5 }, (_, j) => {
-                        const a = j * (Math.PI * 2 / 5) - Math.PI / 2;
-                        return (
-                          <circle key={j}
-                            cx={p1.x + Math.cos(a) * 2.6} cy={p1.y + Math.sin(a) * 2.6}
-                            r="2.1" fill={plantFill}
-                            opacity={infected ? 0.68 : 0.92}
-                            className={infected ? "fmpulse" : undefined} />
-                        );
-                      })}
-                      <circle cx={p1.x} cy={p1.y} r="1.6" fill="#0d3e07" opacity="0.95" />
-                      {hasBerry1 && (
-                        <>
-                          <circle cx={p1.x + 1.8} cy={p1.y + 1.8} r="1.5"
-                            fill={berryClr} opacity="0.97" className="fmberry" />
-                          <circle cx={p1.x + 2.5} cy={p1.y + 1.1} r="0.5"
-                            fill="white"    opacity="0.7" />
-                        </>
-                      )}
-
-                      {/* Row 2 — drop shadow + rosette */}
-                      <ellipse cx={p2.x} cy={p2.y + 0.9} rx="4.4" ry="1.3" fill="black" opacity="0.17" />
-                      <circle  cx={p2.x} cy={p2.y}        r="4"            fill="#0a0200" opacity="0.46" />
-                      {Array.from({ length: 5 }, (_, j) => {
-                        const a = j * (Math.PI * 2 / 5) - Math.PI / 2;
-                        return (
-                          <circle key={j}
-                            cx={p2.x + Math.cos(a) * 2.3} cy={p2.y + Math.sin(a) * 2.3}
-                            r="1.9" fill={plantFill}
-                            opacity={infected ? 0.62 : 0.84}
-                            className={infected ? "fmpulse" : undefined} />
-                        );
-                      })}
-                      <circle cx={p2.x} cy={p2.y} r="1.45" fill="#0d3e07" opacity="0.88" />
-                      {hasBerry2 && (
-                        <>
-                          <circle cx={p2.x + 1.6} cy={p2.y + 1.6} r="1.35"
-                            fill={berryClr} opacity="0.93" className="fmberry" />
-                          <circle cx={p2.x + 2.2} cy={p2.y + 1.0} r="0.45"
-                            fill="white"    opacity="0.65" />
-                        </>
-                      )}
-                    </g>
-                  ))}
-
-                  {/* Infected / Warning compact badge */}
-                  {(infected || warn) && (() => {
-                    const bp  = iso(L * 0.9, rowStart + BED_DEPTH * 0.28, BED_HEIGHT + 0.55);
-                    const clr = infected ? "#dc2626" : "#d97706";
-                    return (
-                      <g className={infected ? "fmwarn" : undefined}>
-                        <circle cx={bp.x} cy={bp.y} r="9"  fill={clr} opacity="0.96" />
-                        <circle cx={bp.x} cy={bp.y} r="9"  fill="white" opacity="0.14" />
-                        <text x={bp.x} y={bp.y + 3.5}
-                          textAnchor="middle" fontSize="9" fontWeight="900" fill="white">
-                          {infected ? "!" : "▲"}
-                        </text>
-                      </g>
-                    );
-                  })()}
-
-                  {/* Harvest badge */}
-                  {yieldKg > 0 && (() => {
-                    const bp = iso(L * 0.58, rowStart + BED_DEPTH * 0.44, BED_HEIGHT + 0.52);
-                    return (
-                      <>
-                        <rect x={bp.x - 23} y={bp.y - 7.5} width="46" height="15"
-                          rx="7.5" fill="#052e16" opacity="0.93" />
-                        <rect x={bp.x - 23} y={bp.y - 7.5} width="46" height="15"
-                          rx="7.5" fill="#16a34a" opacity="0.22" />
-                        <text x={bp.x} y={bp.y + 3}
-                          textAnchor="middle" fontSize="7" fontWeight="800" fill="#86efac">
-                          🌾 {yieldKg.toFixed(1)} kg
-                        </text>
-                      </>
-                    );
-                  })()}
-
-                  {/* Selection outline */}
-                  {isSel && (
-                    <>
-                      <polygon points={pts([A, B, C, D])}
-                        fill={`${zc}20`} stroke={zc} strokeWidth="2.5"
-                        strokeDasharray="6,3" opacity="0.8" />
-                      <polygon points={pts([E, F, G, H])}
-                        fill={`${zc}18`} stroke={zc} strokeWidth="1.5" opacity="0.5" />
-                    </>
-                  )}
-                </g>
-              );
-            })}
-
-            {/* ── Length ruler ─────────────────────────────────────────────── */}
-            {[0, 10, 20, 30, maxLen].filter((v, i, a) => a.indexOf(v) === i).map(m => {
-              const p0 = iso(m, 0, 0);
-              return (
-                <g key={m} opacity="0.58">
-                  <line x1={p0.x} y1={p0.y + 7} x2={p0.x} y2={p0.y + 15}
-                    stroke="#c8aa80" strokeWidth="1.1" />
-                  <text x={p0.x} y={p0.y + 24}
-                    textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#d4b890">{m}m</text>
-                </g>
-              );
-            })}
-            <line
-              x1={iso(0, 0, 0).x}      y1={iso(0, 0, 0).y + 10}
-              x2={iso(maxLen, 0, 0).x} y2={iso(maxLen, 0, 0).y + 10}
-              stroke="#b09070" strokeWidth="1" opacity="0.5" />
-
-            {/* ── Compass ──────────────────────────────────────────────────── */}
-            {(() => {
-              const cx = maxX - 26;
-              const cy = minY + skyH * 0.56;
-              return (
-                <g>
-                  <circle cx={cx} cy={cy} r="18" fill="#0a0f1e" opacity="0.56" />
-                  <circle cx={cx} cy={cy} r="18" fill="none" stroke="white" strokeWidth="0.8" opacity="0.22" />
-                  <line x1={cx} y1={cy - 14} x2={cx} y2={cy + 14} stroke="white" strokeWidth="0.7" opacity="0.28" />
-                  <line x1={cx - 14} y1={cy} x2={cx + 14} y2={cy} stroke="white" strokeWidth="0.7" opacity="0.28" />
-                  <polygon points={`${cx},${cy - 14} ${cx - 4.5},${cy + 1} ${cx + 4.5},${cy + 1}`}
-                    fill="white" opacity="0.95" />
-                  <polygon points={`${cx},${cy + 14} ${cx - 4.5},${cy - 1} ${cx + 4.5},${cy - 1}`}
-                    fill="#475569" opacity="0.55" />
-                  <text x={cx} y={cy - 17}
-                    textAnchor="middle" fontSize="6" fontWeight="900" fill="white" opacity="0.88">N</text>
-                </g>
-              );
-            })()}
-
-          </svg>
-        </div>
-
-        {/* Legend bar */}
-        <div className="px-4 py-2.5 flex items-center gap-3 flex-wrap text-[10px]"
-          style={{ background: "linear-gradient(135deg,#2a1208 0%,#1a2812 100%)" }}>
-          {viewMode === "health" && Object.entries(HEALTH_COLOR).map(([k, v]) => (
-            <span key={k} className="flex items-center gap-1.5 text-white/75 font-semibold capitalize">
-              <span className="size-2.5 rounded-full inline-block" style={{ background: v }} />{k}
-            </span>
-          ))}
-          {viewMode === "stage" && Object.entries(STAGE_LABEL).map(([k, label]) => (
-            <span key={k} className="flex items-center gap-1.5 text-white/75 font-semibold">
-              <span className="size-2.5 rounded-full inline-block" style={{ background: STAGE_COLOR[k] }} />{label}
-            </span>
-          ))}
-          {viewMode === "yield" && [
-            ["#14532d", "High"], ["#16a34a", "Med"], ["#4ade80", "Low"], ["#bbf7d0", "None"],
-          ].map(([c, l]) => (
-            <span key={l} className="flex items-center gap-1.5 text-white/75 font-semibold">
-              <span className="size-2.5 rounded-full inline-block" style={{ background: c }} />{l}
-            </span>
-          ))}
-          <span className="ml-auto text-white/32 text-[9px]">
-            Colour strip = zone · Length = bed size
-          </span>
-        </div>
-      </div>
-
-      {/* Selected bed info card */}
-      {selectedBed && (() => {
-        const vi      = valves.findIndex(v => v.id === selectedBed.valveId);
-        const zc      = VALVE_COLORS[vi % 3] ?? "#10b981";
-        const yieldKg = harvestKgByBed[selectedBed.id] ?? 0;
-        const hClr    = HEALTH_COLOR[selectedBed.health];
-        const stClr   = STAGE_TEXT_COLOR[selectedBed.stage] ?? "#475569";
-        const stBg    = STAGE_COLOR[selectedBed.stage] ?? "#94a3b8";
-        return (
-          <div className="rounded-2xl border-2 bg-card shadow-xl overflow-hidden"
-            style={{ borderColor: `${zc}45` }}>
-            <div className="h-1.5" style={{ background: `linear-gradient(90deg,${zc},${zc}60,transparent)` }} />
-            <div className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="font-black text-foreground text-lg leading-tight tracking-tight">
-                    {selectedBed.id.replace("-BED-", " — ")}
-                  </div>
-                  <div className="text-sm font-semibold text-muted-foreground mt-0.5">{selectedBed.variety}</div>
-                  <div className="text-xs text-muted-foreground">{selectedBed.origin}</div>
-                </div>
-                <button onClick={() => setSelected(null)}
-                  className="size-8 rounded-full bg-muted hover:bg-accent flex items-center justify-center text-muted-foreground font-bold text-lg transition-colors">
-                  ×
-                </button>
+      {/* ── Header: title · 2D/3D · Health/Yield/Stage ──────────────────── */}
+      <div style={{ padding: embed ? "12px 14px" : "18px 22px 14px", background: "linear-gradient(180deg,#131a10,#0e130c)", borderBottom: "1px solid rgba(180,200,160,.10)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: embed ? "flex-end" : "space-between", gap: 16, flexWrap: "wrap" }}>
+          {!embed && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20, fontWeight: 700 }}>Farm Map</span>
+                <span style={{ ...mono.style, fontSize: 10.5, color: "#0e130c", background: "#c7f04d", padding: "3px 8px", borderRadius: 999, fontWeight: 700 }}>{view === "2d" ? "Aerial field" : "3D field"}</span>
               </div>
+              <div style={{ marginTop: 5, fontSize: 12.5, color: "#93a68c", ...mono.style }}>Entoto Mountain · Addis Ababa · 2800 m · 4.2 ha</div>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, background: "#0b0f09", border: "1px solid rgba(180,200,160,.12)", padding: 4, borderRadius: 12 }}>
+              <button onClick={() => setView("2d")} style={segBtn(view === "2d")}>🗺 2D</button>
+              <button onClick={() => setView("3d")} style={segBtn(view === "3d")}>🧊 3D</button>
+            </div>
+            <div style={{ display: "flex", gap: 6, background: "#0b0f09", border: "1px solid rgba(180,200,160,.12)", padding: 4, borderRadius: 12 }}>
+              {modeBtns.map((m) => (
+                <button key={m.key} onClick={() => setMode(m.key)} style={{ display: "flex", alignItems: "center", gap: 6, ...segBtn(mode === m.key) }}>
+                  <span style={{ fontSize: 14 }}>{m.emoji}</span>{m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                {[
-                  { label: "Length",  value: `${selectedBed.lengthM} m`,           icon: "📏" },
-                  { label: "Plants",  value: Math.round(selectedBed.lengthM * selectedBed.plantsPerMeter).toString(),   icon: "🌿" },
-                  { label: "Stage",   value: STAGE_LABEL[selectedBed.stage] ?? selectedBed.stage, icon: "🌱" },
-                  { label: "Harvest", value: yieldKg > 0 ? `${yieldKg.toFixed(1)} kg` : "—",     icon: "🌾" },
-                ].map(({ label, value, icon }) => (
-                  <div key={label} className="bg-muted rounded-xl p-2.5 text-center border border-border">
-                    <div className="text-base mb-0.5">{icon}</div>
-                    <div className="text-sm font-black text-foreground leading-tight">{value}</div>
-                    <div className="text-[9px] text-muted-foreground mt-0.5 uppercase tracking-wider">{label}</div>
+        {!embed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+            <div style={{ position: "relative", flex: 1, minWidth: 190 }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#6f8168", fontSize: 13 }}>⌕</span>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search bed, crop, valve…"
+                style={{ width: "100%", boxSizing: "border-box", background: "#0b0f09", border: "1px solid rgba(180,200,160,.14)", borderRadius: 10, padding: "9px 12px 9px 30px", color: "#e7f0e2", fontFamily: "inherit", fontSize: 13, outline: "none" }} />
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {valves.map((v) => {
+                const s = chipStyle(valveF.includes(v.id));
+                return <button key={v.id} onClick={() => setValveF((f) => toggle(f, v.id))} style={{ cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 9, border: `1px solid ${s.borderColor}`, color: s.color, background: s.background }}>{v.name}</button>;
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {crops.map((c) => {
+                const s = chipStyle(cropF.includes(c));
+                return <button key={c} onClick={() => setCropF((f) => toggle(f, c))} style={{ cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, padding: "7px 10px", borderRadius: 9, border: `1px solid ${s.borderColor}`, color: s.color, background: s.background }}>{c}</button>;
+              })}
+            </div>
+            <button onClick={() => setPicked(flagged.map((b) => b.id))} style={{ marginLeft: "auto", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: "1px solid rgba(245,166,35,.35)", color: "#f5c15a", background: "rgba(245,166,35,.10)" }}>⚑ Select flagged ({flagged.length})</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Body ─────────────────────────────────────────────────────────── */}
+      <div style={{ position: "relative" }}>
+        <div className="fm-scroll" style={{ padding: 16, maxHeight: embed ? 460 : 660, overflow: "auto" }}>
+
+          {view === "2d" ? (
+            <div style={{ position: "relative", padding: "22px 24px 10px", background: "#181008", backgroundImage: "radial-gradient(rgba(255,255,255,.028) 1px, transparent 1px)", backgroundSize: "20px 20px", borderRadius: 14, border: "1px solid rgba(180,200,160,.09)" }}>
+              <Compass />
+              {grouped.map(({ valve, beds: vb, ready }) => (
+                <div key={valve.id} style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 8px 2px" }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 2, background: valve.color }} />
+                    <span style={{ fontWeight: 700, color: valve.color, fontSize: 13 }}>{valve.name}</span>
+                    <span style={{ ...mono.style, fontSize: 11, color: "#8a9a82" }}>{vb.length} beds · {ready} ready</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {vb.map((b) => {
+                      const color = bedColor(b), dim = isDim(b), pick = picked.includes(b.id);
+                      const plants = Math.round(b.lengthM * b.plantsPerMeter);
+                      return (
+                        <div key={b.id} onClick={() => setSel(b.id)} style={{ display: "flex", alignItems: "center", gap: 10, opacity: dim ? 0.16 : 1, cursor: "pointer" }}>
+                          <span style={{ flex: "none", width: 52, ...mono.style, fontSize: 12, fontWeight: 700, color: "#b7c7ad" }}>{b.id}</span>
+                          <div style={{ position: "relative", height: 32, width: `${Math.max(21, Math.round((b.lengthM / RULER_MAX) * 100))}%`, minWidth: 96, borderRadius: 7, background: mix(color, "#181008", 0.82), borderLeft: `5px solid ${color}`, overflow: "hidden", boxShadow: "0 2px 8px -3px rgba(0,0,0,.5)" }}>
+                            <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 15px)" }} />
+                            {mode === "yield" && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${READY[b.stage]}%`, background: `linear-gradient(90deg, ${color}44, ${color}14)` }} />}
+                            <div style={{ position: "absolute", left: 10, top: 0, bottom: 0, display: "flex", alignItems: "center", fontSize: 11, color: "#e7f0e2", fontWeight: 500 }}>{b.variety}</div>
+                            <div style={{ position: "absolute", right: 9, top: 0, bottom: 0, display: "flex", alignItems: "center", ...mono.style, fontSize: 11, color: "#cdd9c4" }}>{b.lengthM}m</div>
+                            {b.health !== "healthy" && <div style={{ position: "absolute", right: 52, top: "50%", transform: "translateY(-50%)", width: 18, height: 18, borderRadius: "50%", background: color, color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", animation: "fm-pulse 2s infinite" }}>{b.health === "infected" ? "!" : "⚠"}</div>}
+                          </div>
+                          <div style={{ flex: "none", width: 160, fontSize: 11.5, color: "#93a68c", ...mono.style }}>{plants.toLocaleString()} pl · {metricText(b)}</div>
+                          {!embed && <PickBox picked={pick} onToggle={(e) => { e.stopPropagation(); setPicked((p) => toggle(p, b.id)); }} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 24px 0 70px", ...mono.style, fontSize: 10.5, color: "#7d8f75", borderTop: "1px dashed rgba(180,200,160,.16)", paddingTop: 5 }}>
+                <span>0m</span><span>10m</span><span>20m</span><span>30m</span><span>40m</span><span>45m</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ perspective: "1500px", perspectiveOrigin: "50% 22%", padding: "26px 10px 56px", background: "#181008", backgroundImage: "radial-gradient(rgba(255,255,255,.028) 1px, transparent 1px)", backgroundSize: "20px 20px", borderRadius: 14, border: "1px solid rgba(180,200,160,.09)", overflow: "hidden" }}>
+              <Compass />
+              <div style={{ transform: "rotateX(55deg) rotateZ(-4deg)", transformStyle: "preserve-3d", width: "86%", margin: "20px auto 0" }}>
+                {grouped.map(({ valve, beds: vb, ready }) => (
+                  <div key={valve.id} style={{ marginBottom: 30, transformStyle: "preserve-3d", position: "relative" }}>
+                    <div style={{ position: "absolute", left: 0, top: -26, transform: "rotateZ(4deg) rotateX(-55deg)", transformOrigin: "left bottom", fontWeight: 700, color: valve.color, fontSize: 14, whiteSpace: "nowrap", textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>{valve.name} <span style={{ ...mono.style, fontSize: 11, color: "#a9baa1", fontWeight: 400 }}>{vb.length} beds · {ready} ready</span></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 20, transformStyle: "preserve-3d" }}>
+                      {vb.map((b) => {
+                        const color = bedColor(b), dim = isDim(b), dark = mix(color, "#000000", 0.52);
+                        return (
+                          <div key={b.id} onClick={() => setSel(b.id)} style={{ position: "relative", height: 34, width: `${Math.max(21, Math.round((b.lengthM / RULER_MAX) * 100))}%`, minWidth: 120, opacity: dim ? 0.16 : 1, transformStyle: "preserve-3d", cursor: "pointer" }}>
+                            <div style={{ position: "absolute", left: 0, right: 0, top: "100%", height: 18, background: dark, transformOrigin: "top center", transform: "rotateX(-90deg)", borderRadius: "0 0 3px 3px" }} />
+                            <div style={{ position: "absolute", inset: 0, borderRadius: 6, background: color, borderLeft: `5px solid ${dark}`, boxShadow: "0 22px 28px -12px rgba(0,0,0,.75)", overflow: "hidden" }}>
+                              <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(90deg, rgba(0,0,0,.10) 0 2px, transparent 2px 14px)" }} />
+                              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,.18), rgba(0,0,0,.10))" }} />
+                            </div>
+                            <div style={{ position: "absolute", left: 8, top: 2, transform: "rotateZ(4deg) rotateX(-55deg)", transformOrigin: "left top", ...mono.style, fontSize: 11, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", textShadow: "0 2px 5px rgba(0,0,0,.7)", pointerEvents: "none" }}>{b.id} · {b.variety}</div>
+                            {b.health !== "healthy" && <div style={{ position: "absolute", right: 6, top: -30, transform: "rotateZ(4deg) rotateX(-55deg)", transformOrigin: "center bottom", width: 22, height: 22, borderRadius: "50%", background: color, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 12px rgba(0,0,0,.5)" }}>{b.health === "infected" ? "!" : "⚠"}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
 
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border"
-                  style={{ background: `${hClr}14`, color: hClr, borderColor: `${hClr}40` }}>
-                  ● {selectedBed.health.charAt(0).toUpperCase() + selectedBed.health.slice(1)}
-                </span>
-                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full border"
-                  style={{ background: `${stBg}18`, color: stClr, borderColor: `${stBg}40` }}>
-                  {STAGE_LABEL[selectedBed.stage]}
-                </span>
+        {/* ── Detail drawer ────────────────────────────────────────────── */}
+        {selBed && (
+          <div className="fm-scroll" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 320, maxWidth: "88%", background: "#10160d", borderLeft: "1px solid rgba(180,200,160,.14)", boxShadow: "-20px 0 50px -20px rgba(0,0,0,.7)", animation: "fm-drawer .22s ease", overflow: "auto", zIndex: 5 }}>
+            <div style={{ padding: "18px 18px 22px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div style={{ ...mono.style, fontSize: 22, fontWeight: 700 }}>{selBed.id}</div>
+                  <div style={{ fontSize: 12.5, color: "#93a68c", marginTop: 2 }}>{selBed.variety} · {selValve?.name}</div>
+                </div>
+                <button onClick={() => setSel(null)} style={{ cursor: "pointer", border: "1px solid rgba(180,200,160,.16)", background: "#0b0f09", color: "#b7c7ad", width: 30, height: 30, borderRadius: 9, fontSize: 15 }}>✕</button>
               </div>
-
-              <Link href={`/beds/${selectedBed.id}`}
-                className="flex items-center justify-center gap-2 w-full text-sm font-bold py-2.5 rounded-xl text-white transition-opacity hover:opacity-90"
-                style={{ background: `linear-gradient(135deg,${zc},${zc}aa)` }}>
-                Open Bed Profile →
-              </Link>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, padding: "6px 11px", borderRadius: 999, background: `${HEALTH[selBed.health].c}22`, color: HEALTH[selBed.health].c, fontSize: 12.5, fontWeight: 600 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: HEALTH[selBed.health].c }} />{HEALTH[selBed.health].l}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 16 }}>
+                {[
+                  { label: "Stage", value: STAGE[selBed.stage].l, color: STAGE[selBed.stage].c },
+                  { label: "Bed size", value: `${selBed.lengthM} m`, color: "#e7f0e2" },
+                  { label: "Plants", value: Math.round(selBed.lengthM * selBed.plantsPerMeter).toLocaleString(), color: "#e7f0e2" },
+                  { label: "Harvest today", value: `${(harvestKgByBed[selBed.id] ?? 0).toFixed(1)} kg`, color: (harvestKgByBed[selBed.id] ?? 0) > 0 ? "#c7f04d" : "#e7f0e2" },
+                ].map((s) => (
+                  <div key={s.label} style={{ background: "#0b0f09", border: "1px solid rgba(180,200,160,.10)", borderRadius: 11, padding: "11px 12px" }}>
+                    <div style={{ fontSize: 10.5, color: "#7d8f75", textTransform: "uppercase", letterSpacing: ".05em" }}>{s.label}</div>
+                    <div style={{ ...mono.style, fontSize: 16, fontWeight: 700, color: s.color, marginTop: 3 }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#93a68c", marginBottom: 5 }}><span>Harvest readiness</span><span style={{ ...mono.style, color: "#e7f0e2" }}>{READY[selBed.stage]}%</span></div>
+                <div style={{ height: 8, borderRadius: 999, background: "#0b0f09", overflow: "hidden" }}><div style={{ height: "100%", width: `${READY[selBed.stage]}%`, background: "linear-gradient(90deg,#84cc16,#fb7185)", borderRadius: 999 }} /></div>
+              </div>
+              <div style={{ marginTop: 16, background: "#0b0f09", border: "1px solid rgba(180,200,160,.10)", borderRadius: 11, padding: "11px 12px" }}>
+                <div style={{ fontSize: 10.5, color: "#7d8f75", textTransform: "uppercase", letterSpacing: ".05em" }}>Seed origin</div>
+                <div style={{ fontSize: 13, marginTop: 4 }}>{selBed.origin}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+                <button onClick={() => assignTask([selBed.id])} style={{ cursor: "pointer", border: "none", background: "#c7f04d", color: "#0e130c", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: 11, borderRadius: 10 }}>Assign task</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => router.push("/routines")} style={{ flex: 1, cursor: "pointer", border: "1px solid rgba(180,200,160,.16)", background: "#0b0f09", color: "#e7f0e2", fontFamily: "inherit", fontWeight: 600, fontSize: 12.5, padding: 10, borderRadius: 10 }}>Log watering</button>
+                  <button onClick={() => router.push("/diseases")} style={{ flex: 1, cursor: "pointer", border: "1px solid rgba(180,200,160,.16)", background: "#0b0f09", color: "#e7f0e2", fontFamily: "inherit", fontWeight: 600, fontSize: 12.5, padding: 10, borderRadius: 10 }}>Manage disease</button>
+                </div>
+              </div>
             </div>
           </div>
-        );
-      })()}
+        )}
+      </div>
+
+      {/* ── Footer: legend + status cards (full only) ────────────────────── */}
+      {!embed && (
+        <div style={{ padding: "14px 22px 18px", borderTop: "1px solid rgba(180,200,160,.10)", background: "#0c1109" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+            <span style={{ fontSize: 11, color: "#7d8f75", textTransform: "uppercase", letterSpacing: ".06em", fontWeight: 600 }}>{mode === "health" ? "Health" : mode === "yield" ? "Yield" : "Growth stage"}</span>
+            {legendItems.map((l) => (
+              <span key={l.l} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#b7c7ad" }}><span style={{ width: 11, height: 11, borderRadius: 3, background: l.c }} />{l.l}</span>
+            ))}
+            <span style={{ marginLeft: "auto", ...mono.style, fontSize: 10.5, color: "#6f8168" }}>bar length = bed size · left edge = valve</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+            {summary.map((c) => (
+              <button key={c.key} onClick={c.onClick} style={{ textAlign: "left", cursor: "pointer", background: c.active ? `${c.color}1e` : "#111710", border: `1px solid ${c.active ? c.color + "66" : "rgba(180,200,160,.10)"}`, borderRadius: 13, padding: "13px 14px", transition: "all .15s" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ ...mono.style, fontSize: 24, fontWeight: 700, color: c.color }}>{c.count}</span><span style={{ fontSize: 11, color: "#93a68c" }}>beds</span></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600, marginTop: 3, color: "#e7f0e2" }}><span>{c.emoji}</span>{c.label}</div>
+                <div style={{ fontSize: 11, color: "#7d8f75", marginTop: 2 }}>{c.sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk bar (full only) ─────────────────────────────────────────── */}
+      {!embed && picked.length > 0 && (
+        <div style={{ position: "sticky", bottom: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", background: "#151d0f", borderTop: "1px solid rgba(199,240,77,.25)", animation: "fm-toast .2s ease" }}>
+          <span style={{ ...mono.style, fontSize: 13, fontWeight: 700, color: "#c7f04d" }}>{picked.length} bed{picked.length === 1 ? "" : "s"} selected</span>
+          <button onClick={() => assignTask(picked)} style={{ cursor: "pointer", border: "none", background: "#c7f04d", color: "#0e130c", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "9px 15px", borderRadius: 9 }}>Assign treatment task</button>
+          <button onClick={() => setPicked([])} style={{ cursor: "pointer", border: "1px solid rgba(180,200,160,.18)", background: "transparent", color: "#b7c7ad", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "9px 14px", borderRadius: 9 }}>Clear</button>
+        </div>
+      )}
+
+      {/* ── Toast ────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 22, background: "#0b0f09", border: "1px solid rgba(199,240,77,.35)", color: "#e7f0e2", padding: "11px 18px", borderRadius: 11, fontSize: 13, fontWeight: 600, boxShadow: "0 14px 34px -12px rgba(0,0,0,.7)", animation: "fm-toast .2s ease", zIndex: 20 }}>✓ {toast}</div>
+      )}
     </div>
+  );
+}
+
+function Compass() {
+  return (
+    <div style={{ position: "absolute", top: 16, right: 18, zIndex: 3, width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 50% 35%,#1d2733,#0b0f14)", border: "1px solid rgba(180,200,160,.18)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
+      <span style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderBottom: "9px solid #e7f0e2" }} />
+      <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, fontWeight: 700, color: "#e7f0e2" }}>N</span>
+    </div>
+  );
+}
+
+function PickBox({ picked, onToggle }: { picked: boolean; onToggle: (e: MouseEvent) => void }) {
+  return (
+    <div onClick={onToggle} style={{ flex: "none", width: 20, height: 20, borderRadius: 6, border: `1px solid ${picked ? "#c7f04d" : "rgba(180,200,160,.3)"}`, background: picked ? "#c7f04d" : "transparent", color: "#0e130c", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{picked ? "✓" : ""}</div>
   );
 }
