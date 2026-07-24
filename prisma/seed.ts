@@ -52,6 +52,22 @@ async function main() {
 
   console.log("Seeding database...");
 
+  // ── Rolling demo dates ────────────────────────────────────────────────────
+  // The dataset was authored around a fixed anchor (2026-05-17). Shift every
+  // date forward so "today" at seed-time is the anchor: harvests land in the
+  // last two weeks, attendance/watering include today, orders are current, and
+  // the planting pipeline is live. Every reseed re-anchors to that day, so the
+  // farm always looks alive — and the AI assistant always has recent, coherent
+  // numbers to cite. (Disease reports use real Date.now() already.)
+  const BASELINE = Date.parse("2026-05-17T00:00:00Z");
+  const nowAddis = new Date(Date.now() + 3 * 3600 * 1000); // nudge into Africa/Addis_Ababa
+  const TODAY_ISO = nowAddis.toISOString().split("T")[0];
+  const DELTA_MS = Date.parse(`${TODAY_ISO}T00:00:00Z`) - BASELINE;
+  const roll = (iso: string): string =>
+    new Date(Date.parse(`${iso}T00:00:00Z`) + DELTA_MS).toISOString().split("T")[0];
+  const rollTs = (d: Date): Date => new Date(d.getTime() + DELTA_MS);
+  console.log(`  → rolling demo dates by ${Math.round(DELTA_MS / 86400000)} days (anchor ${TODAY_ISO})`);
+
   // ── 1. Farmers ──────────────────────────────────────────────────────────────
   const farmers = [
     { id: "f-001", name: "Abebe Kebede",     phone: "+251-91-122-3344", avatar: "AK", role: "farmer" as const,     performanceScore: 92, attendanceRate: 98,  joinedDate: "2025-09-15", assignedValves: ["valve-a"] as Prisma.InputJsonValue,                nationalId: "ETH-2341-A", emergencyContact: "+251-91-999-0011" },
@@ -121,7 +137,7 @@ async function main() {
         plantsPerMeter: 8,
         variety: variety.variety,
         origin: variety.origin,
-        plantedDate: new Date(2026, 0, 15 + i * 3).toISOString().split("T")[0],
+        plantedDate: roll(new Date(2026, 0, 15 + i * 3).toISOString().split("T")[0]),
         stage,
         health: healthPattern[idx] ?? ("healthy" as const),
         farmerId: bedFarmers[i % bedFarmers.length],
@@ -136,7 +152,7 @@ async function main() {
 
   // ── 5. Harvest records ───────────────────────────────────────────────────────
   const beds = await prisma.bed.findMany();
-  const today = new Date("2026-05-17");
+  const today = new Date(`${TODAY_ISO}T00:00:00Z`);
   let hid = 1;
   const harvestEntries: Parameters<typeof prisma.harvestRecord.upsert>[0][] = [];
 
@@ -234,6 +250,10 @@ async function main() {
   ];
 
   for (const t of tasks) {
+    const r = t as { dueDate: string; createdAt: Date; completedAt?: Date };
+    r.dueDate = roll(r.dueDate);
+    r.createdAt = rollTs(r.createdAt);
+    if (r.completedAt) r.completedAt = rollTs(r.completedAt);
     await prisma.task.upsert({ where: { id: t.id }, update: t, create: t });
   }
   console.log("  ✓ Tasks");
@@ -244,7 +264,7 @@ async function main() {
   let aid = 1;
 
   for (let d = 13; d >= 0; d--) {
-    const date = new Date("2026-05-17");
+    const date = new Date(`${TODAY_ISO}T00:00:00Z`);
     date.setDate(date.getDate() - d);
     const ds = date.toISOString().split("T")[0];
 
@@ -276,7 +296,7 @@ async function main() {
   let iid = 1;
 
   for (let d = 13; d >= 0; d--) {
-    const date = new Date("2026-05-17");
+    const date = new Date(`${TODAY_ISO}T00:00:00Z`);
     date.setDate(date.getDate() - d);
     const ds = date.toISOString().split("T")[0];
 
@@ -313,6 +333,9 @@ async function main() {
   ];
 
   for (const dn of dailyNotes) {
+    const r = dn as { date: string; createdAt: Date };
+    r.date = roll(r.date);
+    r.createdAt = rollTs(r.createdAt);
     await prisma.dailyNote.upsert({ where: { id: dn.id }, update: dn, create: dn });
   }
   console.log("  ✓ Day log notes");
@@ -320,10 +343,11 @@ async function main() {
   // ── 8d. Routine acknowledgment example ──────────────────────────────────────
   // Yonas (f-007) has no records on 2026-05-12 (see irrigation skip context);
   // manager acknowledges it so the day still counts.
+  const ackDate = roll("2026-05-12");
   await prisma.routineAck.upsert({
-    where: { date_supervisorId: { date: "2026-05-12", supervisorId: "f-007" } },
+    where: { date_supervisorId: { date: ackDate, supervisorId: "f-007" } },
     update: { ackBy: "f-008", note: "Off-site — collecting seedlings in Debre Zeit" },
-    create: { date: "2026-05-12", supervisorId: "f-007", ackBy: "f-008", note: "Off-site — collecting seedlings in Debre Zeit" },
+    create: { date: ackDate, supervisorId: "f-007", ackBy: "f-008", note: "Off-site — collecting seedlings in Debre Zeit" },
   });
   console.log("  ✓ Routine acknowledgments");
 
@@ -338,6 +362,8 @@ async function main() {
   ];
 
   for (const n of notifications) {
+    const r = n as { timestamp: Date };
+    r.timestamp = rollTs(r.timestamp);
     await prisma.notification.upsert({ where: { id: n.id }, update: n, create: n });
   }
   console.log("  ✓ Notifications");
@@ -361,6 +387,8 @@ async function main() {
   ];
 
   for (const e of expenses) {
+    const r = e as { date: string };
+    r.date = roll(r.date);
     await prisma.expense.upsert({ where: { id: e.id }, update: e, create: e });
   }
   console.log("  ✓ Expenses");
@@ -382,6 +410,10 @@ async function main() {
   ];
 
   for (const p of plantingRecords) {
+    const r = p as { plannedDate: string; actualDate?: string; expectedHarvestDate: string };
+    r.plannedDate = roll(r.plannedDate);
+    if (r.actualDate) r.actualDate = roll(r.actualDate);
+    r.expectedHarvestDate = roll(r.expectedHarvestDate);
     await prisma.plantingRecord.upsert({ where: { id: p.id }, update: p, create: p });
   }
   console.log("  ✓ Planting records");
@@ -401,6 +433,8 @@ async function main() {
   ];
 
   for (const wa of workerAssignments) {
+    const r = wa as { date: string };
+    r.date = roll(r.date);
     await prisma.workerAssignment.upsert({ where: { id: wa.id }, update: wa, create: wa });
   }
   console.log("  ✓ Worker assignments");
@@ -418,6 +452,9 @@ async function main() {
   ];
 
   for (const ft of fertigationRecords) {
+    const r = ft as { applicationDate: string; nextScheduleDate?: string };
+    r.applicationDate = roll(r.applicationDate);
+    if (r.nextScheduleDate) r.nextScheduleDate = roll(r.nextScheduleDate);
     await prisma.fertigationRecord.upsert({ where: { id: ft.id }, update: ft, create: ft });
   }
   console.log("  ✓ Fertigation records");
@@ -435,6 +472,9 @@ async function main() {
   ];
 
   for (const o of orders) {
+    const r = o as { orderDate: string; deliveryDate: string };
+    r.orderDate = roll(r.orderDate);
+    r.deliveryDate = roll(r.deliveryDate);
     await prisma.customerOrder.upsert({ where: { id: o.id }, update: o, create: o });
   }
   console.log("  ✓ Customer orders");
@@ -452,6 +492,9 @@ async function main() {
   ];
 
   for (const pk of packagingRecords) {
+    const r = pk as { harvestDate: string; packedDate: string };
+    r.harvestDate = roll(r.harvestDate);
+    r.packedDate = roll(r.packedDate);
     await prisma.packagingRecord.upsert({ where: { id: pk.id }, update: pk, create: pk });
   }
   console.log("  ✓ Packaging records");
@@ -518,6 +561,8 @@ async function main() {
   ];
 
   for (const st of stockTransactions) {
+    const r = st as { date: string };
+    r.date = roll(r.date);
     await prisma.stockTransaction.upsert({ where: { id: st.id }, update: st, create: st });
   }
   console.log("  ✓ Stock transactions");
@@ -540,6 +585,9 @@ async function main() {
   ];
 
   for (const fu of followUps) {
+    const r = fu as { dueDate: string; completedAt?: string };
+    r.dueDate = roll(r.dueDate);
+    if (r.completedAt) r.completedAt = roll(r.completedAt);
     await prisma.followUp.upsert({ where: { id: fu.id }, update: fu, create: fu });
   }
   console.log("  ✓ Follow-ups");
