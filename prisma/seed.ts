@@ -282,7 +282,9 @@ async function main() {
         overtimeHours: st === "present" ? 2 : st === "late" ? 0.5 : 0,
         recordedBy: "f-006",
       };
-      await prisma.attendanceRecord.upsert({ where: { farmerId_date: { farmerId: f.id, date: ds } }, update: rec, create: rec });
+      // upsert by id (not the farmerId_date composite) so rolled dates update
+      // rows in place instead of colliding with the previous run's ids
+      await prisma.attendanceRecord.upsert({ where: { id }, update: rec, create: rec });
     }
   }
   console.log("  ✓ Attendance records");
