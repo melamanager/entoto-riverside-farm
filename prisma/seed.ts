@@ -259,6 +259,9 @@ async function main() {
   console.log("  ✓ Tasks");
 
   // ── 8. Attendance ────────────────────────────────────────────────────────────
+  // Wipe first: rolled dates + the (farmerId, date) unique constraint mean an
+  // in-place upsert can collide with a prior run's rows. Clean slate is simplest.
+  await prisma.attendanceRecord.deleteMany({});
   const nonManagerFarmers = farmers.filter(f => f.role !== "manager");
   const statuses = ["present","present","present","present","late","present","present","absent","present","present","present","present","late","present"] as const;
   let aid = 1;
