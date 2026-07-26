@@ -1,63 +1,99 @@
-name: Deploy to Lightsail
+name: Deploy to Contabo
 
 on:
   push:
     branches: [claude/disease-reporter-identification-g1MTI, master]
     paths-ignore:
       - "**/*.md"
+  workflow_dispatch: # manual re-deploy button
+
+# never let two deploys build on the box at once
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Lightsail
+      - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
-          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           command_timeout: 30m
-          envs: POSTGRES_PASSWORD,NEXTAUTH_SECRET,NEXTAUTH_URL,GIT_BRANCH
+          envs: GIT_BRANCH,GIT_SHA
           script: |
             set -e
             cd /opt/farm
 
-            sudo git config --global --add safe.directory /opt/farm
-            sudo git fetch origin
-            sudo git checkout "$GIT_BRANCH"
-            sudo git pull origin "$GIT_BRANCH"
+            echo "=== Pull ${GIT_BRANCH} @ ${GIT_SHA} ==="
+            git config --global --add safe.directory /opt/farm
+            git fetch origin "$GIT_BRANCH"
+            git checkout "$GIT_BRANCH"
+            # fast-forward only: if the server has drifted, fail loudly rather
+            # than silently discarding whatever is there
+            git merge --ff-only "origin/$GIT_BRANCH"
+            git log --oneline -1
 
-            dc_escape() { printf '%s' "$1" | sed 's/\$/\$\$/g'; }
-            sudo sh -c "printf 'POSTGRES_PASSWORD=%s\n' '$(dc_escape "$POSTGRES_PASSWORD")' > .env"
-            sudo sh -c "printf 'NEXTAUTH_SECRET=%s\n' '$(dc_escape "$NEXTAUTH_SECRET")' >> .env"
-            sudo sh -c "printf 'NEXTAUTH_URL=%s\n' '$(dc_escape "$NEXTAUTH_URL")' >> .env"
+            # .env is the SERVER's source of truth and holds live secrets
+            # (AI key, CRON_SECRET, Telegram webhook secret, weather key).
+            # Deploys must never rewrite it — only check nothing is missing.
+            echo "=== Checking required env keys ==="
+            MISSING=""
+            for KEY in POSTGRES_PASSWORD NEXTAUTH_SECRET NEXTAUTH_URL; do
+              grep -q "^${KEY}=" .env || MISSING="$MISSING $KEY"
+            done
+            if [ -n "$MISSING" ]; then
+              echo "ERROR: /opt/farm/.env is missing:$MISSING"
+              exit 1
+            fi
+            for KEY in CRON_SECRET TELEGRAM_WEBHOOK_SECRET GOOGLE_GENERATIVE_AI_API_KEY; do
+              grep -q "^${KEY}=" .env || echo "WARNING: .env has no ${KEY} - that feature will be inactive"
+            done
 
-            sudo docker compose up -d --build
+            echo "=== Build ==="
+            docker compose build app migrate
 
-            echo "=== Container status ==="
-            sudo docker compose ps
+            echo "=== Migrate (+ seed) ==="
+            docker compose run --rm migrate
 
-            echo "=== Waiting for app to be ready ==="
-            for i in $(seq 1 30); do
-              if curl -fsS -o /dev/null http://localhost:3000/login; then
-                echo "App is healthy after ${i}s"
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "ERROR: App did not become healthy within 30s"
-                sudo docker compose logs --tail=100 app
-                exit 1
-              fi
+            echo "=== Recreate app ==="
+            docker compose up -d --force-recreate app
+
+            # A cached build reports success even when nothing was compiled, so
+            # confirm the running container is actually on the newest image.
+            RUNNING=$(docker inspect farm-app-1 --format '{{.Image}}')
+            LATEST=$(docker image inspect farm-app:latest --format '{{.Id}}')
+            if [ "$RUNNING" != "$LATEST" ]; then
+              echo "ERROR: app container is not running the freshly built image"
+              exit 1
+            fi
+            echo "Image OK: $LATEST"
+
+            echo "=== Wait for app ==="
+            for i in $(seq 1 60); do
+              curl -fsS -o /dev/null http://localhost:3000/login && { echo "healthy after ${i}s"; break; }
+              [ "$i" -eq 60 ] && { echo "ERROR: app never became healthy"; docker compose logs --tail=100 app; exit 1; }
               sleep 1
             done
 
-            echo "=== Health check ==="
-            curl -fsS -I http://localhost:3000/login
+            # Caddy's internal DNS can wedge after the app container is replaced
+            # (it 502s until it re-resolves), so verify the public URL and
+            # bounce the proxy if needed.
+            echo "=== Verify public URL ==="
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://entoto.melaverse.net/login || echo 000)
+            if [ "$CODE" != "200" ]; then
+              echo "public URL returned $CODE - recreating caddy"
+              docker compose up -d --force-recreate caddy
+              sleep 6
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://entoto.melaverse.net/login || echo 000)
+            fi
+            [ "$CODE" = "200" ] || { echo "ERROR: public URL still $CODE"; docker compose logs --tail=50 caddy; exit 1; }
+            echo "Public URL OK (200)"
 
-            echo "=== Recent app logs ==="
-            sudo docker compose logs --tail=50 app
+            docker compose ps
         env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
           GIT_BRANCH: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
