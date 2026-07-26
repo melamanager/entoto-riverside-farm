@@ -40,11 +40,11 @@ export async function POST(req: Request) {
   if (Array.isArray(body)) {
     const results = [];
     for (const raw of body) {
-      const rec = withOt(raw) as { farmerId: string; date: string };
+      const rec = withOt(raw);
       const result = await prisma.attendanceRecord.upsert({
-        where: { farmerId_date: { farmerId: rec.farmerId, date: rec.date } },
-        update: rec,
-        create: rec,
+        where: { farmerId_date: { farmerId: rec.farmerId as string, date: rec.date as string } },
+        update: rec as never,
+        create: rec as never,
       });
       results.push(result);
     }
