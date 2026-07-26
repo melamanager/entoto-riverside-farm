@@ -31,7 +31,8 @@ export async function GET(req: Request) {
 
   const [farmers, valves, beds, harvests, tasks, attendance, followUps, diseases, packagingRecords] =
     await Promise.all([
-      prisma.farmer.findMany({ orderBy: { name: "asc" } }),
+      // omit the base64 portrait — dashboards use initials, never the photo
+      prisma.farmer.findMany({ omit: { photo: true }, orderBy: { name: "asc" } }),
       prisma.valve.findMany({ orderBy: { name: "asc" } }),
       prisma.bed.findMany({ orderBy: [{ valveId: "asc" }, { id: "asc" }] }),
       prisma.harvestRecord.findMany({

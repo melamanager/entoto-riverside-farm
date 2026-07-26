@@ -30,6 +30,15 @@ model Farmer {
   assignedValves   Json       @default("[]")
   nationalId       String?
   emergencyContact String?
+  // ── full registration ──────────────────────────────────────────────────
+  photo            String?    // small base64 portrait (client-resized ~160px)
+  dailyWage        Decimal?   @db.Decimal(10, 2) // ETB/day — drives payroll
+  address          String?
+  dateOfBirth      String?    // YYYY-MM-DD
+  gender           String?    // male | female
+  employmentType   String?    // permanent | casual | seasonal
+  paymentMethod    String?    // cash | bank | telebirr
+  bankAccount      String?    // account or wallet number
   telegramChatId   String?   // personal Telegram chat, once linked
   telegramLinkCode String?   // one-time code used during linking
   telegramLang     String?   // bot reply language: auto (default) | am | en

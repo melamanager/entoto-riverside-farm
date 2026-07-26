@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DollarSign, CheckCircle2, Clock, Download, Users, Calculator, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { PayrollRecord, PayrollStatus } from "@/lib/erp-types";
@@ -36,9 +37,11 @@ export default function PayrollPage() {
   const [allRecords, setAllRecords] = useState<PayrollRecord[]>([]);
   const [farmers, setFarmers]       = useState<Farmer[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [cfg, setCfg] = useState({ workdayHours: 8, overtimeMultiplier: 1.5 });
+  const [cfg, setCfg] = useState({ workdayHours: 8, overtimeMultiplier: 1.5, defaultDailyWage: 400 });
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [overrides, setOverrides] = useState<Record<string, Partial<PayrollRecord>>>({});
+  const [payslipFor, setPayslipFor] = useState<PayrollRecord | null>(null);
+  const [savingRow, setSavingRow] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/payroll").then(r => r.json()).then((data: Record<string, unknown>[]) => {
@@ -49,7 +52,11 @@ export default function PayrollPage() {
     });
     fetch("/api/farmers").then(r => r.json()).then(setFarmers);
     fetch("/api/attendance").then(r => r.json()).then(setAttendance);
-    fetch("/api/config").then(r => r.ok ? r.json() : null).then(c => c && setCfg({ workdayHours: c.workdayHours ?? 8, overtimeMultiplier: c.overtimeMultiplier ?? 1.5 }));
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(c => c && setCfg({
+      workdayHours: c.workdayHours ?? 8,
+      overtimeMultiplier: c.overtimeMultiplier ?? 1.5,
+      defaultDailyWage: c.defaultDailyWage ?? 400,
+    }));
   }, []);
 
   const months = [...new Set(allRecords.map(r => r.month))].sort().reverse();
@@ -92,6 +99,43 @@ export default function PayrollPage() {
         description: `Total disbursement: ${totalNetPay.toLocaleString()} ETB`,
       });
     }
+  }
+
+  // Editing a wage/bonus/deduction re-derives base & net immediately, so the
+  // table always shows a consistent total (persisted on blur).
+  function editField(rec: PayrollRecord, field: "dailyWage" | "bonus" | "deductions", value: number) {
+    const merged = { ...rec, [field]: value };
+    const basePay = merged.daysWorked * merged.dailyWage;
+    const overtimePay = Math.round(merged.overtimeHours * (merged.dailyWage / cfg.workdayHours) * cfg.overtimeMultiplier);
+    const netPay = basePay + overtimePay + merged.bonus - merged.deductions;
+    setOverrides(prev => ({ ...prev, [rec.id]: { ...prev[rec.id], [field]: value, basePay, overtimePay, netPay } }));
+  }
+
+  async function saveRow(rec: PayrollRecord) {
+    const patch = overrides[rec.id];
+    if (!patch || Object.keys(patch).length === 0) return;
+    setSavingRow(rec.id);
+    const res = await fetch(`/api/payroll/${rec.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    setSavingRow(null);
+    if (!res.ok) { toast.error("Couldn't save that change"); return; }
+    const saved = parsePayrollRecord(await res.json() as Record<string, unknown>);
+    setAllRecords(prev => prev.map(r => r.id === saved.id ? saved : r));
+    setOverrides(prev => { const n = { ...prev }; delete n[rec.id]; return n; });
+  }
+
+  async function markPaid(rec: PayrollRecord) {
+    const res = await fetch(`/api/payroll/${rec.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...overrides[rec.id], paymentStatus: "paid", paidDate: new Date().toLocaleDateString("en-CA") }),
+    });
+    if (!res.ok) { toast.error("Couldn't mark as paid"); return; }
+    const saved = parsePayrollRecord(await res.json() as Record<string, unknown>);
+    setAllRecords(prev => prev.map(r => r.id === saved.id ? saved : r));
+    setOverrides(prev => { const n = { ...prev }; delete n[rec.id]; return n; });
+    const name = farmers.find(f => f.id === rec.farmerId)?.name ?? rec.farmerId;
+    toast.success(`${name} marked paid — ${rec.netPay.toLocaleString()} ETB`);
   }
 
   function exportCsv() {
@@ -163,9 +207,12 @@ export default function PayrollPage() {
       toast.info(`${month} already exists`);
       return;
     }
+    // the worker's registered daily wage wins; then their last month; then the farm default
     const wageOf = (fid: string) => {
+      const registered = farmers.find(f => f.id === fid)?.dailyWage;
+      if (registered != null && Number(registered) > 0) return Number(registered);
       const prev = allRecords.filter(r => r.farmerId === fid).sort((a, b) => b.month.localeCompare(a.month))[0];
-      return prev ? prev.dailyWage : 400;
+      return prev ? prev.dailyWage : cfg.defaultDailyWage;
     };
     const staff = farmers.filter(f => f.role !== "manager");
     const created: PayrollRecord[] = [];
@@ -282,11 +329,14 @@ export default function PayrollPage() {
                 <th className="text-right">{t.payroll.deductions}</th>
                 <th className="text-right">{t.payroll.netPay}</th>
                 <th>{t.common.status}</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {records.map(rec => {
                 const farmer = farmers.find(f => f.id === rec.farmerId);
+                const locked = rec.paymentStatus === "paid"; // a paid month is closed
+                const dirty = !!overrides[rec.id];
                 return (
                   <tr key={rec.id}>
                     <td>
@@ -301,19 +351,45 @@ export default function PayrollPage() {
                       </div>
                     </td>
                     <td className="tabular-nums text-center">{rec.daysWorked}</td>
-                    <td className="tabular-nums text-right text-muted-foreground">{rec.dailyWage.toLocaleString()}</td>
+                    <td className="text-right">
+                      <input type="number" min={0} value={rec.dailyWage} disabled={locked}
+                        onChange={e => editField(rec, "dailyWage", Number(e.target.value) || 0)}
+                        onBlur={() => saveRow(rec)}
+                        className="w-20 bg-transparent border border-transparent hover:border-border focus:border-ring rounded px-1.5 py-1 text-right tabular-nums text-muted-foreground disabled:opacity-60" />
+                    </td>
                     <td className="tabular-nums text-right">{rec.basePay.toLocaleString()}</td>
-                    <td className="tabular-nums text-center text-blue-600">{rec.overtimeHours}h</td>
-                    <td className="tabular-nums text-right text-blue-600">+{rec.overtimePay.toLocaleString()}</td>
-                    <td className="tabular-nums text-right text-amber-600">+{rec.bonus.toLocaleString()}</td>
-                    <td className="tabular-nums text-right text-red-600">−{rec.deductions.toLocaleString()}</td>
+                    <td className="tabular-nums text-center text-blue-400">{rec.overtimeHours}h</td>
+                    <td className="tabular-nums text-right text-blue-400">+{rec.overtimePay.toLocaleString()}</td>
+                    <td className="text-right">
+                      <input type="number" min={0} value={rec.bonus} disabled={locked}
+                        onChange={e => editField(rec, "bonus", Number(e.target.value) || 0)}
+                        onBlur={() => saveRow(rec)}
+                        className="w-20 bg-transparent border border-transparent hover:border-border focus:border-ring rounded px-1.5 py-1 text-right tabular-nums text-amber-400 disabled:opacity-60" />
+                    </td>
+                    <td className="text-right">
+                      <input type="number" min={0} value={rec.deductions} disabled={locked}
+                        onChange={e => editField(rec, "deductions", Number(e.target.value) || 0)}
+                        onBlur={() => saveRow(rec)}
+                        className="w-20 bg-transparent border border-transparent hover:border-border focus:border-ring rounded px-1.5 py-1 text-right tabular-nums text-red-400 disabled:opacity-60" />
+                    </td>
                     <td className="tabular-nums text-right font-bold text-foreground text-base">
                       {rec.netPay.toLocaleString()}
+                      {dirty && <span className="ml-1 text-[9px] text-amber-400">{savingRow === rec.id ? "saving…" : "unsaved"}</span>}
                     </td>
                     <td>
                       <Badge className={`text-[10px] capitalize ${STATUS_STYLE[rec.paymentStatus]}`}>
                         {rec.paymentStatus}
                       </Badge>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button onClick={() => setPayslipFor(rec)}
+                          className="text-[11px] font-semibold px-2 py-1 rounded border border-border hover:bg-accent whitespace-nowrap">Payslip</button>
+                        {rec.paymentStatus !== "paid" && (
+                          <button onClick={() => markPaid(rec)}
+                            className="text-[11px] font-semibold px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap">Mark paid</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -329,11 +405,61 @@ export default function PayrollPage() {
                 <td className="px-4 py-3 tabular-nums text-right font-bold text-red-600">−{totalDeduct.toLocaleString()}</td>
                 <td className="px-4 py-3 tabular-nums text-right font-black text-primary text-base">{totalNetPay.toLocaleString()}</td>
                 <td />
+                <td />
               </tr>
             </tfoot>
           </table>
         </div>
       </Card>
+
+      {/* ── Payslip ──────────────────────────────────────────────────────── */}
+      <Dialog open={!!payslipFor} onOpenChange={o => !o && setPayslipFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Payslip</DialogTitle></DialogHeader>
+          {payslipFor && (() => {
+            const f = farmers.find(x => x.id === payslipFor.farmerId);
+            const r = { ...payslipFor, ...overrides[payslipFor.id] } as PayrollRecord;
+            const row = (label: string, value: string, cls = "") => (
+              <div className="flex justify-between py-1.5 border-b border-border/60 text-sm">
+                <span className="text-muted-foreground">{label}</span>
+                <span className={`tabular-nums font-semibold ${cls}`}>{value}</span>
+              </div>
+            );
+            return (
+              <div id="payslip-print" className="space-y-3">
+                <div className="flex items-center gap-3 pb-3 border-b border-border">
+                  {f?.photo
+                    ? <img src={f.photo} alt="" className="size-12 rounded-full object-cover" />
+                    : <Avatar className="size-12"><AvatarFallback className="text-xs font-bold">{f?.avatar}</AvatarFallback></Avatar>}
+                  <div>
+                    <div className="font-bold text-foreground">{f?.name}</div>
+                    <div className="text-xs text-muted-foreground capitalize">{f?.role} · {r.month}</div>
+                  </div>
+                  <Badge className={`ml-auto text-[10px] capitalize ${STATUS_STYLE[r.paymentStatus]}`}>{r.paymentStatus}</Badge>
+                </div>
+                {row("Days worked", String(r.daysWorked))}
+                {row("Daily wage", `${r.dailyWage.toLocaleString()} ETB`)}
+                {row("Base pay", `${r.basePay.toLocaleString()} ETB`)}
+                {row(`Overtime (${r.overtimeHours}h @ ${cfg.overtimeMultiplier}×)`, `+${r.overtimePay.toLocaleString()} ETB`, "text-blue-400")}
+                {row("Bonus", `+${r.bonus.toLocaleString()} ETB`, "text-amber-400")}
+                {row("Deductions", `−${r.deductions.toLocaleString()} ETB`, "text-red-400")}
+                <div className="flex justify-between pt-2 text-base">
+                  <span className="font-bold text-foreground">Net pay</span>
+                  <span className="tabular-nums font-black text-primary">{r.netPay.toLocaleString()} ETB</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground pt-1">
+                  Payment: {f?.paymentMethod ?? "cash"}{f?.bankAccount ? ` · ${f.bankAccount}` : ""}
+                  {r.paidDate ? ` · paid ${r.paidDate}` : ""}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setPayslipFor(null)}>Close</Button>
+                  <Button className="flex-1" onClick={() => window.print()}>Print</Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

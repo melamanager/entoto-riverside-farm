@@ -9,13 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Users, Phone, Calendar, Plus, Pencil, Trash2,
-  UserCog, ShieldCheck, Shield, KeyRound,
+  UserCog, ShieldCheck, Shield, KeyRound, Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Farmer, Valve, Task } from "@/lib/types";
 import type { WorkerAssignment } from "@/lib/erp-types";
 import { useOptions } from "@/lib/use-options";
 import { useAuth } from "@/lib/auth";
+import { resizeImage } from "@/lib/resize-image";
 
 type FarmerWithLogin = Farmer & { hasLogin?: boolean };
 
@@ -30,6 +31,11 @@ const EMPTY_FORM = {
   nationalId: "", emergencyContact: "",
   assignedValves: [] as string[],
   joinedDate: new Date().toISOString().split("T")[0],
+  // full registration
+  photo: "" as string,
+  dailyWage: "" as string,
+  address: "", dateOfBirth: "", gender: "",
+  employmentType: "permanent", paymentMethod: "cash", bankAccount: "",
 };
 
 function initials(name: string) {
@@ -87,6 +93,14 @@ export default function EmployeesPage() {
       emergencyContact: f.emergencyContact ?? "",
       assignedValves: f.assignedValves,
       joinedDate: f.joinedDate,
+      photo: f.photo ?? "",
+      dailyWage: f.dailyWage != null ? String(f.dailyWage) : "",
+      address: f.address ?? "",
+      dateOfBirth: f.dateOfBirth ?? "",
+      gender: f.gender ?? "",
+      employmentType: f.employmentType ?? "permanent",
+      paymentMethod: f.paymentMethod ?? "cash",
+      bankAccount: f.bankAccount ?? "",
     });
     setLoginPw("");
     setEditTarget(f);
@@ -115,6 +129,31 @@ export default function EmployeesPage() {
     setEditTarget(t => t ? { ...t, hasLogin: false } as Farmer : t);
   }
 
+  // the "full registration" half of the payload, shared by create + edit
+  function registrationFields() {
+    return {
+      photo: form.photo || null,
+      dailyWage: form.dailyWage === "" ? null : Number(form.dailyWage),
+      address: form.address || null,
+      dateOfBirth: form.dateOfBirth || null,
+      gender: form.gender || null,
+      employmentType: form.employmentType || null,
+      paymentMethod: form.paymentMethod || null,
+      bankAccount: form.bankAccount || null,
+    };
+  }
+
+  async function onPhotoPick(file: File | undefined) {
+    if (!file) return;
+    try {
+      // shrunk to ~200px JPEG before it's ever stored (kilobytes, not megabytes)
+      const dataUrl = await resizeImage(file);
+      setForm(p => ({ ...p, photo: dataUrl }));
+    } catch {
+      toast.error("Couldn't read that image");
+    }
+  }
+
   async function handleCreate() {
     if (!form.name.trim()) { toast.error("Name is required"); return; }
     if (!form.phone.trim()) { toast.error("Phone number is required"); return; }
@@ -129,6 +168,7 @@ export default function EmployeesPage() {
       assignedValves: form.assignedValves,
       nationalId: form.nationalId || undefined,
       emergencyContact: form.emergencyContact || undefined,
+      ...registrationFields(),
     };
     const res = await fetch("/api/farmers", {
       method: "POST",
@@ -157,6 +197,7 @@ export default function EmployeesPage() {
       emergencyContact: form.emergencyContact || undefined,
       assignedValves: form.assignedValves,
       joinedDate: form.joinedDate,
+      ...registrationFields(),
     };
     const res = await fetch(`/api/farmers/${editTarget.id}`, {
       method: "PATCH",
@@ -199,6 +240,29 @@ export default function EmployeesPage() {
   function StaffForm() {
     return (
       <div className="space-y-3">
+        {/* Portrait */}
+        <div className="flex items-center gap-3">
+          {form.photo
+            ? <img src={form.photo} alt="" className="size-16 rounded-full object-cover border border-border" />
+            : <div className="size-16 rounded-full bg-muted border border-border grid place-items-center text-muted-foreground text-lg font-bold">
+                {form.name ? initials(form.name) : <Camera className="size-5" />}
+              </div>}
+          <div className="flex-1">
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Photo</label>
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer text-xs font-semibold px-3 py-2 rounded-md border border-border hover:bg-accent">
+                {form.photo ? "Change" : "Upload photo"}
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={e => onPhotoPick(e.target.files?.[0])} />
+              </label>
+              {form.photo && (
+                <button onClick={() => setForm(p => ({ ...p, photo: "" }))}
+                  className="text-xs text-red-400 hover:text-red-300">Remove</button>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Full Name <span className="text-red-500">*</span></label>
@@ -256,6 +320,69 @@ export default function EmployeesPage() {
               placeholder="+251-91-..."
               className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
+          </div>
+
+          {/* ── Pay & employment ─────────────────────────────────────────── */}
+          <div className="col-span-2 pt-1 border-t border-border" />
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Daily Wage (ETB)</label>
+            <input type="number" min={0} value={form.dailyWage}
+              onChange={e => setForm(p => ({ ...p, dailyWage: e.target.value }))}
+              placeholder="e.g. 550"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+            <div className="text-[10px] text-muted-foreground mt-0.5">Used by Payroll</div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Employment Type</label>
+            <select value={form.employmentType}
+              onChange={e => setForm(p => ({ ...p, employmentType: e.target.value }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              <option value="permanent">Permanent</option>
+              <option value="casual">Casual / daily</option>
+              <option value="seasonal">Seasonal</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Payment Method</label>
+            <select value={form.paymentMethod}
+              onChange={e => setForm(p => ({ ...p, paymentMethod: e.target.value }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              <option value="cash">Cash</option>
+              <option value="bank">Bank transfer</option>
+              <option value="telebirr">Telebirr</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Account / Wallet No.</label>
+            <input value={form.bankAccount}
+              onChange={e => setForm(p => ({ ...p, bankAccount: e.target.value }))}
+              placeholder="CBE / Telebirr number"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+          </div>
+
+          {/* ── Personal ─────────────────────────────────────────────────── */}
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Date of Birth</label>
+            <input type="date" value={form.dateOfBirth}
+              onChange={e => setForm(p => ({ ...p, dateOfBirth: e.target.value }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Gender</label>
+            <select value={form.gender}
+              onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              <option value="">—</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Address</label>
+            <input value={form.address}
+              onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+              placeholder="Kebele / area, city"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
         <div>
@@ -321,13 +448,17 @@ export default function EmployeesPage() {
                 </div>
 
                 <div className="flex items-start gap-3 mb-4 pr-16">
-                  <Avatar className="size-12 ring-2 ring-border">
-                    <AvatarFallback className={`font-bold text-sm ${
-                      f.role === "manager" ? "bg-amber-100 text-amber-700" :
-                      f.role === "supervisor" ? "bg-blue-100 text-blue-700" :
-                      "bg-primary/15 text-primary"
-                    }`}>{f.avatar}</AvatarFallback>
-                  </Avatar>
+                  {f.photo ? (
+                    <img src={f.photo} alt="" className="size-12 rounded-full object-cover ring-2 ring-border shrink-0" />
+                  ) : (
+                    <Avatar className="size-12 ring-2 ring-border">
+                      <AvatarFallback className={`font-bold text-sm ${
+                        f.role === "manager" ? "bg-amber-100 text-amber-700" :
+                        f.role === "supervisor" ? "bg-blue-100 text-blue-700" :
+                        "bg-primary/15 text-primary"
+                      }`}>{f.avatar}</AvatarFallback>
+                    </Avatar>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-foreground truncate">{f.name}</div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">{f.nationalId ?? "—"}</div>

@@ -17,6 +17,16 @@ export interface Farmer {
   assignedValves: string[];
   nationalId?: string;
   emergencyContact?: string;
+  // full registration
+  photo?: string | null;          // small base64 portrait
+  dailyWage?: number | string | null; // ETB/day (Decimal over the wire)
+  address?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  employmentType?: string | null; // permanent | casual | seasonal
+  paymentMethod?: string | null;  // cash | bank | telebirr
+  bankAccount?: string | null;
+  hasLogin?: boolean;             // set by /api/farmers GET
 }
 
 export interface Valve {
