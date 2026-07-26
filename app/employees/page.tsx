@@ -9,12 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Users, Phone, Calendar, Plus, Pencil, Trash2,
-  UserCog, ShieldCheck, Shield,
+  UserCog, ShieldCheck, Shield, KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Farmer, Valve, Task } from "@/lib/types";
 import type { WorkerAssignment } from "@/lib/erp-types";
 import { useOptions } from "@/lib/use-options";
+import { useAuth } from "@/lib/auth";
+
+type FarmerWithLogin = Farmer & { hasLogin?: boolean };
 
 const ROLE_STYLE = {
   manager:    { badge: "bg-amber-100 text-amber-800 border-amber-200",    dot: "bg-amber-400"   },
@@ -45,6 +48,8 @@ export default function EmployeesPage() {
   const [editTarget, setEditTarget]     = useState<Farmer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Farmer | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const { isManager } = useAuth();
+  const [loginPw, setLoginPw] = useState("");
 
   async function fetchFarmers() {
     const data: Farmer[] = await fetch("/api/farmers").then(r => r.json());
@@ -83,7 +88,31 @@ export default function EmployeesPage() {
       assignedValves: f.assignedValves,
       joinedDate: f.joinedDate,
     });
+    setLoginPw("");
     setEditTarget(f);
+  }
+
+  // ── login (manager-only): give a staff member app access ──────────────────
+  async function createLogin() {
+    if (!editTarget) return;
+    if (loginPw.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    const res = await fetch(`/api/staff/${editTarget.id}/login`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: loginPw }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); toast.error(e.error ?? "Couldn't set the login"); return; }
+    const d = await res.json();
+    toast.success(`Login ${d.created ? "created" : "reset"} — username ${d.username}`);
+    setLoginPw("");
+    setFarmers(prev => prev.map(f => f.id === editTarget.id ? { ...f, hasLogin: true } as Farmer : f));
+    setEditTarget(t => t ? { ...t, hasLogin: true } as Farmer : t);
+  }
+  async function revokeLogin() {
+    if (!editTarget) return;
+    const res = await fetch(`/api/staff/${editTarget.id}/login`, { method: "DELETE" });
+    if (!res.ok) { toast.error("Couldn't revoke the login"); return; }
+    toast.success("Login revoked");
+    setFarmers(prev => prev.map(f => f.id === editTarget.id ? { ...f, hasLogin: false } as Farmer : f));
+    setEditTarget(t => t ? { ...t, hasLogin: false } as Farmer : t);
   }
 
   async function handleCreate() {
@@ -443,6 +472,32 @@ export default function EmployeesPage() {
             </DialogTitle>
           </DialogHeader>
           <StaffForm />
+
+          {/* Login access — manager-only */}
+          {isManager && editTarget && (
+            <div className="mt-3 rounded-lg border border-border p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <KeyRound className="size-4 text-primary" /> Login access
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Username <span className="font-mono text-foreground">{editTarget.id}</span> ·{" "}
+                {(editTarget as FarmerWithLogin).hasLogin
+                  ? <span className="text-primary font-semibold">has a login</span>
+                  : <span>no login yet</span>}
+              </div>
+              <div className="flex gap-2">
+                <input type="password" value={loginPw} onChange={e => setLoginPw(e.target.value)}
+                  placeholder={(editTarget as FarmerWithLogin).hasLogin ? "New password (min 6)" : "Set password (min 6)"}
+                  className="flex-1 border border-border rounded-md px-3 py-2 text-sm bg-card" />
+                <Button size="sm" onClick={createLogin}>{(editTarget as FarmerWithLogin).hasLogin ? "Reset" : "Create login"}</Button>
+              </div>
+              {(editTarget as FarmerWithLogin).hasLogin && (
+                <button onClick={revokeLogin} className="text-[11px] text-red-400 hover:text-red-300">Revoke login</button>
+              )}
+              <div className="text-[10px] text-muted-foreground">Logins are for staff who use the app (managers &amp; supervisors). They sign in with the username above and the password you set.</div>
+            </div>
+          )}
+
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>

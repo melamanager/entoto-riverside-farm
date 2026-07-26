@@ -47,6 +47,7 @@ export default function AttendancePage() {
   const [attLoaded, setAttLoaded] = useState(false);
   const loading = !refLoaded || !attLoaded;
   const [saving, setSaving] = useState(false);
+  const [workdayHours, setWorkdayHours] = useState(8); // OT threshold — from Settings, not hard-coded
 
   const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
   const [checkIns, setCheckIns] = useState<Record<string, string>>({});
@@ -67,6 +68,11 @@ export default function AttendancePage() {
       setAttLoaded(true);
     });
   }, [today]);
+
+  // the standard workday (hours before overtime) is configurable in Settings
+  useEffect(() => {
+    fetch("/api/config").then(r => (r.ok ? r.json() : null)).then(c => { if (c?.workdayHours) setWorkdayHours(c.workdayHours); });
+  }, []);
 
   // Refetch historic records when viewDate changes (and it's not today)
   useEffect(() => {
@@ -115,7 +121,7 @@ export default function AttendancePage() {
           checkOutTime: working ? (checkOut ?? undefined) : null,
           hoursWorked: working ? (hours ?? undefined) : 0,
           overtimeHours: working
-            ? (hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - 8) * 10) / 10) : undefined)
+            ? (hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : undefined)
             : 0,
           recordedBy: user.id,
         };
@@ -240,7 +246,7 @@ export default function AttendancePage() {
                 const status = selected[f.id];
                 const working = status === "present" || status === "late";
                 const hours = working ? hoursBetween(checkIns[f.id] ?? DEFAULT_CHECK_IN, checkOuts[f.id]) : null;
-                const ot = hours !== null ? Math.max(0, Math.round((hours - 8) * 10) / 10) : null;
+                const ot = hours !== null ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : null;
                 const StatusIcon = status ? STATUS_ICONS[status] : null;
                 return (
                   <tr key={f.id}>

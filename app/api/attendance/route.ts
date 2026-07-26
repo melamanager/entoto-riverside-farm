@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getFarmConfig } from "@/lib/config-server";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -28,9 +29,18 @@ export async function POST(req: Request) {
 
   const body = await req.json();
 
+  // overtime is derived authoritatively from the configured workday, so it's
+  // correct regardless of what the client sent (and honours the Settings value)
+  const wd = (await getFarmConfig()).workdayHours || 8;
+  const withOt = (rec: Record<string, unknown>) =>
+    typeof rec.hoursWorked === "number"
+      ? { ...rec, overtimeHours: Math.max(0, Math.round((rec.hoursWorked - wd) * 10) / 10) }
+      : rec;
+
   if (Array.isArray(body)) {
     const results = [];
-    for (const rec of body) {
+    for (const raw of body) {
+      const rec = withOt(raw) as { farmerId: string; date: string };
       const result = await prisma.attendanceRecord.upsert({
         where: { farmerId_date: { farmerId: rec.farmerId, date: rec.date } },
         update: rec,
@@ -41,6 +51,6 @@ export async function POST(req: Request) {
     return NextResponse.json(results, { status: 201 });
   }
 
-  const record = await prisma.attendanceRecord.create({ data: body });
+  const record = await prisma.attendanceRecord.create({ data: withOt(body) as never });
   return NextResponse.json(record, { status: 201 });
 }
