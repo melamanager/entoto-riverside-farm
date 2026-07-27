@@ -38,11 +38,11 @@ Always develop on: `claude/disease-reporter-identification-g1MTI`
 
 ## Docker / Deploy
 
-- Three services: `postgres` → `migrate` (builder stage, runs migrations + seed) → `app` (runner stage)
+- Four services: `postgres` → `migrate` (builder stage, runs **migrations only**) → `app` (runner stage) → `caddy` (TLS reverse proxy)
 - `migrate` service uses `target: builder` so it has full `node_modules` including `ts-node`
 - A pre-wipe DB backup lives on the server at `/opt/farm/backups/` (pg_dump `.sql`); restore with `docker compose exec -T postgres psql -U entoto -d entoto_farm < <file>`
 - `app` runner only has: `.next/standalone`, pruned Prisma deps, `scripts/start.sh` (`exec node server.js`)
-- `.env` on the server is written by the deploy script — never commit secrets
+- ⚠️ `/opt/farm/.env` is the **server's** source of truth and the deploy must NEVER rewrite it — it holds live secrets (`GOOGLE_GENERATIVE_AI_API_KEY`, `CRON_SECRET`, `TELEGRAM_WEBHOOK_SECRET`, `TOMORROW_IO_API_KEY`, `APP_PUBLIC_URL`). The workflow only verifies the required keys exist. Never commit secrets.
 - Passwords with `$` must be escaped as `$$` in Docker Compose `.env` files (handled by `dc_escape()`)
 - The server has a 2 GB swap file (`/swapfile`) to prevent OOM during Docker builds
 
