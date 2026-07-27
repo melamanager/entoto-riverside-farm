@@ -13,8 +13,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Next.js 16** (App Router) · TypeScript · Tailwind CSS · shadcn/ui
 - **Prisma 7** + PostgreSQL 16 (adapter: `@prisma/adapter-pg`)
 - **Auth.js v5** (NextAuth) — JWT strategy, Credentials provider
-- **Docker Compose** deploy on AWS Lightsail Ubuntu (`54.171.14.135:3000`)
-- **CI/CD**: push to `claude/disease-reporter-identification-g1MTI` → GitHub Actions → SSH → Lightsail
+- **Docker Compose** deploy on Contabo Ubuntu 24.04 (`169.58.26.234`), public at `https://entoto.melaverse.net` via Caddy
+- **CI/CD**: push to `claude/disease-reporter-identification-g1MTI` → GitHub Actions → SSH → Contabo (auto-deploys: pull → build → migrate → recreate app → health check)
 
 ## Branch
 
@@ -26,19 +26,21 @@ Always develop on: `claude/disease-reporter-identification-g1MTI`
 - Proxy (middleware) lives in `proxy.ts` — imports only `auth.config.ts`
 - Session `user.id` = `farmerId` (e.g. `"f-008"`) — not the `User.id` cuid
 - Roles: `manager` · `supervisor` · `farmer`
-- Demo credentials (use key icon on login page): `f-008 / manager2026`, `f-006 / supervisor01`, `f-007 / supervisor02`
+- ⚠️ PRODUCTION: the demo accounts are gone. The only login is the bootstrap manager `f-001` (password set at go-live — change it in the app). New logins: Employees → edit staff → **Login access** (manager-only), username = the staff id.
 
 ## Database
 
 - `DATABASE_URL` required at runtime and build time (build uses a placeholder)
 - Migrations live in `prisma/migrations/` — name format: `YYYYMMDDHHMMSS_description`
-- Seed: `npx prisma db seed` — idempotent upserts, runs automatically in the `migrate` Docker service on every deploy
+- ⚠️ Seed: **NOT run automatically** (it would recreate demo staff/beds/harvest on every deploy and overwrite production). The `migrate` service runs migrations only. To seed a fresh *dev* database deliberately:
+  `docker compose run --rm migrate sh -c "npx prisma migrate deploy && npx prisma db seed"`
 - Never run `prisma migrate dev` in the Docker container — use `prisma migrate deploy`
 
 ## Docker / Deploy
 
 - Three services: `postgres` → `migrate` (builder stage, runs migrations + seed) → `app` (runner stage)
 - `migrate` service uses `target: builder` so it has full `node_modules` including `ts-node`
+- A pre-wipe DB backup lives on the server at `/opt/farm/backups/` (pg_dump `.sql`); restore with `docker compose exec -T postgres psql -U entoto -d entoto_farm < <file>`
 - `app` runner only has: `.next/standalone`, pruned Prisma deps, `scripts/start.sh` (`exec node server.js`)
 - `.env` on the server is written by the deploy script — never commit secrets
 - Passwords with `$` must be escaped as `$$` in Docker Compose `.env` files (handled by `dc_escape()`)
