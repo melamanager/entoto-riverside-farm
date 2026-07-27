@@ -142,7 +142,7 @@ export default function DashboardPage() {
   const pendingTasks = tasks.filter(task => task.status !== "done").length;
   const topFarmers = [...farmers]
     .filter(f => f.role === "farmer")
-    .sort((a, b) => b.performanceScore - a.performanceScore)
+    .sort((a, b) => (b.performanceScore ?? 0) - (a.performanceScore ?? 0))
     .slice(0, 5);
 
   /* bed health + watering — live */
@@ -490,10 +490,10 @@ export default function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-foreground truncate">{f.name}</div>
                   <Tooltip
-                    content={`Attendance rate: ${f.attendanceRate}% over the last 30 days. Target: ≥ 90%.`}
+                    content={f.attendanceRate == null ? "No attendance recorded yet." : `Attendance rate: ${f.attendanceRate}% of recorded days. Target: ≥ 90%.`}
                     side="right" maxWidth="200px">
                     <div className="text-[11px] text-muted-foreground cursor-help w-fit">
-                      Attendance {f.attendanceRate}%
+                      Attendance {f.attendanceRate ?? "—"}%
                     </div>
                   </Tooltip>
                 </div>
@@ -503,8 +503,8 @@ export default function DashboardPage() {
                   <div className="text-right shrink-0 cursor-help">
                     <div className={cn(
                       "text-sm font-extrabold tabular-nums",
-                      f.performanceScore >= 85 ? "text-primary" : f.performanceScore >= 70 ? "text-amber-400" : "text-muted-foreground"
-                    )}>{f.performanceScore}</div>
+                      (f.performanceScore ?? 0) >= 85 ? "text-primary" : (f.performanceScore ?? 0) >= 70 ? "text-amber-400" : "text-muted-foreground"
+                    )}>{f.performanceScore ?? "—"}</div>
                     <div className="text-[10px] text-muted-foreground">score</div>
                   </div>
                 </Tooltip>

@@ -73,7 +73,7 @@ export default function ProductivityPage() {
   const totalKgFarm = farmerStats.reduce((s, f) => s + f.totalKg, 0);
   const topPerformer = farmerStats[0];
   const avgAttendance = allFarmers.length > 0
-    ? Math.round(allFarmers.reduce((s, f) => s + f.attendanceRate, 0) / allFarmers.length)
+    ? Math.round(allFarmers.reduce((s, f) => s + (f.attendanceRate ?? 0), 0) / allFarmers.length)
     : 0;
   const avgPerformance = allFarmers.length > 0
     ? Math.round(allFarmers.reduce((s, f) => s + f.performanceScore, 0) / allFarmers.length)

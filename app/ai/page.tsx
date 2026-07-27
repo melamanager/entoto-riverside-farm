@@ -241,9 +241,9 @@ function aiAnswer(
 
   if (q.includes("worker") || q.includes("farmer") || q.includes("staff") || q.includes("team") || q.includes("employee")) {
     const farmersOnly = farmers.filter(f => f.role === "farmer");
-    const topFarmer = farmersOnly.sort((a, b) => b.performanceScore - a.performanceScore)[0];
-    const avgAttendance = Math.round(farmersOnly.reduce((s, f) => s + f.attendanceRate, 0) / (farmersOnly.length || 1));
-    return `Farm workforce: **${farmers.length} staff** (${farmersOnly.length} farmers, ${farmers.filter(f => f.role === "supervisor").length} supervisors, 1 manager). Top performer: **${topFarmer?.name}** (score ${topFarmer?.performanceScore}). Average attendance: ${avgAttendance}%. ${workerAssignments.filter(a => a.status === "in_progress" && a.date === today).length} workers active right now.`;
+    const topFarmer = farmersOnly.sort((a, b) => (b.performanceScore ?? 0) - (a.performanceScore ?? 0))[0];
+    const avgAttendance = Math.round(farmersOnly.reduce((s, f) => s + (f.attendanceRate ?? 0), 0) / (farmersOnly.length || 1));
+    return `Farm workforce: **${farmers.length} staff** (${farmersOnly.length} farmers, ${farmers.filter(f => f.role === "supervisor").length} supervisors, 1 manager). Top performer: **${topFarmer?.name}** (task completion ${topFarmer?.performanceScore ?? 0}%). Average attendance: ${avgAttendance}%. ${workerAssignments.filter(a => a.status === "in_progress" && a.date === today).length} workers active right now.`;
   }
 
   if (q.includes("risk") || q.includes("danger") || q.includes("problem") || q.includes("issue") || q.includes("alert")) {

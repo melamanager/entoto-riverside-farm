@@ -55,7 +55,7 @@ export default function FarmersPage() {
                   <Badge variant="outline" className="text-[10px] capitalize mt-0.5">{f.role}</Badge>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-primary tabular-nums">{f.performanceScore}</div>
+                  <div className="text-2xl font-bold text-primary tabular-nums">{f.performanceScore ?? "—"}</div>
                   <div className="text-[10px] text-muted-foreground">perf score</div>
                 </div>
               </div>
@@ -64,9 +64,9 @@ export default function FarmersPage() {
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Attendance</span>
-                    <span className="font-semibold tabular-nums">{f.attendanceRate}%</span>
+                    <span className="font-semibold tabular-nums">{f.attendanceRate ?? "—"}%</span>
                   </div>
-                  <Progress value={f.attendanceRate} className="h-1.5" />
+                  <Progress value={f.attendanceRate ?? 0} className="h-1.5" />
                 </div>
               </div>
 
