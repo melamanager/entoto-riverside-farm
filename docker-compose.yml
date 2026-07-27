@@ -21,7 +21,11 @@ services:
       context: .
       dockerfile: Dockerfile
       target: builder
-    command: sh -c "npx prisma migrate resolve --rolled-back 20260521000000_init 2>/dev/null || true && npx prisma migrate deploy && npx prisma db seed"
+    # PRODUCTION: migrations only. The demo seed is NOT run automatically —
+    # it would recreate demo staff/beds/harvest on every deploy. To reseed a
+    # fresh dev database deliberately: docker compose run --rm migrate \
+    #   sh -c "npx prisma migrate deploy && npx prisma db seed"
+    command: sh -c "npx prisma migrate resolve --rolled-back 20260521000000_init 2>/dev/null || true && npx prisma migrate deploy"
     restart: "no"
     depends_on:
       postgres:
