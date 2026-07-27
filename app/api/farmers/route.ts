@@ -9,13 +9,40 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const role = searchParams.get("role");
 
-  const rows = await prisma.farmer.findMany({
-    where: role ? { role: role as "farmer" | "supervisor" | "manager" } : undefined,
-    orderBy: { name: "asc" },
-    include: { user: { select: { id: true } } }, // to flag who can log in
+  // Attendance rate and performance are DERIVED from real records, never from
+  // the stored columns (which were demo values that never updated). Both are
+  // null when the person has no records yet, so the UI can say "no data" rather
+  // than invent a score.
+  const [rows, attTotal, attPresent, taskTotal, taskDone] = await Promise.all([
+    prisma.farmer.findMany({
+      where: role ? { role: role as "farmer" | "supervisor" | "manager" } : undefined,
+      orderBy: { name: "asc" },
+      include: { user: { select: { id: true } } }, // to flag who can log in
+    }),
+    prisma.attendanceRecord.groupBy({ by: ["farmerId"], _count: { _all: true } }),
+    prisma.attendanceRecord.groupBy({ by: ["farmerId"], where: { status: { in: ["present", "late"] } }, _count: { _all: true } }),
+    prisma.task.groupBy({ by: ["assignedTo"], _count: { _all: true } }),
+    prisma.task.groupBy({ by: ["assignedTo"], where: { status: "done" }, _count: { _all: true } }),
+  ]);
+
+  const n = (g: { _count: { _all: number } }[], key: string, field: "farmerId" | "assignedTo") =>
+    (g as unknown as Array<Record<string, unknown> & { _count: { _all: number } }>)
+      .find((x) => x[field] === key)?._count._all ?? 0;
+  const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : null);
+
+  const farmers = rows.map(({ user, ...f }) => {
+    const attDays = n(attTotal, f.id, "farmerId");
+    const taskCount = n(taskTotal, f.id, "assignedTo");
+    return {
+      ...f,
+      hasLogin: !!user,
+      // computed — override the legacy stored columns
+      attendanceRate: pct(n(attPresent, f.id, "farmerId"), attDays),
+      performanceScore: pct(n(taskDone, f.id, "assignedTo"), taskCount),
+      attendanceDays: attDays,
+      tasksAssigned: taskCount,
+    };
   });
-  // expose a hasLogin flag without leaking the user row
-  const farmers = rows.map(({ user, ...f }) => ({ ...f, hasLogin: !!user }));
 
   return NextResponse.json(farmers, {
     headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" },

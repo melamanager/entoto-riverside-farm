@@ -302,7 +302,7 @@ export default function ValvesIndex() {
               <Plus className="size-4 text-primary" /> Add Irrigation Valve
             </DialogTitle>
           </DialogHeader>
-          <ValveForm />
+          {ValveForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Create Valve</Button>
@@ -318,7 +318,7 @@ export default function ValvesIndex() {
               <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.name}
             </DialogTitle>
           </DialogHeader>
-          <ValveForm />
+          {ValveForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>

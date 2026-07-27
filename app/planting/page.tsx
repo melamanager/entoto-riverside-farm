@@ -616,7 +616,7 @@ export default function PlantingPage() {
               <Plus className="size-4 text-primary" /> Schedule New Planting
             </DialogTitle>
           </DialogHeader>
-          <PlantingForm />
+          {PlantingForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Create Record</Button>
@@ -632,7 +632,7 @@ export default function PlantingPage() {
               <Pencil className="size-4 text-muted-foreground" /> Edit Planting — {editTarget?.bedId}
             </DialogTitle>
           </DialogHeader>
-          <PlantingForm />
+          {PlantingForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>Cancel</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>Save Changes</Button>

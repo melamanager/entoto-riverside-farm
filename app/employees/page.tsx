@@ -19,6 +19,8 @@ import { useAuth } from "@/lib/auth";
 import { resizeImage } from "@/lib/resize-image";
 
 type FarmerWithLogin = Farmer & { hasLogin?: boolean };
+// rates the API derives from real attendance/task records (null = no history)
+type FarmerStats = Farmer & { attendanceDays?: number; tasksAssigned?: number };
 
 const ROLE_STYLE = {
   manager:    { badge: "bg-amber-100 text-amber-800 border-amber-200",    dot: "bg-amber-400"   },
@@ -162,8 +164,10 @@ export default function EmployeesPage() {
       phone: form.phone.trim(),
       avatar: initials(form.name),
       role: form.role,
-      performanceScore: 80,
-      attendanceRate: 95,
+      // real rates are derived from attendance/tasks by the API — start at 0
+      // rather than inventing a flattering score for someone with no history
+      performanceScore: 0,
+      attendanceRate: 0,
       joinedDate: form.joinedDate,
       assignedValves: form.assignedValves,
       nationalId: form.nationalId || undefined,
@@ -466,20 +470,26 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
+                {/* both rates are computed from real records by the API and are
+                    null until the person actually has history */}
                 <div className="space-y-2 mb-3">
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-muted-foreground">Attendance</span>
-                      <span className="font-semibold">{f.attendanceRate}%</span>
+                      {f.attendanceRate == null
+                        ? <span className="text-muted-foreground/60 text-[11px]">no records yet</span>
+                        : <span className="font-semibold">{f.attendanceRate}% <span className="text-[10px] text-muted-foreground font-normal">({(f as FarmerStats).attendanceDays}d)</span></span>}
                     </div>
-                    <Progress value={f.attendanceRate} className="h-1.5" />
+                    <Progress value={f.attendanceRate ?? 0} className="h-1.5" />
                   </div>
                   <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Performance</span>
-                      <span className="font-semibold">{f.performanceScore}</span>
+                      <span className="text-muted-foreground">Task completion</span>
+                      {f.performanceScore == null
+                        ? <span className="text-muted-foreground/60 text-[11px]">no tasks yet</span>
+                        : <span className="font-semibold">{f.performanceScore}% <span className="text-[10px] text-muted-foreground font-normal">({(f as FarmerStats).tasksAssigned})</span></span>}
                     </div>
-                    <Progress value={f.performanceScore} className="h-1.5" />
+                    <Progress value={f.performanceScore ?? 0} className="h-1.5" />
                   </div>
                 </div>
 
@@ -586,7 +596,7 @@ export default function EmployeesPage() {
               <Plus className="size-4 text-primary" /> Add Staff Member
             </DialogTitle>
           </DialogHeader>
-          <StaffForm />
+          {StaffForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>Add to Staff</Button>
@@ -602,7 +612,7 @@ export default function EmployeesPage() {
               <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.name}
             </DialogTitle>
           </DialogHeader>
-          <StaffForm />
+          {StaffForm()}
 
           {/* Login access — manager-only */}
           {isManager && editTarget && (

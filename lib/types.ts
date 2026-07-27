@@ -11,8 +11,10 @@ export interface Farmer {
   phone: string;
   avatar: string;
   role: "farmer" | "supervisor" | "manager";
-  performanceScore: number;
-  attendanceRate: number;
+  // Derived by /api/farmers from real attendance/task records — null when the
+  // person has no history yet (so the UI shows "no records" not a fake score).
+  performanceScore: number | null;
+  attendanceRate: number | null;
   joinedDate: string;
   assignedValves: string[];
   nationalId?: string;

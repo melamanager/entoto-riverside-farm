@@ -339,7 +339,7 @@ export default function BedsIndex() {
               <Plus className="size-4 text-primary" /> Add Raised Bed
             </DialogTitle>
           </DialogHeader>
-          <BedForm />
+          {BedForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>{t.common.cancel}</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleCreate}>{t.common.create}</Button>
@@ -355,7 +355,7 @@ export default function BedsIndex() {
               <Pencil className="size-4 text-muted-foreground" /> Edit {editTarget?.id}
             </DialogTitle>
           </DialogHeader>
-          <BedForm />
+          {BedForm()}
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setEditTarget(null)}>{t.common.cancel}</Button>
             <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleEdit}>{t.common.save}</Button>
