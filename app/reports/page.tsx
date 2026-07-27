@@ -329,7 +329,7 @@ export default function ReportsPage() {
             <div className="space-y-3 text-sm">
               <Insight q="🥇 Which valve produces most?" a={valves.length > 0 ? (() => { const best = valves.map(v=>({n:v.name,k:totalKgValve(v.id)})).sort((a,b)=>b.k-a.k)[0]; return `${best.n} — ${best.k.toFixed(1)} kg total`; })() : "—"} />
               <Insight q="🍓 Which variety performs best?" a={`${Object.entries(byVariety).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? "—"} (${(Object.entries(byVariety).sort((a,b)=>b[1]-a[1])[0]?.[1] ?? 0).toFixed(1)} kg)`} />
-              <Insight q="👨‍🌾 Which farmer manages best?" a={farmers.filter(f=>f.role==="farmer").length > 0 ? (() => { const best = farmers.filter(f=>f.role==="farmer").sort((a,b)=>b.performanceScore-a.performanceScore)[0]; return `${best.name} (score ${best.performanceScore})`; })() : "—"} />
+              <Insight q="👨‍🌾 Which farmer manages best?" a={farmers.filter(f=>f.role==="farmer").length > 0 ? (() => { const best = farmers.filter(f=>f.role==="farmer").sort((a,b)=>(b.performanceScore ?? 0)-(a.performanceScore ?? 0))[0]; return best.performanceScore == null ? `${best.name} (no tasks yet)` : `${best.name} (${best.performanceScore}% of tasks completed)`; })() : "—"} />
               <Insight q="🦠 Which beds have repeated disease?" a={`${[...new Set(diseases.map(d=>d.bedId))].slice(0,3).join(", ") || "None"}`} />
               <Insight q="📅 Best planting window so far?" a={`Mid-January 2026 — yields 12% above average`} />
             </div>

@@ -68,7 +68,7 @@ export default function ProductivityPage() {
       payroll,
       topActivity: topActivity ? topActivity[0] : null,
     };
-  }).sort((a, b) => b.farmer.performanceScore - a.farmer.performanceScore);
+  }).sort((a, b) => (b.farmer.performanceScore ?? 0) - (a.farmer.performanceScore ?? 0));
 
   const totalKgFarm = farmerStats.reduce((s, f) => s + f.totalKg, 0);
   const topPerformer = farmerStats[0];
@@ -76,7 +76,7 @@ export default function ProductivityPage() {
     ? Math.round(allFarmers.reduce((s, f) => s + (f.attendanceRate ?? 0), 0) / allFarmers.length)
     : 0;
   const avgPerformance = allFarmers.length > 0
-    ? Math.round(allFarmers.reduce((s, f) => s + f.performanceScore, 0) / allFarmers.length)
+    ? Math.round(allFarmers.reduce((s, f) => s + (f.performanceScore ?? 0), 0) / allFarmers.length)
     : 0;
 
   return (
@@ -154,7 +154,7 @@ export default function ProductivityPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-black text-foreground tabular-nums">{farmer.performanceScore}</div>
+                  <div className="text-2xl font-black text-foreground tabular-nums">{farmer.performanceScore ?? "—"}</div>
                   <div className="text-[10px] text-muted-foreground">score</div>
                 </div>
               </div>
@@ -184,9 +184,9 @@ export default function ProductivityPage() {
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Attendance</span>
-                    <span className="font-semibold">{farmer.attendanceRate}%</span>
+                    <span className="font-semibold">{farmer.attendanceRate ?? "—"}%</span>
                   </div>
-                  <Progress value={farmer.attendanceRate} className="h-1.5" />
+                  <Progress value={farmer.attendanceRate ?? 0} className="h-1.5" />
                 </div>
                 <div>
                   <div className="flex justify-between text-xs mb-1">

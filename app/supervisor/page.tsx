@@ -118,7 +118,7 @@ export default function SupervisorPage() {
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                   <span className="flex items-center gap-1"><Phone className="size-3" />{sup.phone}</span>
                   <span>Valves: {myValves.map(v=>v.name).join(", ")}</span>
-                  <span>Score: <strong className="text-foreground">{sup.performanceScore}</strong></span>
+                  <span>Score: <strong className="text-foreground">{sup.performanceScore ?? "—"}</strong></span>
                 </div>
               </div>
               <div className="hidden md:flex items-center gap-6 text-center">

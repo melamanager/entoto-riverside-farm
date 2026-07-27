@@ -199,7 +199,7 @@ export default async function ValvePage({ params }: { params: Promise<{ id: stri
                   <div className="text-sm font-medium">{f!.name}</div>
                   <div className="text-[11px] text-muted-foreground capitalize">{f!.role} · {f!.phone}</div>
                 </div>
-                <Badge variant="outline" className="text-[10px]">Score {f!.performanceScore}</Badge>
+                <Badge variant="outline" className="text-[10px]">Score {f!.performanceScore ?? "—"}</Badge>
               </div>
             ))}
           </div>
