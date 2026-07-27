@@ -4,15 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Leaf, Lock, Eye, EyeOff, ArrowRight, KeyRound, User } from "lucide-react";
+import { Leaf, Lock, Eye, EyeOff, ArrowRight, User } from "lucide-react";
 
 const SUPERVISOR_IDS = new Set(["f-006", "f-007"]);
-
-const DEMO_CREDENTIALS = [
-  { id: "f-008", label: "Manager",        name: "Nuredin Hassen", password: "manager2026"  },
-  { id: "f-006", label: "Supervisor A/B", name: "Selam Girma",    password: "supervisor01" },
-  { id: "f-007", label: "Supervisor C",   name: "Yonas Alemu",    password: "supervisor02" },
-];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +15,6 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -69,42 +62,6 @@ export default function LoginPage() {
             <div>
               <h2 className="text-lg font-semibold text-white mb-1">Sign in</h2>
               <p className="text-slate-500 text-sm">Enter your username and password.</p>
-            </div>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowDemo(p => !p)}
-                title="Demo credentials"
-                className={`mt-0.5 size-8 rounded-lg grid place-items-center transition-colors ${
-                  showDemo
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                    : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-slate-200"
-                }`}
-              >
-                <KeyRound className="size-4" />
-              </button>
-              {showDemo && (
-                <div className="absolute right-0 top-10 z-10 w-64 bg-[#1c2230] border border-white/15 rounded-xl shadow-2xl p-2 space-y-1">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-2 pb-1">Click to fill credentials</p>
-                  {DEMO_CREDENTIALS.map(d => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => { setUsername(d.id); setPassword(d.password); setError(""); setShowDemo(false); }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/8 transition-colors group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-300 group-hover:text-white">{d.label}</span>
-                        <span className="text-[10px] font-mono text-emerald-400">{d.id}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-[10px] text-slate-500">{d.name}</span>
-                        <span className="text-[10px] font-mono text-slate-400">{d.password}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
