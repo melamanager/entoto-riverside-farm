@@ -52,6 +52,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // registering staff (and granting them permissions) is a manager's job
+  if ((session.user as { role: string }).role !== "manager") {
+    return NextResponse.json({ error: "Only a manager can register staff" }, { status: 403 });
+  }
 
   const body = await req.json();
   // sequential id (f-009, f-010…) so the login username stays human-friendly

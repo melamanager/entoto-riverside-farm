@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import type { Farmer, Valve, Task } from "@/lib/types";
 import type { WorkerAssignment } from "@/lib/erp-types";
 import { useOptions } from "@/lib/use-options";
+import { ManagedSelect } from "@/components/managed-select";
+import { CAPABILITIES, SUPERVISOR_CAPABILITIES, type Capability } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import { resizeImage } from "@/lib/resize-image";
 
@@ -34,6 +36,8 @@ const EMPTY_FORM = {
   assignedValves: [] as string[],
   joinedDate: new Date().toISOString().split("T")[0],
   // full registration
+  jobTitle: "",
+  permissions: [] as string[],
   photo: "" as string,
   dailyWage: "" as string,
   address: "", dateOfBirth: "", gender: "",
@@ -95,6 +99,8 @@ export default function EmployeesPage() {
       emergencyContact: f.emergencyContact ?? "",
       assignedValves: f.assignedValves,
       joinedDate: f.joinedDate,
+      jobTitle: f.jobTitle ?? "",
+      permissions: Array.isArray(f.permissions) ? (f.permissions as string[]) : [],
       photo: f.photo ?? "",
       dailyWage: f.dailyWage != null ? String(f.dailyWage) : "",
       address: f.address ?? "",
@@ -134,6 +140,8 @@ export default function EmployeesPage() {
   // the "full registration" half of the payload, shared by create + edit
   function registrationFields() {
     return {
+      jobTitle: form.jobTitle || null,
+      permissions: form.permissions,
       photo: form.photo || null,
       dailyWage: form.dailyWage === "" ? null : Number(form.dailyWage),
       address: form.address || null,
@@ -287,7 +295,23 @@ export default function EmployeesPage() {
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Role</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
+              Job title
+            </label>
+            {/* manager-managed list — add "Driver", "Cleaner"… inline with + */}
+            <ManagedSelect
+              optionKey="jobTitles"
+              options={options.jobTitles}
+              value={form.jobTitle}
+              onChange={v => setForm(p => ({ ...p, jobTitle: v }))}
+              canEdit={isManager}
+              placeholder="— Select job —"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
+              Access level
+            </label>
             <select
               value={form.role}
               onChange={e => setForm(p => ({ ...p, role: e.target.value as Farmer["role"] }))}
@@ -297,6 +321,9 @@ export default function EmployeesPage() {
                 <option key={role.value} value={role.value}>{role.label}</option>
               ))}
             </select>
+            <div className="text-[10px] text-muted-foreground mt-1">
+              What they may do in the app — not their job. Grant extra abilities below.
+            </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">National ID</label>
@@ -409,6 +436,55 @@ export default function EmployeesPage() {
             ))}
           </div>
         </div>
+
+        {/* ── What this person may do (manager-only) ─────────────────────── */}
+        {isManager && (
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="size-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Allowed activities</span>
+            </div>
+            <div className="text-[11px] text-muted-foreground mb-2.5">
+              {form.role === "manager"
+                ? "Managers can do everything — nothing to grant."
+                : form.role === "supervisor"
+                  ? "Supervisors already run day-to-day operations. Extra grants are optional."
+                  : "Tick what this person may do in the app (e.g. let a driver take attendance)."}
+            </div>
+            {form.role === "manager" ? null : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {CAPABILITIES.map(c => {
+                  const viaRole = form.role === "supervisor" && SUPERVISOR_CAPABILITIES.includes(c.key);
+                  const checked = viaRole || form.permissions.includes(c.key);
+                  return (
+                    <label key={c.key}
+                      title={c.hint}
+                      className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-xs ${viaRole ? "opacity-60" : "hover:bg-accent cursor-pointer"}`}>
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 accent-primary"
+                        checked={checked}
+                        disabled={viaRole}
+                        onChange={e => setForm(p => ({
+                          ...p,
+                          permissions: e.target.checked
+                            ? [...p.permissions, c.key]
+                            : p.permissions.filter(x => x !== c.key),
+                        }))}
+                      />
+                      <span className="min-w-0">
+                        <span className="font-medium text-foreground block">{c.label}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {viaRole ? "included with Supervisor" : c.hint}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -466,7 +542,13 @@ export default function EmployeesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-foreground truncate">{f.name}</div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">{f.nationalId ?? "—"}</div>
-                    <Badge className={`text-[10px] capitalize mt-1 ${style.badge}`}>{f.role}</Badge>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                      {/* job title is what they DO; the role badge is their access level */}
+                      {f.jobTitle && (
+                        <Badge className="text-[10px] bg-muted text-foreground border-border">{f.jobTitle}</Badge>
+                      )}
+                      <Badge className={`text-[10px] capitalize ${style.badge}`}>{f.role}</Badge>
+                    </div>
                   </div>
                 </div>
 

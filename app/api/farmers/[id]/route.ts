@@ -20,14 +20,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const body = await req.json();
 
-  // only managers may change role, wages-affecting scores, or valve assignments
+  // only managers may change role, granted permissions, wage, or valve assignments
   const role = (session.user as { role: string }).role;
   if (role !== "manager") {
     delete body.role;
+    delete body.permissions; // privilege escalation guard
+    delete body.dailyWage;
     delete body.performanceScore;
     delete body.attendanceRate;
     delete body.assignedValves;
   }
+  // these two are DERIVED from real records by /api/farmers — never stored
+  delete body.performanceScore;
+  delete body.attendanceRate;
+  delete body.hasLogin;
+  delete body.attendanceDays;
+  delete body.tasksAssigned;
 
   const farmer = await prisma.farmer.update({ where: { id }, data: body });
   return NextResponse.json(farmer);

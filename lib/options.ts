@@ -39,10 +39,24 @@ export const OPTION_DEFAULTS = {
     "#10b981", "#3b82f6", "#a855f7", "#f59e0b",
     "#ef4444", "#ec4899", "#14b8a6", "#f97316",
   ].map(color => ({ value: color, label: color, color })),
+  // ACCESS LEVEL — drives permissions everywhere; not freely extendable
   farmerRoles: [
-    { value: "farmer", label: "Field Worker" },
+    { value: "farmer", label: "Staff (no admin access)" },
     { value: "supervisor", label: "Supervisor" },
     { value: "manager", label: "Manager" },
+  ],
+  // JOB TITLE — free-form and manager-managed (Settings, or inline on the
+  // Employees form). Add whatever the farm actually employs.
+  jobTitles: [
+    { value: "Field Worker", label: "Field Worker" },
+    { value: "Harvester", label: "Harvester" },
+    { value: "Irrigation Technician", label: "Irrigation Technician" },
+    { value: "Packer", label: "Packer" },
+    { value: "Driver", label: "Driver" },
+    { value: "Cleaner", label: "Cleaner" },
+    { value: "Security Guard", label: "Security Guard" },
+    { value: "Store Keeper", label: "Store Keeper" },
+    { value: "Agronomist", label: "Agronomist" },
   ],
   expenseCategories: Object.entries(EXPENSE_CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
   seedSources: [

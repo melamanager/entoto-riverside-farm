@@ -31,6 +31,10 @@ model Farmer {
   nationalId       String?
   emergencyContact String?
   // ── full registration ──────────────────────────────────────────────────
+  jobTitle         String?    // e.g. Driver, Cleaner, Guard — manager-managed list
+                              // (kept separate from `role`, which is the ACCESS LEVEL)
+  permissions      Json       @default("[]") // extra capabilities granted to this
+                              // person (e.g. "attendance"), additive over role
   photo            String?    // small base64 portrait (client-resized ~160px)
   dailyWage        Decimal?   @db.Decimal(10, 2) // ETB/day — drives payroll
   address          String?

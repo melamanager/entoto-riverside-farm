@@ -20,6 +20,8 @@ export interface Farmer {
   nationalId?: string;
   emergencyContact?: string;
   // full registration
+  jobTitle?: string | null;       // Driver, Cleaner, Guard… (manager-managed list)
+  permissions?: string[] | unknown; // extra capabilities granted (see lib/permissions.ts)
   photo?: string | null;          // small base64 portrait
   dailyWage?: number | string | null; // ETB/day (Decimal over the wire)
   address?: string | null;
