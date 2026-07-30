@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireCapability } from "@/lib/guard";
 import { sendTelegramToFarmer } from "@/lib/notifications";
 import { getFarmConfig } from "@/lib/config-server";
 
@@ -30,6 +31,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const gate = await requireCapability("tasks_assign");
+  if (!gate.ok) return gate.response;
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireCapability } from "@/lib/guard";
 import { Prisma } from "@prisma/client";
 
 // Derive the money fields server-side so total and payment status are always
@@ -47,9 +48,9 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: userId, role } = session.user as { id: string; role: string };
-  if (role !== "manager" && role !== "supervisor") {
-    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
-  }
+  // manager/supervisor by role, or anyone a manager granted "orders"
+  const gate = await requireCapability("orders");
+  if (!gate.ok) return gate.response;
 
   const body = await req.json();
   if (!body.customerName || !String(body.customerName).trim()) {

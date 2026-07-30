@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { DISEASE_TREATMENT_STEPS, DISEASE_TREATMENTS } from "@/lib/types";
 import type { DiseaseType } from "@/lib/types";
 import { notifyDisease } from "@/lib/notifications";
+import { requireCapability } from "@/lib/guard";
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -15,6 +16,9 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // manager/supervisor by role, or anyone a manager granted "disease_report"
+  const gate = await requireCapability("disease_report");
+  if (!gate.ok) return gate.response;
 
   const type = body.type as DiseaseType;
 

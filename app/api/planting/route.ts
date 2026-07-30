@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireCapability } from "@/lib/guard";
 import { liveAgeDays } from "@/lib/planting";
 import { syncBedFromPlanting } from "@/lib/planting-sync";
 import { todayAddis } from "@/lib/dates";
@@ -26,6 +27,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const gate = await requireCapability("planting");
+  if (!gate.ok) return gate.response;
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
