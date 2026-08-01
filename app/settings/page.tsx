@@ -5,13 +5,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Settings, Bell, Save, Sliders, Send, DollarSign, Wheat, Clock, MessageSquare, KeyRound, CheckCircle2,
+  Settings, Bell, Save, Sliders, Send, DollarSign, Wheat, Clock, MessageSquare, KeyRound, CheckCircle2, ListPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { CONFIG_DEFAULTS } from "@/lib/config";
+import { useOptions } from "@/lib/use-options";
+import { OptionListEditor } from "@/components/option-list-editor";
 
-type TabKey = "operations" | "integrations" | "notifications";
+type TabKey = "operations" | "lists" | "integrations" | "notifications";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -27,6 +29,10 @@ const num = (v: string, d: number) => { const n = parseFloat(v); return Number.i
 export default function SettingsPage() {
   const { isManager } = useAuth();
   const [tab, setTab] = useState<TabKey>("operations");
+  const options = useOptions();
+  const [usage, setUsage] = useState<{ varieties: Record<string, number>; seedSources: Record<string, number>; jobTitles: Record<string, number> }>({ varieties: {}, seedSources: {}, jobTitles: {} });
+  const loadUsage = () => fetch("/api/options/usage").then(r => r.ok ? r.json() : null).then(d => d && setUsage(d)).catch(() => {});
+  useEffect(() => { loadUsage(); }, []);
   const [saving, setSaving] = useState(false);
 
   // operational config
@@ -129,6 +135,7 @@ export default function SettingsPage() {
 
   const TABS = [
     { key: "operations" as TabKey, label: "Farm Operations", icon: Sliders },
+    { key: "lists" as TabKey, label: "Lists", icon: ListPlus },
     { key: "integrations" as TabKey, label: "Integrations", icon: KeyRound },
     { key: "notifications" as TabKey, label: "Notifications", icon: Bell },
   ];
@@ -202,6 +209,48 @@ export default function SettingsPage() {
                 <p className="text-[11px] text-muted-foreground mt-1">Baseline for per-bed efficiency scoring.</p>
               </div>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "lists" && (
+        <div className="space-y-4">
+          <Card className="p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                <ListPlus className="size-4 text-primary" /> Dropdown lists
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                The choices staff see across the app. Renaming updates every record that
+                uses the old name; removing only takes it out of the dropdown — existing
+                records keep their value.
+              </p>
+            </div>
+            <OptionListEditor
+              optionKey="jobTitles"
+              title="Job titles"
+              description="What people do — Driver, Cleaner, Guard… (separate from their access level)"
+              items={options.jobTitles}
+              usage={usage.jobTitles}
+              onChanged={loadUsage}
+            />
+            <OptionListEditor
+              optionKey="varieties"
+              title="Seed varieties"
+              description="Strawberry varieties, with the seed origin used by the Seed Origin report"
+              items={options.varieties}
+              usage={usage.varieties}
+              metaField={{ key: "origin", label: "Origin", placeholder: "Seed origin, e.g. USA — California" }}
+              onChanged={loadUsage}
+            />
+            <OptionListEditor
+              optionKey="seedSources"
+              title="Seed sources"
+              description="Nurseries and suppliers you buy runners from"
+              items={options.seedSources}
+              usage={usage.seedSources}
+              onChanged={loadUsage}
+            />
           </Card>
         </div>
       )}
