@@ -12,6 +12,8 @@ import type { Bed, GrowthStage, HealthStatus, Farmer, Valve } from "@/lib/types"
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
+import { ManagedSelect } from "@/components/managed-select";
+import { useAuth } from "@/lib/auth";
 
 const EMPTY_FORM = {
   valveId: "", lengthM: 40, plantsPerMeter: 8,
@@ -34,6 +36,7 @@ export default function BedsIndex() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const options = useOptions();
+  const { isManager } = useAuth();
   const [beds, setBeds]     = useState<Bed[]>([]);
   const [valves, setValves] = useState<Valve[]>([]);
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -190,13 +193,20 @@ export default function BedsIndex() {
 
         <div>
           <label className="text-xs font-semibold text-foreground/80 block mb-1">Variety</label>
-          <select
+          {/* manager can add a new variety inline; the seed origin they type is
+              stored on the option and copied onto the bed on save */}
+          <ManagedSelect
+            optionKey="varieties"
+            options={options.varieties}
             value={form.variety}
-            onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
-          >
-            {options.varieties.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-          </select>
+            onChange={v => setForm(p => ({ ...p, variety: v }))}
+            canEdit={isManager}
+            allowEmpty={false}
+            metaField={{ key: "origin", label: "Seed origin", placeholder: "Seed origin, e.g. USA — California" }}
+          />
+          <div className="text-[10px] text-muted-foreground mt-1">
+            Origin: {String(options.varieties.find(v => v.value === form.variety)?.meta?.origin ?? "—")}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

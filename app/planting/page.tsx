@@ -17,6 +17,8 @@ import { GROWTH_STAGE_LABELS } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
+import { ManagedSelect } from "@/components/managed-select";
+import { useAuth } from "@/lib/auth";
 
 const TODAY = new Date().toLocaleDateString("en-CA");
 // Timeline range — covers all planting/harvest windows
@@ -67,6 +69,7 @@ export default function PlantingPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const options = useOptions();
+  const { isManager } = useAuth();
   const [plantings, setPlantings]       = useState<PlantingRecord[]>([]);
   const [beds, setBeds]                 = useState<Bed[]>([]);
   const [valves, setValves]             = useState<Valve[]>([]);
@@ -214,14 +217,17 @@ export default function PlantingPage() {
         </div>
         <div>
           <label className="text-xs font-semibold text-foreground/80 block mb-1">Variety</label>
-          {/* datalist: canonical varieties as suggestions, but a custom one is still allowed */}
-          <input value={form.variety} list="variety-options"
-            onChange={e => setForm(p => ({ ...p, variety: e.target.value }))}
-            placeholder="e.g. Festival"
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card" />
-          <datalist id="variety-options">
-            {options.varieties.map(v => <option key={v.value} value={v.value} />)}
-          </datalist>
+          {/* same manager-editable list the Beds form uses — "+" adds a new
+              variety (with its seed origin) without leaving the dialog */}
+          <ManagedSelect
+            optionKey="varieties"
+            options={options.varieties}
+            value={form.variety}
+            onChange={v => setForm(p => ({ ...p, variety: v }))}
+            canEdit={isManager}
+            allowEmpty={false}
+            metaField={{ key: "origin", label: "Seed origin", placeholder: "Seed origin, e.g. USA — California" }}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -259,11 +265,14 @@ export default function PlantingPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Seed Source</label>
-            <select value={form.seedSource}
-              onChange={e => setForm(p => ({ ...p, seedSource: e.target.value }))}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-              {options.seedSources.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <ManagedSelect
+              optionKey="seedSources"
+              options={options.seedSources}
+              value={form.seedSource}
+              onChange={v => setForm(p => ({ ...p, seedSource: v }))}
+              canEdit={isManager}
+              allowEmpty={false}
+            />
           </div>
         </div>
         <div>
