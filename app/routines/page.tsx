@@ -156,7 +156,7 @@ export default function RoutinesPage() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [otOpen, setOtOpen] = useState(false);
 
-  const [wateringForm, setWateringForm] = useState({ valveId: "", status: "done", startTime: "06:00", durationMin: 25, waterVolumeL: 0, notes: "" });
+  const [wateringForm, setWateringForm] = useState({ valveIds: [] as string[], status: "done", startTime: "06:00", durationMin: 25, waterVolumeL: 0, notes: "" });
   const [maintForm, setMaintForm] = useState({ title: "", description: "", assignedTo: "", priority: "medium" });
   const [otRecords, setOtRecords] = useState<AttendanceRec[]>([]);
 
@@ -285,21 +285,29 @@ export default function RoutinesPage() {
 
   /* ── actions ── */
   async function saveWatering() {
-    if (!wateringForm.valveId) { toast.error("Select a valve"); return; }
-    const res = await fetch("/api/irrigation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...wateringForm,
-        durationMin: Number(wateringForm.durationMin),
-        waterVolumeL: Number(wateringForm.waterVolumeL) || undefined,
-        notes: wateringForm.notes || undefined,
-        date,
-        recordedBy: user?.id,
-      }),
-    });
-    if (!res.ok) { toast.error("Failed to log watering"); return; }
-    toast.success("Watering logged");
+    if (wateringForm.valveIds.length === 0) { toast.error("Select at least one valve"); return; }
+    // one irrigation log per selected valve — whole-farm watering in one entry
+    const { valveIds, ...rest } = wateringForm;
+    let saved = 0;
+    for (const valveId of valveIds) {
+      const res = await fetch("/api/irrigation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...rest,
+          valveId,
+          durationMin: Number(rest.durationMin),
+          waterVolumeL: Number(rest.waterVolumeL) || undefined,
+          notes: rest.notes || undefined,
+          date,
+          recordedBy: user?.id,
+        }),
+      });
+      if (!res.ok) { toast.error(`Failed on ${valveId} — ${saved} of ${valveIds.length} saved`); break; }
+      saved++;
+    }
+    if (saved === 0) return;
+    toast.success(saved === 1 ? "Watering logged" : `Watering logged for ${saved} valves`);
     setWateringOpen(false);
     loadDaily();
   }
@@ -515,7 +523,7 @@ export default function RoutinesPage() {
                     </span>
                   ))}
                 </div>
-                <Button size="sm" className="w-full gap-1" onClick={() => { setWateringForm({ valveId: daily.watering.valves.find(v => !v.watered)?.id ?? daily.watering.valves[0]?.id ?? "", status: "done", startTime: "06:00", durationMin: 25, waterVolumeL: 0, notes: "" }); setWateringOpen(true); }}>
+                <Button size="sm" className="w-full gap-1" onClick={() => { const un = daily.watering.valves.filter(v => !v.watered).map(v => v.id); setWateringForm({ valveIds: un.length ? un : daily.watering.valves.slice(0, 1).map(v => v.id), status: "done", startTime: "06:00", durationMin: 25, waterVolumeL: 0, notes: "" }); setWateringOpen(true); }}>
                   <Plus className="size-3" /> {t.routines.logWatering}
                 </Button>
               </Card>
@@ -953,11 +961,21 @@ export default function RoutinesPage() {
           <DialogHeader><DialogTitle>{t.routines.logWatering} — {fmtDate(date)}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Valve</label>
-              <select className={inputCls} value={wateringForm.valveId} onChange={e => setWateringForm(f => ({ ...f, valveId: e.target.value }))}>
-                <option value="">Select valve…</option>
-                {daily?.watering.valves.map(v => <option key={v.id} value={v.id}>{v.name} ({v.schedule})</option>)}
-              </select>
+              <label className="text-xs font-medium text-muted-foreground">Valves — pick one or many</label>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {(daily?.watering.valves ?? []).map(v => {
+                  const on = wateringForm.valveIds.includes(v.id);
+                  return (
+                    <button key={v.id} type="button" title={v.schedule}
+                      onClick={() => setWateringForm(f => ({ ...f, valveIds: on ? f.valveIds.filter(x => x !== v.id) : [...f.valveIds, v.id] }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${on ? "text-white" : "border-border text-muted-foreground bg-card"}`}
+                      style={on ? { background: v.color, borderColor: v.color } : {}}>
+                      {v.name}{v.watered ? " ✓" : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1">✓ = already logged today. Same time/duration is recorded for each selected valve.</div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>

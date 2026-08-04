@@ -42,6 +42,7 @@ model Farmer {
   gender           String?    // male | female
   employmentType   String?    // permanent | casual | seasonal
   paymentMethod    String?    // cash | bank | telebirr
+  payFrequency     String?    // daily | weekly | monthly — how this person is paid
   bankAccount      String?    // account or wallet number
   telegramChatId   String?   // personal Telegram chat, once linked
   telegramLinkCode String?   // one-time code used during linking
@@ -138,6 +139,7 @@ model Bed {
   plantsPerMeter Float
   variety        String
   origin         String
+  crop           String       @default("Strawberry") // Strawberry | Orange | … (options list)
   plantedDate    String
   stage          GrowthStage
   health         HealthStatus @default(healthy)
@@ -166,6 +168,7 @@ model HarvestRecord {
   farmerId     String
   farmer       Farmer  @relation(fields: [farmerId], references: [id])
   qualityGrade String
+  note         String?  // field note from the logger — surfaced to the manager
 
   createdAt DateTime @default(now())
 }
@@ -386,6 +389,7 @@ model PackagingRecord {
   orderId      String?
   order        CustomerOrder?   @relation(fields: [orderId], references: [id])
 
+  notes          String?  // field note from packing — surfaced to the manager
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/guard";
+import { notifyFieldNote } from "@/lib/field-note";
 import { normalizePackageSize } from "./package-size";
 
 export async function GET(req: Request) {
@@ -32,5 +33,15 @@ export async function POST(req: Request) {
 
   const body = normalizePackageSize(await req.json());
   const record = await prisma.packagingRecord.create({ data: body });
+
+  // field note → straight to the manager
+  if (typeof body.notes === "string" && body.notes.trim()) {
+    await notifyFieldNote({
+      area: "Packaging",
+      refText: `${record.batchNumber} · ${record.variety} · packed ${Number(record.packedKg)} kg`,
+      note: body.notes,
+      byId: gate.userId,
+    });
+  }
   return NextResponse.json(record, { status: 201 });
 }

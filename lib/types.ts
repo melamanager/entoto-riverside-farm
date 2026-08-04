@@ -29,6 +29,7 @@ export interface Farmer {
   gender?: string | null;
   employmentType?: string | null; // permanent | casual | seasonal
   paymentMethod?: string | null;  // cash | bank | telebirr
+  payFrequency?: string | null;   // daily | weekly | monthly
   bankAccount?: string | null;
   hasLogin?: boolean;             // set by /api/farmers GET
 }
@@ -52,6 +53,7 @@ export interface Bed {
   plantsPerMeter: number;
   variety: string;
   origin: string;
+  crop?: string;                  // Strawberry (default) | Orange | … 
   plantedDate: string;
   stage: GrowthStage;
   health: HealthStatus;
@@ -67,6 +69,7 @@ export interface HarvestRecord {
   kg: number;
   farmerId: string;
   qualityGrade: "A" | "B" | "C";
+  note?: string | null;
 }
 
 export interface DiseaseReport {

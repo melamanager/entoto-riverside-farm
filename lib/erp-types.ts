@@ -86,6 +86,7 @@ export interface PackagingRecord {
   packedBy: string;
   status: PackagingStatus;
   orderId?: string;
+  notes?: string | null;
 }
 
 export interface CustomerOrder {

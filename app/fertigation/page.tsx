@@ -28,7 +28,7 @@ function emptyForm() {
   const today    = new Date().toLocaleDateString("en-CA");
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
   return {
-    valveId: "", bedId: "",
+    valveId: "", valveIds: [] as string[], bedId: "",
     fertilizerType: "NPK 20-20-20", activeIngredient: "Nitrogen, Phosphorus, Potassium",
     dosageGPerL: 2.5, waterVolumeLiters: 400,
     applicationDate: today, nextScheduleDate: nextWeek,
@@ -77,13 +77,13 @@ export default function FertigationPage() {
   }, []);
 
   function openCreate() {
-    setForm({ ...emptyForm(), valveId: valves[0]?.id ?? "", responsibleWorkerId: farmers.filter(f => f.role === "farmer")[0]?.id ?? "" });
+    setForm({ ...emptyForm(), valveIds: valves[0] ? [valves[0].id] : [], responsibleWorkerId: farmers.filter(f => f.role === "farmer")[0]?.id ?? "" });
     setCreateOpen(true);
   }
 
   function openEdit(r: FertigationRecord) {
     setForm({
-      valveId: r.valveId, bedId: r.bedId ?? "",
+      valveId: r.valveId, valveIds: [r.valveId], bedId: r.bedId ?? "",
       fertilizerType: r.fertilizerType, activeIngredient: r.activeIngredient,
       dosageGPerL: r.dosageGPerL, waterVolumeLiters: r.waterVolumeLiters,
       applicationDate: r.applicationDate, nextScheduleDate: r.nextScheduleDate,
@@ -94,25 +94,32 @@ export default function FertigationPage() {
   }
 
   async function handleCreate() {
-    if (!form.valveId)              { toast.error("Please select a valve"); return; }
-    if (!form.responsibleWorkerId)  { toast.error("Please select a responsible worker"); return; }
-    const body = {
-      valveId: form.valveId, bedId: form.bedId || undefined,
-      fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
-      dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
-      applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
-      responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
-      status: form.status, cost: form.cost, notes: form.notes || undefined,
-    };
-    const res = await fetch("/api/fertigation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) { toast.error("Failed to create record"); return; }
-    const newRec = await res.json() as Record<string, unknown>;
-    setRecords(prev => [...prev, parseFertigationRecord(newRec)]);
-    toast.success(`${form.fertilizerType} scheduled`);
+    if (form.valveIds.length === 0)  { toast.error("Please select at least one valve"); return; }
+    if (!form.responsibleWorkerId)   { toast.error("Please select a responsible worker"); return; }
+    // one record per selected valve — the same feed applied to several valves in one entry
+    const created: FertigationRecord[] = [];
+    for (const valveId of form.valveIds) {
+      const body = {
+        valveId, bedId: form.valveIds.length === 1 ? (form.bedId || undefined) : undefined,
+        fertilizerType: form.fertilizerType, activeIngredient: form.activeIngredient,
+        dosageGPerL: form.dosageGPerL, waterVolumeLiters: form.waterVolumeLiters,
+        applicationDate: form.applicationDate, nextScheduleDate: form.nextScheduleDate,
+        responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
+        status: form.status, cost: form.cost, notes: form.notes || undefined,
+      };
+      const res = await fetch("/api/fertigation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { toast.error(`Failed on ${valveId} - ${created.length} of ${form.valveIds.length} saved`); break; }
+      created.push(parseFertigationRecord(await res.json() as Record<string, unknown>));
+    }
+    if (created.length === 0) return;
+    setRecords(prev => [...prev, ...created]);
+    toast.success(created.length === 1
+      ? `${form.fertilizerType} scheduled`
+      : `${form.fertilizerType} scheduled on ${created.length} valves`);
     setCreateOpen(false);
   }
 
@@ -166,22 +173,52 @@ export default function FertigationPage() {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Valve <span className="text-red-500">*</span></label>
-            <select value={form.valveId}
-              onChange={e => setForm(p => ({ ...p, valveId: e.target.value, bedId: "" }))}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
-              <option value="">— Select —</option>
-              {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
+              {editTarget ? "Valve" : "Valves"} <span className="text-red-500">*</span>
+              {!editTarget && <span className="text-muted-foreground font-normal"> — pick one or many</span>}
+            </label>
+            {editTarget ? (
+              <select value={form.valveId}
+                onChange={e => setForm(p => ({ ...p, valveId: e.target.value, valveIds: [e.target.value], bedId: "" }))}
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+                <option value="">— Select —</option>
+                {valves.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {valves.map(v => {
+                  const on = form.valveIds.includes(v.id);
+                  return (
+                    <button key={v.id} type="button"
+                      onClick={() => setForm(p => ({
+                        ...p,
+                        valveIds: on ? p.valveIds.filter(x => x !== v.id) : [...p.valveIds, v.id],
+                        bedId: "",
+                      }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${on ? "text-white" : "border-border text-muted-foreground bg-card"}`}
+                      style={on ? { background: v.color, borderColor: v.color } : {}}>
+                      {v.name}
+                    </button>
+                  );
+                })}
+                <button type="button"
+                  onClick={() => setForm(p => ({ ...p, valveIds: p.valveIds.length === valves.length ? [] : valves.map(v => v.id), bedId: "" }))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border-2 border-dashed border-border text-muted-foreground hover:text-foreground">
+                  {form.valveIds.length === valves.length ? "None" : "All"}
+                </button>
+              </div>
+            )}
           </div>
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Bed (optional)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
+              Bed (optional){!editTarget && form.valveIds.length > 1 && <span className="text-muted-foreground font-normal"> — whole valves</span>}
+            </label>
             <select value={form.bedId}
               onChange={e => setForm(p => ({ ...p, bedId: e.target.value }))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
-              disabled={!form.valveId}>
+              disabled={editTarget ? !form.valveId : form.valveIds.length !== 1}>
               <option value="">— None —</option>
-              {valveBeds(form.valveId).map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
+              {valveBeds(editTarget ? form.valveId : (form.valveIds[0] ?? "")).map(b => <option key={b.id} value={b.id}>{b.id}</option>)}
             </select>
           </div>
         </div>

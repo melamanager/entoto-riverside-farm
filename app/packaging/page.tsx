@@ -42,6 +42,7 @@ function emptyForm() {
   cartonCount: 2, plateCount: 0, lostKg: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
   orderId: "",
+  notes: "",
   };
 }
 
@@ -165,6 +166,7 @@ export default function PackagingPage() {
       packageCount: r.packageCount, cartonCount: r.cartonCount, plateCount: r.plateCount,
       lostKg: r.lostKg, purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
       packedBy: r.packedBy, status: r.status, orderId: r.orderId ?? "",
+      notes: r.notes ?? "",
     });
     setEditTarget(r);
   }
@@ -495,6 +497,15 @@ export default function PackagingPage() {
             ))}
           </select>
         </div>
+        {/* field note → reaches the manager directly */}
+        <div className="col-span-2">
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">
+            Additional note <span className="text-muted-foreground font-normal">(sent to the manager)</span>
+          </label>
+          <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2}
+            placeholder="e.g. 2 kg crushed in transport, punnets running low…"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card resize-y" />
+        </div>
       </div>
     );
   }
@@ -769,7 +780,10 @@ export default function PackagingPage() {
                 const worker = farmers.find(f => f.id === rec.packedBy);
                 return (
                   <tr key={rec.id} className="group">
-                    <td className="font-mono text-xs font-semibold text-foreground">{rec.batchNumber}</td>
+                    <td className="font-mono text-xs font-semibold text-foreground">
+                      {rec.batchNumber}
+                      {rec.notes && <span title={rec.notes} className="ml-1 cursor-help text-amber-300">📝</span>}
+                    </td>
                     <td>
                       {rec.orderId ? (() => {
                         const ord = orders.find(o => o.id === rec.orderId);
