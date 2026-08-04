@@ -59,6 +59,17 @@ export const OPTION_DEFAULTS = {
     { value: "Agronomist", label: "Agronomist" },
   ],
   expenseCategories: Object.entries(EXPENSE_CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
+  // What grows in a bed. Strawberry is the default; other produce (orange,
+  // pomegranate, rosemary...) is tagged so its records never mix with the
+  // strawberry analytics. Manager-editable in Settings -> Lists.
+  crops: [
+    { value: "Strawberry", label: "Strawberry" },
+    { value: "Orange", label: "Orange" },
+    { value: "Pomegranate", label: "Pomegranate" },
+    { value: "Rosemary", label: "Rosemary" },
+    { value: "Mint", label: "Mint" },
+    { value: "Other herbs", label: "Other herbs" },
+  ],
   seedSources: [
     "Nakuru Horticulture KE",
     "Ethiopian Horticulture",

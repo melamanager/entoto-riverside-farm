@@ -41,7 +41,7 @@ const EMPTY_FORM = {
   photo: "" as string,
   dailyWage: "" as string,
   address: "", dateOfBirth: "", gender: "",
-  employmentType: "permanent", paymentMethod: "cash", bankAccount: "",
+  employmentType: "permanent", paymentMethod: "cash", payFrequency: "daily", bankAccount: "",
 };
 
 function initials(name: string) {
@@ -108,6 +108,7 @@ export default function EmployeesPage() {
       gender: f.gender ?? "",
       employmentType: f.employmentType ?? "permanent",
       paymentMethod: f.paymentMethod ?? "cash",
+      payFrequency: f.payFrequency ?? "daily",
       bankAccount: f.bankAccount ?? "",
     });
     setLoginPw("");
@@ -149,6 +150,7 @@ export default function EmployeesPage() {
       gender: form.gender || null,
       employmentType: form.employmentType || null,
       paymentMethod: form.paymentMethod || null,
+      payFrequency: form.payFrequency || null,
       bankAccount: form.bankAccount || null,
     };
   }
@@ -356,7 +358,9 @@ export default function EmployeesPage() {
           {/* ── Pay & employment ─────────────────────────────────────────── */}
           <div className="col-span-2 pt-1 border-t border-border" />
           <div>
-            <label className="text-xs font-semibold text-foreground/80 block mb-1">Daily Wage (ETB)</label>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
+              Wage (ETB / {form.payFrequency === "monthly" ? "month" : form.payFrequency === "weekly" ? "week" : "day"})
+            </label>
             <input type="number" min={0} value={form.dailyWage}
               onChange={e => setForm(p => ({ ...p, dailyWage: e.target.value }))}
               placeholder="e.g. 550"
@@ -382,6 +386,17 @@ export default function EmployeesPage() {
               <option value="bank">Bank transfer</option>
               <option value="telebirr">Telebirr</option>
             </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">Payment Frequency</label>
+            <select value={form.payFrequency}
+              onChange={e => setForm(p => ({ ...p, payFrequency: e.target.value }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
+              <option value="daily">Daily (day workers)</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly (salary)</option>
+            </select>
+            <div className="text-[10px] text-muted-foreground mt-0.5">How this person is paid — for the accountant</div>
           </div>
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Account / Wallet No.</label>

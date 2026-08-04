@@ -18,6 +18,8 @@ const HANDLERS: Record<string, (from: string, to: string) => Promise<number>> = 
   },
   seedSources: async (from, to) =>
     (await prisma.plantingRecord.updateMany({ where: { seedSource: from }, data: { seedSource: to } })).count,
+  crops: async (from, to) =>
+    (await prisma.bed.updateMany({ where: { crop: from }, data: { crop: to } })).count,
   jobTitles: async (from, to) =>
     (await prisma.farmer.updateMany({ where: { jobTitle: from }, data: { jobTitle: to } })).count,
 };

@@ -30,7 +30,7 @@ export default function SettingsPage() {
   const { isManager } = useAuth();
   const [tab, setTab] = useState<TabKey>("operations");
   const options = useOptions();
-  const [usage, setUsage] = useState<{ varieties: Record<string, number>; seedSources: Record<string, number>; jobTitles: Record<string, number> }>({ varieties: {}, seedSources: {}, jobTitles: {} });
+  const [usage, setUsage] = useState<{ varieties: Record<string, number>; seedSources: Record<string, number>; jobTitles: Record<string, number>; crops?: Record<string, number> }>({ varieties: {}, seedSources: {}, jobTitles: {} });
   const loadUsage = () => fetch("/api/options/usage").then(r => r.ok ? r.json() : null).then(d => d && setUsage(d)).catch(() => {});
   useEffect(() => { loadUsage(); }, []);
   const [saving, setSaving] = useState(false);
@@ -241,6 +241,14 @@ export default function SettingsPage() {
               items={options.varieties}
               usage={usage.varieties}
               metaField={{ key: "origin", label: "Origin", placeholder: "Seed origin, e.g. USA — California" }}
+              onChanged={loadUsage}
+            />
+            <OptionListEditor
+              optionKey="crops"
+              title="Crops"
+              description="What grows in a bed — Strawberry, Orange, Rosemary… Other crops stay separate from strawberry records"
+              items={options.crops}
+              usage={usage.crops ?? {}}
               onChanged={loadUsage}
             />
             <OptionListEditor

@@ -77,7 +77,10 @@ function scoreTier(score: number): { label: string; color: string } {
   return               { label: "Weak",     color: "#dc2626" };
 }
 
-export function OriginPerformance({ beds, harvests, diseases, packagingRecords }: Props) {
+export function OriginPerformance({ beds: allBeds, harvests, diseases, packagingRecords }: Props) {
+  // Seed-origin analytics are a strawberry story — other crops (orange,
+  // rosemary...) would corrupt the kg/m comparisons, so they are excluded.
+  const beds = allBeds.filter(b => (b.crop ?? "Strawberry") === "Strawberry");
 
   // ── Aggregate ────────────────────────────────────────────────────────────
   const map: Record<string, {

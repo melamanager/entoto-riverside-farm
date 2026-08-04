@@ -105,8 +105,7 @@ export default function PayrollPage() {
   // table always shows a consistent total (persisted on blur).
   function editField(rec: PayrollRecord, field: "dailyWage" | "bonus" | "deductions", value: number) {
     const merged = { ...rec, [field]: value };
-    const basePay = merged.daysWorked * merged.dailyWage;
-    const overtimePay = Math.round(merged.overtimeHours * (merged.dailyWage / cfg.workdayHours) * cfg.overtimeMultiplier);
+    const { basePay, overtimePay } = payMaths(freqOf(rec.farmerId), merged.dailyWage, merged.daysWorked, merged.overtimeHours);
     const netPay = basePay + overtimePay + merged.bonus - merged.deductions;
     setOverrides(prev => ({ ...prev, [rec.id]: { ...prev[rec.id], [field]: value, basePay, overtimePay, netPay } }));
   }
@@ -138,12 +137,29 @@ export default function PayrollPage() {
     toast.success(`${name} marked paid — ${rec.netPay.toLocaleString()} ETB`);
   }
 
+  // wage semantics follow the person's registered payment frequency:
+  //   daily   → basePay = days worked × wage,     OT hour = wage / workday
+  //   weekly  → basePay = wage × days / 6,        OT hour = wage / (6 × workday)
+  //   monthly → basePay = wage (fixed salary),    OT hour = wage / (26 × workday)
+  const freqOf = (fid: string) => (farmers.find(f => f.id === fid)?.payFrequency as string) ?? "daily";
+  function payMaths(freq: string, wage: number, daysWorked: number, overtimeHours: number) {
+    const basePay = freq === "monthly" ? wage
+      : freq === "weekly" ? Math.round((wage * daysWorked) / 6)
+      : daysWorked * wage;
+    const hourly = freq === "monthly" ? wage / (26 * cfg.workdayHours)
+      : freq === "weekly" ? wage / (6 * cfg.workdayHours)
+      : wage / cfg.workdayHours;
+    const overtimePay = Math.round(overtimeHours * hourly * cfg.overtimeMultiplier);
+    return { basePay, overtimePay };
+  }
+  const FREQ_TAG: Record<string, string> = { daily: "/day", weekly: "/wk", monthly: "/mo" };
+
   function exportCsv() {
     if (records.length === 0) { toast.error("Nothing to export for this month"); return; }
-    const header = "Month,Staff,Days,Daily Wage,Base Pay,OT Hours,OT Pay,Bonus,Deductions,Net Pay,Status";
+    const header = "Month,Staff,Days,Wage,Pay Frequency,Base Pay,OT Hours,OT Pay,Bonus,Deductions,Net Pay,Status";
     const rows = records.map(r => {
       const name = farmers.find(f => f.id === r.farmerId)?.name ?? r.farmerId;
-      return [r.month, name, r.daysWorked, r.dailyWage, r.basePay, r.overtimeHours, r.overtimePay, r.bonus, r.deductions, r.netPay, r.paymentStatus].join(",");
+      return [r.month, name, r.daysWorked, r.dailyWage, freqOf(r.farmerId), r.basePay, r.overtimeHours, r.overtimePay, r.bonus, r.deductions, r.netPay, r.paymentStatus].join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -184,8 +200,7 @@ export default function PayrollPage() {
       // prefer explicitly recorded daily overtime (Daily Routines page); fall back to derived estimate
       const recordedOT = farmerAtt.reduce((s, a) => s + (a.overtimeHours ?? 0), 0);
       const overtimeHours = recordedOT > 0 ? recordedOT : Math.max(0, totalHours - daysWorked * cfg.workdayHours);
-      const basePay   = daysWorked * rec.dailyWage;
-      const overtimePay = Math.round(overtimeHours * (rec.dailyWage / cfg.workdayHours) * cfg.overtimeMultiplier);
+      const { basePay, overtimePay } = payMaths(freqOf(rec.farmerId), rec.dailyWage, daysWorked, overtimeHours);
       const netPay    = basePay + overtimePay + rec.bonus - rec.deductions;
       newOverrides[rec.id] = { daysWorked, overtimeHours, basePay, overtimePay, netPay };
     });
@@ -352,6 +367,7 @@ export default function PayrollPage() {
                     </td>
                     <td className="tabular-nums text-center">{rec.daysWorked}</td>
                     <td className="text-right">
+                      <span className="text-[9px] text-muted-foreground mr-0.5">{FREQ_TAG[freqOf(rec.farmerId)]}</span>
                       <input type="number" min={0} value={rec.dailyWage} disabled={locked}
                         onChange={e => editField(rec, "dailyWage", Number(e.target.value) || 0)}
                         onBlur={() => saveRow(rec)}

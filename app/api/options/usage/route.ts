@@ -10,11 +10,12 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [bedVarieties, plantVarieties, seedSources, jobTitles] = await Promise.all([
+  const [bedVarieties, plantVarieties, seedSources, jobTitles, bedCrops] = await Promise.all([
     prisma.bed.groupBy({ by: ["variety"], _count: { _all: true } }),
     prisma.plantingRecord.groupBy({ by: ["variety"], _count: { _all: true } }),
     prisma.plantingRecord.groupBy({ by: ["seedSource"], _count: { _all: true } }),
     prisma.farmer.groupBy({ by: ["jobTitle"], _count: { _all: true } }),
+    prisma.bed.groupBy({ by: ["crop"], _count: { _all: true } }),
   ]);
 
   const tally = (rows: Array<Record<string, unknown> & { _count: { _all: number } }>, field: string) => {
@@ -36,5 +37,6 @@ export async function GET() {
     varieties,
     seedSources: tally(seedSources as never, "seedSource"),
     jobTitles: tally(jobTitles as never, "jobTitle"),
+    crops: tally(bedCrops as never, "crop"),
   });
 }

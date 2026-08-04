@@ -122,7 +122,11 @@ export default function HarvestPage() {
     loadHarvests();
   }
 
-  const recent = harvests;
+  // other crops stay separate from the strawberry log
+  const [cropFilter, setCropFilter] = useState<string>("");
+  const cropOf = (bedId: string) => beds.find(b => b.id === bedId)?.crop ?? "Strawberry";
+  const cropsPresent = [...new Set(beds.map(b => b.crop ?? "Strawberry"))];
+  const recent = cropFilter ? harvests.filter(h => cropOf(h.bedId) === cropFilter) : harvests;
 
   function getBed(id: string) { return beds.find(b => b.id === id) ?? null; }
   function getValve(id: string) { return valves.find(v => v.id === id) ?? null; }
@@ -166,7 +170,7 @@ export default function HarvestPage() {
                           const on = b.id in sel;
                           return (
                             <button key={b.id} type="button" onClick={() => toggleBed(b.id)}
-                              title={b.variety}
+                              title={`${b.crop && b.crop !== "Strawberry" ? b.crop + " - " : ""}${b.variety}`}
                               className={`text-[10px] font-mono font-semibold px-2 py-1 rounded-md border transition-colors ${
                                 on ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border hover:bg-accent"
                               }`}>
@@ -233,7 +237,19 @@ export default function HarvestPage() {
         </Card>
 
         <Card className="p-5 lg:col-span-2">
-          <h3 className="font-bold mb-3">{t.harvest.recentHarvests}</h3>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="font-bold">{t.harvest.recentHarvests}</h3>
+            {cropsPresent.length > 1 && (
+              <div className="flex gap-1.5 flex-wrap">
+                <button onClick={() => setCropFilter("")}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${!cropFilter ? "bg-primary/15 text-primary border-primary/30" : "border-border text-muted-foreground hover:text-foreground"}`}>All</button>
+                {cropsPresent.map(c => (
+                  <button key={c} onClick={() => setCropFilter(cropFilter === c ? "" : c)}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${cropFilter === c ? "bg-primary/15 text-primary border-primary/30" : "border-border text-muted-foreground hover:text-foreground"}`}>{c}</button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="overflow-x-auto -mx-5">
             <table className="w-full text-sm">
               <thead className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">

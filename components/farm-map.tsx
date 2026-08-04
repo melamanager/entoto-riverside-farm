@@ -75,15 +75,15 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
 
   const isDim = (b: Bed) => {
     const q = query.trim().toLowerCase();
-    if (q && !`${b.id} ${b.variety} ${b.valveId}`.toLowerCase().includes(q)) return true;
+    if (q && !`${b.id} ${b.variety} ${b.crop ?? ""} ${b.valveId}`.toLowerCase().includes(q)) return true;
     if (valveF.length && !valveF.includes(b.valveId)) return true;
-    if (cropF.length && !cropF.includes(b.variety)) return true;
+    if (cropF.length && !cropF.includes(b.crop ?? "Strawberry")) return true;
     if (statusF.length && !statusF.includes(b.health)) return true;
     if (readyF && b.stage !== "ripening" && b.stage !== "harvest") return true;
     return false;
   };
 
-  const crops = useMemo(() => [...new Set(beds.map((b) => b.variety))], [beds]);
+  const crops = useMemo(() => [...new Set(beds.map((b) => b.crop ?? "Strawberry"))], [beds]);
   const flagged = useMemo(() => beds.filter((b) => b.health !== "healthy"), [beds]);
   const supByValve = useMemo(() => Object.fromEntries(valves.map((v) => [v.id, v.supervisorId])), [valves]);
 

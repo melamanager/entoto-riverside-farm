@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth";
 
 const EMPTY_FORM = {
   valveId: "", lengthM: 40, plantsPerMeter: 8,
+  crop: "Strawberry",
   variety: "California Albion", origin: "USA — California",
   plantedDate: new Date().toISOString().split("T")[0],
   stage: "vegetative" as GrowthStage,
@@ -86,6 +87,7 @@ export default function BedsIndex() {
   function openEdit(b: Bed) {
     setForm({
       valveId: b.valveId, lengthM: b.lengthM, plantsPerMeter: b.plantsPerMeter,
+      crop: b.crop ?? "Strawberry",
       variety: b.variety, origin: b.origin, plantedDate: b.plantedDate,
       stage: b.stage, health: b.health, farmerId: b.farmerId,
     });
@@ -103,7 +105,7 @@ export default function BedsIndex() {
     const variety = options.varieties.find(v => v.value === form.variety) ?? options.varieties[0];
     const newBed: Bed = {
       id, valveId: form.valveId, lengthM: form.lengthM,
-      plantsPerMeter: form.plantsPerMeter, variety: form.variety,
+      plantsPerMeter: form.plantsPerMeter, crop: form.crop, variety: form.variety,
       origin: String(variety?.meta?.origin ?? ""), plantedDate: form.plantedDate,
       stage: form.stage, health: form.health, farmerId: form.farmerId,
       row: Math.floor(existing / 4), col: existing % 4,
@@ -129,7 +131,7 @@ export default function BedsIndex() {
     const variety = options.varieties.find(v => v.value === form.variety);
     const body = {
       valveId: form.valveId, lengthM: form.lengthM,
-      plantsPerMeter: form.plantsPerMeter, variety: form.variety,
+      plantsPerMeter: form.plantsPerMeter, crop: form.crop, variety: form.variety,
       origin: String(variety?.meta?.origin ?? editTarget.origin),
       plantedDate: form.plantedDate, stage: form.stage,
       health: form.health, farmerId: form.farmerId,
@@ -189,6 +191,19 @@ export default function BedsIndex() {
               {eligible.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">Crop</label>
+          {/* other produce (orange, rosemary...) stays separate from strawberry records */}
+          <ManagedSelect
+            optionKey="crops"
+            options={options.crops}
+            value={form.crop}
+            onChange={v => setForm(p => ({ ...p, crop: v }))}
+            canEdit={isManager}
+            allowEmpty={false}
+          />
         </div>
 
         <div>
