@@ -289,24 +289,35 @@ export default function RoutinesPage() {
     // one irrigation log per selected valve — whole-farm watering in one entry
     const { valveIds, ...rest } = wateringForm;
     let saved = 0;
+    const failed: string[] = [];
     for (const valveId of valveIds) {
-      const res = await fetch("/api/irrigation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...rest,
-          valveId,
-          durationMin: Number(rest.durationMin),
-          waterVolumeL: Number(rest.waterVolumeL) || undefined,
-          notes: rest.notes || undefined,
-          date,
-          recordedBy: user?.id,
-        }),
-      });
-      if (!res.ok) { toast.error(`Failed on ${valveId} — ${saved} of ${valveIds.length} saved`); break; }
-      saved++;
+      try {
+        const res = await fetch("/api/irrigation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...rest,
+            valveId,
+            durationMin: Number(rest.durationMin),
+            waterVolumeL: Number(rest.waterVolumeL) || undefined,
+            notes: rest.notes || undefined,
+            date,
+            recordedBy: user?.id,
+          }),
+        });
+        if (!res.ok) { failed.push(valveId); continue; }
+        saved++;
+      } catch {
+        failed.push(valveId);
+      }
     }
-    if (saved === 0) return;
+    if (failed.length) {
+      // dialog stays open with only the failed valves selected — retry-safe
+      setWateringForm(f => ({ ...f, valveIds: failed }));
+      toast.error(`${saved} of ${valveIds.length} valves saved — ${failed.join(", ")} failed and stay selected. Press Save to retry.`);
+      loadDaily();
+      return;
+    }
     toast.success(saved === 1 ? "Watering logged" : `Watering logged for ${saved} valves`);
     setWateringOpen(false);
     loadDaily();

@@ -35,10 +35,12 @@ export default function HarvestPage() {
 
   function loadHarvests() {
     fetch("/api/harvest").then(r => r.json()).then((h: Array<HarvestRecord & { kg: string | number }>) => {
+      // keep a deep pool so minority-crop filters still have rows to show;
+      // the visible list is trimmed to 30 AFTER the crop filter is applied
       const sorted = [...h]
         .map(rec => ({ ...rec, kg: parseFloat(rec.kg.toString()) }))
         .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 30);
+        .slice(0, 200);
       setHarvests(sorted);
     });
   }
@@ -82,14 +84,17 @@ export default function HarvestPage() {
     });
   }
   function applyFillAll(v: string) {
+    // quick-fill only touches beds that are empty or still hold the previous
+    // quick-fill value — individually typed amounts are never overwritten
+    setSel(prev => Object.fromEntries(Object.entries(prev).map(([id, cur]) => [id, cur === "" || cur === fillAll ? v : cur])));
     setFillAll(v);
-    setSel(prev => Object.fromEntries(Object.keys(prev).map(id => [id, v])));
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const entries = Object.entries(sel);
     if (entries.length === 0) { toast.error("Select at least one bed"); return; }
+    if (entries.length > 100) { toast.error("Max 100 beds per submission — split it into two batches"); return; }
     const bad = entries.filter(([, v]) => !v || +v <= 0).map(([id]) => id);
     if (bad.length) { toast.error(`Enter kg for: ${bad.join(", ")}`); return; }
 
@@ -99,13 +104,24 @@ export default function HarvestPage() {
     }));
 
     setSaving(true);
-    const res = await fetch("/api/harvest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(records.length === 1 ? records[0] : records),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/harvest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(records.length === 1 ? records[0] : records),
+      });
+    } catch {
+      setSaving(false);
+      toast.error("Network error — nothing was saved. Check your connection and try again.");
+      return;
+    }
     setSaving(false);
-    if (!res.ok) { toast.error("Failed to log harvest"); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => null) as { error?: string } | null;
+      toast.error(err?.error ?? "Failed to log harvest — nothing was saved");
+      return;
+    }
 
     const totalKg = records.reduce((s, r) => s + r.kg, 0);
     toast.success(
@@ -114,8 +130,11 @@ export default function HarvestPage() {
         : `Logged ${records.length} beds · ${totalKg.toFixed(1)} kg total`,
       { description: note.trim() ? "Your note was sent to the manager." : "Updated valve totals & farmer performance." },
     );
-    // packaging prompt keeps its single-bed flow; for bulk, prompt with the total
+    // packaging prompt: single bed keeps its flow; a bulk save prompts with the
+    // batch total when every bed is on the same valve (packaging is per-valve)
+    const valveOf = (bedId: string) => beds.find(b => b.id === bedId)?.valveId;
     if (records.length === 1) setPackPrompt({ bedId: records[0].bedId, kg: records[0].kg, grade });
+    else if (new Set(records.map(r => valveOf(r.bedId))).size === 1) setPackPrompt({ bedId: records[0].bedId, kg: totalKg, grade });
     setSel({});
     setFillAll("");
     setNote("");
@@ -126,7 +145,7 @@ export default function HarvestPage() {
   const [cropFilter, setCropFilter] = useState<string>("");
   const cropOf = (bedId: string) => beds.find(b => b.id === bedId)?.crop ?? "Strawberry";
   const cropsPresent = [...new Set(beds.map(b => b.crop ?? "Strawberry"))];
-  const recent = cropFilter ? harvests.filter(h => cropOf(h.bedId) === cropFilter) : harvests;
+  const recent = (cropFilter ? harvests.filter(h => cropOf(h.bedId) === cropFilter) : harvests).slice(0, 30);
 
   function getBed(id: string) { return beds.find(b => b.id === id) ?? null; }
   function getValve(id: string) { return valves.find(v => v.id === id) ?? null; }

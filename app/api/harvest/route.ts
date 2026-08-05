@@ -41,8 +41,11 @@ export async function POST(req: Request) {
   const body = await req.json();
   // single object or an array (bulk logging: several beds in one submission)
   const items: Array<Record<string, unknown>> = Array.isArray(body) ? body : [body];
-  if (items.length === 0 || items.length > 100) {
+  if (items.length === 0) {
     return NextResponse.json({ error: "Nothing to log" }, { status: 400 });
+  }
+  if (items.length > 100) {
+    return NextResponse.json({ error: "Too many beds in one submission (max 100) — split it into batches" }, { status: 400 });
   }
   for (const it of items) {
     if (!it.bedId || !it.kg || !it.farmerId) {
@@ -50,9 +53,11 @@ export async function POST(req: Request) {
     }
   }
 
-  const created = [];
-  for (const it of items) {
-    created.push(await prisma.harvestRecord.create({
+  // all-or-nothing: the client keeps its bed selection on failure, so a partial
+  // commit followed by a retry would duplicate the beds that did save
+  let created;
+  try {
+    created = await prisma.$transaction(items.map(it => prisma.harvestRecord.create({
       data: {
         bedId: String(it.bedId),
         kg: new Prisma.Decimal(it.kg as number),
@@ -61,7 +66,13 @@ export async function POST(req: Request) {
         date: (it.date as string) ?? todayAddis(),
         note: typeof it.note === "string" && it.note.trim() ? it.note.trim() : null,
       },
-    }));
+    })));
+  } catch (e) {
+    console.error("bulk harvest create failed", e);
+    return NextResponse.json(
+      { error: "Nothing was saved — one of the selected beds no longer exists. Refresh the page and try again." },
+      { status: 409 },
+    );
   }
 
   // field note → straight to the manager (once per submission, listing the beds)

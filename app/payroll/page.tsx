@@ -143,7 +143,9 @@ export default function PayrollPage() {
   //   monthly → basePay = wage (fixed salary),    OT hour = wage / (26 × workday)
   const freqOf = (fid: string) => (farmers.find(f => f.id === fid)?.payFrequency as string) ?? "daily";
   function payMaths(freq: string, wage: number, daysWorked: number, overtimeHours: number) {
-    const basePay = freq === "monthly" ? wage
+    // monthly pays the fixed salary only if the person worked at all that month —
+    // otherwise ex-staff / no-shows would get full wage on Auto-calculate
+    const basePay = freq === "monthly" ? (daysWorked > 0 ? wage : 0)
       : freq === "weekly" ? Math.round((wage * daysWorked) / 6)
       : daysWorked * wage;
     const hourly = freq === "monthly" ? wage / (26 * cfg.workdayHours)
@@ -454,7 +456,7 @@ export default function PayrollPage() {
                   <Badge className={`ml-auto text-[10px] capitalize ${STATUS_STYLE[r.paymentStatus]}`}>{r.paymentStatus}</Badge>
                 </div>
                 {row("Days worked", String(r.daysWorked))}
-                {row("Daily wage", `${r.dailyWage.toLocaleString()} ETB`)}
+                {row(freqOf(r.farmerId) === "monthly" ? "Monthly wage" : freqOf(r.farmerId) === "weekly" ? "Weekly wage" : "Daily wage", `${r.dailyWage.toLocaleString()} ETB`)}
                 {row("Base pay", `${r.basePay.toLocaleString()} ETB`)}
                 {row(`Overtime (${r.overtimeHours}h @ ${cfg.overtimeMultiplier}×)`, `+${r.overtimePay.toLocaleString()} ETB`, "text-blue-400")}
                 {row("Bonus", `+${r.bonus.toLocaleString()} ETB`, "text-amber-400")}

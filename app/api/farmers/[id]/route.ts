@@ -26,6 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     delete body.role;
     delete body.permissions; // privilege escalation guard
     delete body.dailyWage;
+    delete body.payFrequency; // pay-affecting: weekly→daily would multiply basePay
     delete body.performanceScore;
     delete body.attendanceRate;
     delete body.assignedValves;

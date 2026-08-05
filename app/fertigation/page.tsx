@@ -98,6 +98,7 @@ export default function FertigationPage() {
     if (!form.responsibleWorkerId)   { toast.error("Please select a responsible worker"); return; }
     // one record per selected valve — the same feed applied to several valves in one entry
     const created: FertigationRecord[] = [];
+    const failed: string[] = [];
     for (const valveId of form.valveIds) {
       const body = {
         valveId, bedId: form.valveIds.length === 1 ? (form.bedId || undefined) : undefined,
@@ -107,16 +108,26 @@ export default function FertigationPage() {
         responsibleWorkerId: form.responsibleWorkerId, applicationMethod: form.applicationMethod,
         status: form.status, cost: form.cost, notes: form.notes || undefined,
       };
-      const res = await fetch("/api/fertigation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) { toast.error(`Failed on ${valveId} - ${created.length} of ${form.valveIds.length} saved`); break; }
-      created.push(parseFertigationRecord(await res.json() as Record<string, unknown>));
+      try {
+        const res = await fetch("/api/fertigation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) { failed.push(valveId); continue; }
+        created.push(parseFertigationRecord(await res.json() as Record<string, unknown>));
+      } catch {
+        failed.push(valveId);
+      }
     }
-    if (created.length === 0) return;
-    setRecords(prev => [...prev, ...created]);
+    if (created.length) setRecords(prev => [...prev, ...created]);
+    if (failed.length) {
+      // keep the dialog open with only the failed valves still selected — a
+      // retry then can't duplicate the ones that already saved
+      setForm(f => ({ ...f, valveIds: failed }));
+      toast.error(`${created.length} of ${created.length + failed.length} valves saved — ${failed.join(", ")} failed and stay selected. Press Save to retry.`);
+      return;
+    }
     toast.success(created.length === 1
       ? `${form.fertilizerType} scheduled`
       : `${form.fertilizerType} scheduled on ${created.length} valves`);
