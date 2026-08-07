@@ -8,6 +8,10 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const role = searchParams.get("role");
+  // ?active=1 → only staff currently on the roster. Everyone is returned by
+  // default so historical views (payroll, past attendance) can still name
+  // people who have since left.
+  const activeOnly = searchParams.get("active") === "1";
 
   // Attendance rate and performance are DERIVED from real records, never from
   // the stored columns (which were demo values that never updated). Both are
@@ -15,7 +19,10 @@ export async function GET(req: Request) {
   // than invent a score.
   const [rows, attTotal, attPresent, taskTotal, taskDone] = await Promise.all([
     prisma.farmer.findMany({
-      where: role ? { role: role as "farmer" | "supervisor" | "manager" } : undefined,
+      where: {
+        ...(role ? { role: role as "farmer" | "supervisor" | "manager" } : {}),
+        ...(activeOnly ? { archivedAt: null } : {}),
+      },
       orderBy: { name: "asc" },
       include: { user: { select: { id: true } } }, // to flag who can log in
     }),

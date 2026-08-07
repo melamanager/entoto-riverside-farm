@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Users, Phone, Calendar, Plus, Pencil, Trash2,
+  Users, Phone, Calendar, Plus, Pencil, Trash2, Archive, RotateCcw,
   UserCog, ShieldCheck, Shield, KeyRound, Camera,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +59,8 @@ export default function EmployeesPage() {
   const [createOpen, setCreateOpen]     = useState(false);
   const [editTarget, setEditTarget]     = useState<Farmer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Farmer | null>(null);
+  // set when a hard delete was refused because the person has real records
+  const [deleteBlocked, setDeleteBlocked] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const { isManager } = useAuth();
   const [loginPw, setLoginPw] = useState("");
@@ -83,9 +85,13 @@ export default function EmployeesPage() {
     });
   }, []);
 
-  const managers    = farmers.filter(f => f.role === "manager");
-  const supervisors = farmers.filter(f => f.role === "supervisor");
-  const fieldWorkers = farmers.filter(f => f.role === "farmer");
+  // Archived staff (daily workers who have left) are kept out of the active
+  // groups but still listed below, so they can be restored when they return.
+  const onRoster    = farmers.filter(f => !f.archivedAt);
+  const archived    = farmers.filter(f => f.archivedAt);
+  const managers    = onRoster.filter(f => f.role === "manager");
+  const supervisors = onRoster.filter(f => f.role === "supervisor");
+  const fieldWorkers = onRoster.filter(f => f.role === "farmer");
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -228,17 +234,58 @@ export default function EmployeesPage() {
     setEditTarget(null);
   }
 
+  /**
+   * Take someone off the active roster while keeping every record attached to
+   * them. This is the normal path for daily workers who leave — a hard delete
+   * is refused (rightly) once they have attendance or payroll history.
+   */
+  async function handleArchive() {
+    if (!deleteTarget) return;
+    const res = await fetch(`/api/farmers/${deleteTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    });
+    if (!res.ok) {
+      toast.error(`Could not archive ${deleteTarget.name}`);
+      return;
+    }
+    toast.success(`${deleteTarget.name} archived`, {
+      description: "Off the roster and the attendance register. All their records are kept.",
+    });
+    setDeleteTarget(null);
+    setDeleteBlocked(null);
+    await fetchFarmers();
+  }
+
+  async function handleRestore(f: Farmer) {
+    const res = await fetch(`/api/farmers/${f.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archivedAt: null }),
+    });
+    if (!res.ok) { toast.error(`Could not restore ${f.name}`); return; }
+    toast.success(`${f.name} is back on the roster`);
+    await fetchFarmers();
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     const res = await fetch(`/api/farmers/${deleteTarget.id}`, { method: "DELETE" });
     if (!res.ok) {
       const error = await res.json().catch(() => null);
+      // 409 = they have real history. Keep the dialog open and offer archiving.
+      if (res.status === 409) {
+        setDeleteBlocked(error?.detail ?? error?.error ?? "This person has farm records that must be kept.");
+        return;
+      }
       toast.error(error?.error ?? "Failed to delete staff member");
       setDeleteTarget(null);
       return;
     }
-    toast.success(`${deleteTarget.name} removed from staff`);
+    toast.success(`${deleteTarget.name} permanently deleted`);
     setDeleteTarget(null);
+    setDeleteBlocked(null);
     await fetchFarmers();
   }
 
@@ -685,6 +732,42 @@ export default function EmployeesPage() {
       {supervisors.length > 0 && <StaffGroup title="Supervisors" people={supervisors} icon={ShieldCheck}  />}
       {fieldWorkers.length > 0 && <StaffGroup title="Field Workers" people={fieldWorkers} icon={Shield} />}
 
+      {/* ── Archived (left the farm) ──────────────────────────────────────── */}
+      {archived.length > 0 && (
+        <Card className="border border-border shadow-sm p-5 mt-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Archive className="size-4 text-muted-foreground" />
+            <h3 className="font-semibold text-foreground">Former staff</h3>
+            <Badge variant="outline" className="text-[10px]">{archived.length}</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Off the roster and the attendance register. Their records are kept, so past
+            attendance and payroll still add up. Restore anyone who comes back.
+          </p>
+          <div className="divide-y divide-border">
+            {archived.map(f => (
+              <div key={f.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Avatar className="size-8">
+                    <AvatarFallback className="bg-muted text-muted-foreground text-xs font-bold">{f.avatar}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm text-foreground truncate">{f.name}</div>
+                    <div className="text-[11px] text-muted-foreground capitalize">
+                      {f.jobTitle || f.role}
+                      {f.archivedAt && ` · left ${new Date(f.archivedAt).toLocaleDateString("en-CA")}`}
+                    </div>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => handleRestore(f)}>
+                  <RotateCcw className="size-3.5" /> Restore
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* ── Create Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={o => !o && setCreateOpen(false)}>
         <DialogContent className="max-w-md">
@@ -744,20 +827,46 @@ export default function EmployeesPage() {
       </Dialog>
 
       {/* ── Delete Confirm ────────────────────────────────────────────────── */}
-      <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
-        <DialogContent className="max-w-sm">
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) { setDeleteTarget(null); setDeleteBlocked(null); } }}
+      >
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-400">
-              <Trash2 className="size-4" /> Remove {deleteTarget?.name}?
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="size-4" /> Remove {deleteTarget?.name}?
             </DialogTitle>
           </DialogHeader>
+
           <p className="text-sm text-muted-foreground">
-            This will remove <strong>{deleteTarget?.name}</strong> from the farm staff roster. Their historical records will be preserved.
+            <strong>Archive</strong> takes {deleteTarget?.name} off the roster and out of the
+            attendance register, but keeps every record they are attached to — the days they
+            worked stay payable and auditable. They can be restored if they come back.
           </p>
+
+          {deleteBlocked && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {deleteBlocked}
+            </div>
+          )}
+
           <div className="flex gap-2 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete}>Remove Staff</Button>
+            <Button variant="outline" className="flex-1" onClick={() => { setDeleteTarget(null); setDeleteBlocked(null); }}>
+              Cancel
+            </Button>
+            <Button className="flex-1 gap-1.5" onClick={handleArchive}>
+              <Archive className="size-3.5" /> Archive
+            </Button>
           </div>
+
+          {!deleteBlocked && (
+            <button
+              onClick={handleDelete}
+              className="text-[11px] text-muted-foreground hover:text-red-600 underline underline-offset-2 mt-1"
+            >
+              Delete permanently instead (only possible if they have no records)
+            </button>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -50,7 +50,9 @@ export default function AttendancePage() {
 
   // farmers + valves come from the shared, cached reference store (no refetch)
   const { farmers: allFarmers, valves, loaded: refLoaded } = useReference();
-  const farmers = allFarmers.filter(f => f.role !== "manager");
+  // Today's register only lists people still on the roster — daily workers who
+  // have left are archived, not deleted, so their past records survive.
+  const farmers = allFarmers.filter(f => f.role !== "manager" && !f.archivedAt);
   const [attLoaded, setAttLoaded] = useState(false);
   const loading = !refLoaded || !attLoaded;
   const [saving, setSaving] = useState(false);
@@ -75,6 +77,13 @@ export default function AttendancePage() {
   const [saved, setSaved] = useState(false);
 
   const [historicRecords, setHistoricRecords] = useState<AttendanceRecord[]>([]);
+
+  // History must still name people who have since left, so it lists everyone on
+  // the roster plus any archived worker who actually has a record that day.
+  const historyFarmers = allFarmers.filter(
+    f => f.role !== "manager"
+      && (!f.archivedAt || historicRecords.some(r => r.farmerId === f.id)),
+  );
 
   // Only today's attendance is page-specific; farmers/valves are shared.
   useEffect(() => {
@@ -553,7 +562,7 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {farmers.map(f => {
+                {historyFarmers.map(f => {
                   const rec = historicRecords.find(a=>a.farmerId===f.id);
                   const pill = (s?: AttendanceStatus | null) => s ? (
                     <Badge className={`text-[10px] capitalize ${
@@ -569,6 +578,9 @@ export default function AttendancePage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="size-6"><AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-bold">{f.avatar}</AvatarFallback></Avatar>
                           <span className="font-medium text-sm">{f.name}</span>
+                          {f.archivedAt && (
+                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground border border-border rounded px-1 py-px">left</span>
+                          )}
                         </div>
                       </td>
                       <td>{pill(rec?.morningStatus ?? rec?.status)}</td>

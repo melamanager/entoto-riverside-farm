@@ -48,6 +48,11 @@ model Farmer {
   telegramLinkCode String?   // one-time code used during linking
   telegramLang     String?   // bot reply language: auto (default) | am | en
   telegramMode     String?   // bot reply mode: auto (match input, default) | voice | text
+  // Daily/casual workers come and go. Archiving takes someone off the active
+  // roster (attendance register, work pickers) while keeping every record they
+  // are attached to — the days they worked still have to be payable and
+  // auditable. null = currently on the roster.
+  archivedAt       DateTime?
 
   user                  User?
   supervisedValves      Valve[]             @relation("ValveSupervisor")

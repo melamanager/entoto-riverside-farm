@@ -32,6 +32,8 @@ export interface Farmer {
   payFrequency?: string | null;   // daily | weekly | monthly
   bankAccount?: string | null;
   hasLogin?: boolean;             // set by /api/farmers GET
+  /** Set when the person left the farm. null/undefined = on the active roster. */
+  archivedAt?: string | null;
 }
 
 export interface Valve {
