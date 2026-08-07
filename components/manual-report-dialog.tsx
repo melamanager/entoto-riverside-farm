@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Bug, Upload, X, Eye, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
+import { PhotoAngles, type Angle } from "@/components/photo-angles";
 import { useAuth } from "@/lib/auth";
 import { DISEASE_LABELS, type DiseaseType } from "@/lib/types";
 import { useReference } from "@/lib/reference";
@@ -25,8 +26,8 @@ export function ManualReportDialog({ onReported }: Props) {
   const [severity, setSeverity] = useState(30);
   const [infectedLengthM, setInfectedLengthM] = useState<number>(0);
   const [notes, setNotes] = useState("");
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [photoName, setPhotoName] = useState("");
+  const [angles, setAngles] = useState<Angle[]>([]);
+  const photo = angles[0]?.data ?? null;
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // beds + valves from the shared cache — dialog opens instantly, no refetch
@@ -46,18 +47,8 @@ export function ManualReportDialog({ onReported }: Props) {
     setSeverity(30);
     setInfectedLengthM(0);
     setNotes("");
-    setPhoto(null);
-    setPhotoName("");
+    setAngles([]);
     setPreviewUrl(null);
-  }
-
-  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoName(file.name);
-    const reader = new FileReader();
-    reader.onload = ev => setPhoto(ev.target?.result as string);
-    reader.readAsDataURL(file);
   }
 
   async function submit() {
@@ -74,6 +65,7 @@ export function ManualReportDialog({ onReported }: Props) {
         severity,
         infectedLengthM: infectedLengthM > 0 ? infectedLengthM : undefined,
         photo: photo ?? undefined,
+        photos: angles,
         reporterNote: notes || undefined,
       }),
     });
@@ -248,40 +240,14 @@ export function ManualReportDialog({ onReported }: Props) {
               />
             </div>
 
-            {/* Photo upload */}
-            <div>
-              <label className="text-xs font-semibold text-foreground/80 block mb-1.5">Photo (optional)</label>
-              {photo ? (
-                <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img src={photo} alt="Disease" className="w-full max-h-40 object-cover" />
-                  <div className="absolute top-2 right-2 flex gap-1">
-                    <button
-                      onClick={() => setPreviewUrl(photo)}
-                      className="size-7 rounded-full bg-black/60 text-white grid place-items-center hover:bg-black/80"
-                    >
-                      <Eye className="size-3.5" />
-                    </button>
-                    <button
-                      onClick={() => { setPhoto(null); setPhotoName(""); }}
-                      className="size-7 rounded-full bg-black/60 text-white grid place-items-center hover:bg-black/80"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
-                  <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] px-2 py-1 truncate">
-                    {photoName}
-                  </div>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-border bg-muted hover:bg-accent cursor-pointer transition-colors">
-                  <Upload className="size-5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">Click to upload</span> or take photo
-                  </span>
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
-                </label>
-              )}
-            </div>
+            {/* Angles — the same problem from a few viewpoints */}
+            <PhotoAngles
+              photos={angles}
+              onChange={setAngles}
+              max={6}
+              label="Photos (optional)"
+              hint="More angles help the manager judge it without walking to the bed."
+            />
 
             <Button
               className="w-full bg-red-600 hover:bg-red-700 gap-2"

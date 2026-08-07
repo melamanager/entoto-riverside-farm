@@ -86,6 +86,8 @@ const DEMO_RESPONSES: AIDetectionResult[] = [
 
 export async function detectFromImage(opts: {
   imageBase64?: string;
+  /** Several angles of the same problem, analysed together in one call. */
+  imagesBase64?: string[];
   imageUrl?: string;
   bedId?: string;
   mode: "demo" | "live";
@@ -103,23 +105,30 @@ export async function detectFromImage(opts: {
   const geminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
-  if (!opts.imageBase64) throw new Error("Live mode requires image data");
+  const images = (opts.imagesBase64?.length ? opts.imagesBase64 : [opts.imageBase64])
+    .filter((x): x is string => Boolean(x));
+  if (images.length === 0) throw new Error("Live mode requires image data");
 
   if (geminiKey) {
-    return await detectWithGemini(opts.imageBase64, geminiKey, opts.bedId);
+    return await detectWithGemini(images, geminiKey, opts.bedId);
   }
   if (openaiKey) {
-    return await detectWithOpenAI(opts.imageBase64, openaiKey, opts.bedId);
+    return await detectWithOpenAI(images, openaiKey, opts.bedId);
   }
   throw new Error("No AI API key configured. Set GOOGLE_GENERATIVE_AI_API_KEY or OPENAI_API_KEY in .env.local");
 }
 
-async function detectWithGemini(imageBase64: string, key: string, bedId?: string): Promise<AIDetectionResult> {
+async function detectWithGemini(images: string[], key: string, bedId?: string): Promise<AIDetectionResult> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const ai = new GoogleGenerativeAI(key);
   const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const prompt = `You are a strawberry-crop pathologist. Analyze this photo of a strawberry bed and return STRICT JSON with this exact shape:
+  const many = images.length > 1;
+  const prompt = `You are a strawberry-crop pathologist. ${
+    many
+      ? `You are given ${images.length} photos of the SAME strawberry bed taken from different angles. Judge them together as one case — a symptom visible in any single angle counts, and agreement across angles should raise your confidence.`
+      : "Analyze this photo of a strawberry bed"
+  } and return STRICT JSON with this exact shape:
 {
   "disease": "powdery_mildew" | "root_rot" | "gray_mold" | "leaf_spot" | "nitrogen_deficiency" | "none",
   "confidence": <integer 0-100>,
@@ -131,10 +140,11 @@ async function detectWithGemini(imageBase64: string, key: string, bedId?: string
 }
 Return ONLY the JSON, no markdown or extra text.`;
 
-  const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
   const result = await model.generateContent([
     prompt,
-    { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
+    ...images.map((img) => ({
+      inlineData: { mimeType: "image/jpeg", data: img.replace(/^data:image\/\w+;base64,/, "") },
+    })),
   ]);
 
   const text = result.response.text().trim().replace(/```json\n?|\n?```/g, "");
@@ -157,10 +167,10 @@ Return ONLY the JSON, no markdown or extra text.`;
   };
 }
 
-async function detectWithOpenAI(imageBase64: string, key: string, bedId?: string): Promise<AIDetectionResult> {
-  const cleanBase64 = imageBase64.startsWith("data:")
-    ? imageBase64
-    : `data:image/jpeg;base64,${imageBase64}`;
+async function detectWithOpenAI(images: string[], key: string, bedId?: string): Promise<AIDetectionResult> {
+  const urls = images.map((img) =>
+    img.startsWith("data:") ? img : `data:image/jpeg;base64,${img}`,
+  );
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -174,9 +184,13 @@ async function detectWithOpenAI(imageBase64: string, key: string, bedId?: string
           content: [
             {
               type: "text",
-              text: `You are a strawberry-crop pathologist. Analyze the photo and respond with strict JSON: {"disease":"powdery_mildew"|"root_rot"|"gray_mold"|"leaf_spot"|"nitrogen_deficiency"|"none","confidence":0-100,"severity":0-100,"fruitCount":int|null,"ripeFruitCount":int|null,"estimatedYieldKg":number|null,"notes":"1-2 sentence observation"}`,
+              text: `You are a strawberry-crop pathologist. ${
+                urls.length > 1
+                  ? `You are given ${urls.length} photos of the SAME strawberry bed from different angles — judge them together as one case.`
+                  : "Analyze the photo"
+              } and respond with strict JSON: {"disease":"powdery_mildew"|"root_rot"|"gray_mold"|"leaf_spot"|"nitrogen_deficiency"|"none","confidence":0-100,"severity":0-100,"fruitCount":int|null,"ripeFruitCount":int|null,"estimatedYieldKg":number|null,"notes":"1-2 sentence observation"}`,
             },
-            { type: "image_url", image_url: { url: cleanBase64 } },
+            ...urls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
           ],
         },
       ],

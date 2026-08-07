@@ -6,6 +6,32 @@ import type { DiseaseType } from "@/lib/types";
 import { notifyDisease } from "@/lib/notifications";
 import { requireCapability } from "@/lib/guard";
 
+/** Hard cap so one report cannot be used to push unbounded data into a row. */
+const MAX_PHOTOS = 8;
+
+type IncomingPhoto = { data: string; angle?: string | null };
+
+/**
+ * Accepts either the new `photos: [{data, angle}]` array or the original
+ * single `photo`, and returns a deduplicated, capped list.
+ */
+function collectPhotos(body: { photos?: unknown; photo?: unknown }): IncomingPhoto[] {
+  const out: IncomingPhoto[] = [];
+
+  if (Array.isArray(body.photos)) {
+    for (const p of body.photos) {
+      if (typeof p === "string") out.push({ data: p });
+      else if (p && typeof (p as IncomingPhoto).data === "string") {
+        out.push({ data: (p as IncomingPhoto).data, angle: (p as IncomingPhoto).angle ?? null });
+      }
+    }
+  }
+  if (typeof body.photo === "string" && !out.some(p => p.data === body.photo)) {
+    out.unshift({ data: body.photo });
+  }
+  return out.filter(p => p.data.startsWith("data:image/")).slice(0, MAX_PHOTOS);
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   if (!body.bedId || !body.type) {
@@ -46,6 +72,17 @@ export async function POST(req: Request) {
       infectedLengthM:      body.infectedLengthM ? Number(body.infectedLengthM) : null,
       photo:                body.photo ?? null,
       reporterNote:         body.reporterNote ?? null,
+      // Every captured angle. The first is also kept in `photo` above so
+      // anything still reading that column keeps working.
+      photos: {
+        create: collectPhotos(body).map((p, i) => ({
+          kind: "symptom" as const,
+          data: p.data,
+          angle: p.angle ?? null,
+          createdBy: session.user.id,
+          createdAt: new Date(Date.now() + i), // keep capture order stable
+        })),
+      },
     },
   });
 

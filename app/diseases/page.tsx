@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { useReference } from "@/lib/reference";
+import { PhotoAngles, type Angle } from "@/components/photo-angles";
 
 export default function DiseasesPage() {
   const { isAm } = useLang();
@@ -82,9 +83,8 @@ export default function DiseasesPage() {
       return next;
     });
   }, [diseases]);
-  const [proofImage, setProofImage] = useState<string | null>(null);
-  const [proofImageName, setProofImageName] = useState("");
-  const proofInputRef = useRef<HTMLInputElement>(null);
+  const [proofAngles, setProofAngles] = useState<Angle[]>([]);
+  const proofImage = proofAngles[0]?.data ?? null;
 
   // Expand treatment steps
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -187,26 +187,16 @@ export default function DiseasesPage() {
   async function openConfirm(d: DiseaseReport) {
     setConfirmTarget(d);
     setTreatmentNote(d.treatmentNote ?? "");
-    setProofImage(d.proofImageUrl ?? null);
-    setProofImageName("");
+    setProofAngles(d.proofImageUrl ? [{ data: d.proofImageUrl }] : []);
     setConfirmOpen(true);
     // pull the already-uploaded photo back in, since the list omits it
     if (!d.proofImageUrl && (d.hasProofImage ?? false)) {
       const res = await fetch(`/api/diseases/${d.id}`);
       if (res.ok) {
         const full = await res.json() as DiseaseReport;
-        if (full.proofImageUrl) setProofImage(full.proofImageUrl);
+        if (full.proofImageUrl) setProofAngles([{ data: full.proofImageUrl }]);
       }
     }
-  }
-
-  function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setProofImageName(file.name);
-    const reader = new FileReader();
-    reader.onload = ev => setProofImage(ev.target?.result as string);
-    reader.readAsDataURL(file);
   }
 
   async function submitTreatment() {
@@ -233,6 +223,14 @@ export default function DiseasesPage() {
       body: JSON.stringify(patchBody),
     });
     if (!res.ok) { toast.error("Failed to save treatment"); return; }
+    // store every proof angle (the PATCH above only carries the first one)
+    if (proofAngles.length > 0) {
+      await fetch(`/api/diseases/${confirmTarget.id}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "proof", photos: proofAngles, replace: true }),
+      }).catch(() => {});
+    }
     setDiseases(prev => prev.map(d =>
       d.id === confirmTarget.id ? { ...d, ...patchBody } : d
     ));
@@ -241,7 +239,7 @@ export default function DiseasesPage() {
     });
     setConfirmOpen(false);
     setConfirmTarget(null);
-    setProofImage(null);
+    setProofAngles([]);
     setTreatmentNote("");
   }
 
@@ -722,54 +720,14 @@ export default function DiseasesPage() {
                 />
               </div>
 
-              {/* Photo proof upload */}
-              <div>
-                <label className={`text-xs font-semibold block mb-1.5 ${confirmTarget.requiresImageProof ? "text-purple-400" : "text-foreground/80"}`}>
-                  Photo Proof {confirmTarget.requiresImageProof ? <span className="text-red-500">* (Required by manager)</span> : "(Optional)"}
-                </label>
-                <input
-                  ref={proofInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleProofUpload}
-                />
-                {proofImage ? (
-                  <div className="relative rounded-lg overflow-hidden border border-border">
-                    <img src={proofImage} alt="Proof" className="w-full max-h-40 object-cover" />
-                    <div className="absolute top-2 right-2 flex gap-1">
-                      <button
-                        onClick={() => setPreviewUrl(proofImage)}
-                        className="size-7 rounded-full bg-black/60 text-white grid place-items-center hover:bg-black/80"
-                      >
-                        <Eye className="size-3.5" />
-                      </button>
-                      <button
-                        onClick={() => { setProofImage(null); setProofImageName(""); }}
-                        className="size-7 rounded-full bg-black/60 text-white grid place-items-center hover:bg-black/80"
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    </div>
-                    <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] px-2 py-1 truncate">
-                      {proofImageName}
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => proofInputRef.current?.click()}
-                    className={`w-full flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed transition-colors ${confirmTarget.requiresImageProof ? "border-purple-300 bg-purple-50 hover:bg-purple-100" : "border-border bg-muted hover:bg-accent"}`}
-                  >
-                    <Upload className={`size-5 ${confirmTarget.requiresImageProof ? "text-purple-400" : "text-muted-foreground"}`} />
-                    <div className="text-xs text-muted-foreground">
-                      <span className={`font-semibold ${confirmTarget.requiresImageProof ? "text-purple-600" : "text-foreground/70"}`}>Click to upload</span> or take photo
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">JPG, PNG, HEIC — max 10 MB</div>
-                  </button>
-                )}
-              </div>
+              {/* Proof angles — show the treatment from more than one viewpoint */}
+              <PhotoAngles
+                photos={proofAngles}
+                onChange={setProofAngles}
+                max={4}
+                label={`Photo proof${confirmTarget.requiresImageProof ? " * (required by manager)" : " (optional)"}`}
+                hint="Add more than one angle if the treatment is hard to see in a single shot."
+              />
 
               {(() => {
                 const steps = confirmTarget.treatmentSteps ?? DISEASE_TREATMENT_STEPS[confirmTarget.type] ?? [];

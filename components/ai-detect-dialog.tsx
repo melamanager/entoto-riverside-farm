@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Camera, Loader2, CheckCircle2, AlertTriangle, ImageUp, Languages } from "lucide-react";
 import { toast } from "sonner";
+import { PhotoAngles, type Angle } from "@/components/photo-angles";
 import type { AIDetectionResult } from "@/lib/ai";
 import { useAuth } from "@/lib/auth";
 import { useReference } from "@/lib/reference";
@@ -62,7 +63,8 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
   const [lang, setLang]               = useState<"en" | "am">("en");
   const [loading, setLoading]         = useState(false);
   const [result, setResult]           = useState<AIDetectionResult | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [angles, setAngles] = useState<Angle[]>([]);
+  const imagePreview = angles[0]?.data ?? null;
   const [infectedLengthM, setInfectedLengthM] = useState<number>(0);
   const [bedData, setBedData] = useState<{ lengthM: number; valveId: string } | null>(null);
   const [pickedBedId, setPickedBedId] = useState<string>("");
@@ -77,20 +79,29 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
     fetch(`/api/beds/${effectiveBedId}`).then(r => r.json()).then(setBedData).catch(() => {});
   }, [effectiveBedId, open, beds]);
 
-  async function runDetection(imageBase64: string) {
+  async function runDetection(shots: Angle[]) {
+    if (shots.length === 0) return;
     setLoading(true);
     setResult(null);
     try {
       const res = await fetch("/api/ai/detect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "live", bedId: effectiveBedId, imageBase64 }),
+        body: JSON.stringify({
+          mode: "live",
+          bedId: effectiveBedId,
+          // all angles judged together as one case
+          imagesBase64: shots.map(a => a.data),
+        }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Detection failed");
       setResult(data);
       if (data.disease !== "none") {
-        toast.warning(`Detected: ${data.diseaseLabel}`, { description: `Severity ${data.severity}% · Confidence ${data.confidence}%` });
+        toast.warning(`Detected: ${data.diseaseLabel}`, {
+          description: `Severity ${data.severity}% · Confidence ${data.confidence}%`
+            + (shots.length > 1 ? ` · from ${shots.length} angles` : ""),
+        });
       } else {
         toast.success("No disease detected", { description: `Confidence ${data.confidence}%` });
       }
@@ -99,18 +110,6 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
     } finally {
       setLoading(false);
     }
-  }
-
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const b64 = reader.result as string;
-      setImagePreview(b64);
-      runDetection(b64);
-    };
-    reader.readAsDataURL(file);
   }
 
   async function reportAsDisease() {
@@ -125,6 +124,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
         suggestedTreatment: result.suggestedTreatment,
         aiConfidence: result.confidence,
         photo: imagePreview ?? undefined,
+        photos: angles,
         reporterNote: result.rawNotes || undefined,
         infectedLengthM: infectedLengthM > 0 ? infectedLengthM : (bedData ? Math.round(bedData.lengthM * (result.severity / 100) * 10) / 10 : undefined),
       }),
@@ -133,7 +133,7 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
     toast.success("Disease report filed", { description: "The manager is notified and will send a treatment recommendation." });
     setOpen(false);
     setResult(null);
-    setImagePreview(null);
+    setAngles([]);
     setPickedBedId("");
   }
 
@@ -186,44 +186,25 @@ export function AIDetectDialog({ bedId, trigger }: Props) {
           </div>
         )}
 
-        {/* Image upload */}
-        <div className="border-2 border-dashed border-border rounded-lg overflow-hidden">
-          {imagePreview ? (
-            <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imagePreview} alt="preview" className="w-full max-h-48 object-cover" />
-              <div className="absolute bottom-0 inset-x-0 flex gap-2 p-2 bg-black/50">
-                <label className="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-white bg-white/20 hover:bg-white/30 rounded py-1 cursor-pointer transition">
-                  <Camera className="size-3.5" /> {isAm ? "ደጋ አንሳ" : "Retake"}
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-                </label>
-                <label className="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-white bg-white/20 hover:bg-white/30 rounded py-1 cursor-pointer transition">
-                  <ImageUp className="size-3.5" /> {isAm ? "ቀይር" : "Change"}
-                  <input type="file" accept="image/*" className="hidden" onChange={onFile} />
-                </label>
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 space-y-3">
-              <div className="text-center text-sm font-medium text-foreground/80">
-                {isAm ? "የስትሮቤሪ መደብ ፎቶ ያስገቡ — AI ይመረምረዋል" : "Add a photo — the AI analyses it instantly"}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted hover:bg-accent cursor-pointer transition">
-                  <Camera className="size-6 text-muted-foreground" />
-                  <span className="text-xs font-medium text-foreground/80">{isAm ? "ፎቶ አንሳ" : "Take Photo"}</span>
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-                </label>
-                <label className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted hover:bg-accent cursor-pointer transition">
-                  <ImageUp className="size-6 text-muted-foreground" />
-                  <span className="text-xs font-medium text-foreground/80">{isAm ? "ከጋለሪ ምረጥ" : "Upload from Gallery"}</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={onFile} />
-                </label>
-              </div>
-              <div className="text-center text-[11px] text-muted-foreground">
-                {isAm ? "ለተሻለ ውጤት የቅጠሎቹ/ፍሬዎቹ ቅርብ ፎቶ ያንሱ" : "Close-up of leaves/fruit gives the best result"}
-              </div>
-            </div>
+        {/* Angles — several shots of the same problem, analysed together */}
+        <div className="border border-border rounded-lg p-3">
+          <PhotoAngles
+            photos={angles}
+            onChange={setAngles}
+            onAdded={(all) => runDetection(all)}
+            max={6}
+            label={isAm ? "ፎቶዎች" : "Photos"}
+            hint={isAm
+              ? "ከተለያዩ አቅጣጫዎች ፎቶ ያንሱ — AI ሁሉንም አንድ ላይ ይመረምራል"
+              : "Take a few angles — top of leaf, underside, whole plant. The AI reads them together."}
+          />
+          {angles.length > 0 && !loading && (
+            <button
+              onClick={() => runDetection(angles)}
+              className="mt-2 w-full text-[11px] font-semibold text-primary border border-primary/30 bg-primary/10 rounded-md py-1.5 hover:bg-primary/15 transition-colors"
+            >
+              {isAm ? "እንደገና ተንትን" : "Re-analyse all angles"}
+            </button>
           )}
         </div>
 

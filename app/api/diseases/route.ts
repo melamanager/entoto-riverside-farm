@@ -26,6 +26,8 @@ export async function GET(req: Request) {
       include: {
         bed: true,
         reporter: { omit: { photo: true } }, // base64 portrait — list shows initials
+        // how many angles exist, never the bytes
+        _count: { select: { photos: true } },
       },
       orderBy: { reportedAt: "desc" },
     }),

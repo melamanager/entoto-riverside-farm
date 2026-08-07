@@ -208,8 +208,36 @@ model DiseaseReport {
   proofImageUrl        String?
   taskId               String?
 
+  // Extra angles live in their own table, so image bytes can never be dragged
+  // into a list query by an `include`. photo/proofImageUrl above are the
+  // originals and are kept for existing rows.
+  photos               DiseasePhoto[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// One captured image of a disease — several per report, so a reporter can
+/// show the same problem from different angles (top of leaf, underside, whole
+/// plant) and the AI can reason across all of them at once.
+model DiseasePhoto {
+  id        String           @id @default(cuid())
+  reportId  String
+  report    DiseaseReport    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  kind      DiseasePhotoKind @default(symptom)
+  /// base64 data URL, resized client-side before it is ever sent
+  data      String           @db.Text
+  /// what this angle shows — "Underside of leaf", "Whole plant", …
+  angle     String?
+  createdBy String?
+  createdAt DateTime         @default(now())
+
+  @@index([reportId, kind])
+}
+
+enum DiseasePhotoKind {
+  symptom // what the reporter saw
+  proof   // evidence the treatment was applied
 }
 
 model Task {

@@ -11,6 +11,8 @@ export async function POST(req: Request) {
       mode: body.mode === "live" ? "live" : "demo",
       bedId: body.bedId,
       imageBase64: body.imageBase64,
+      // several angles of the same problem, judged together
+      imagesBase64: Array.isArray(body.imagesBase64) ? body.imagesBase64 : undefined,
     });
     return NextResponse.json(result);
   } catch (e) {

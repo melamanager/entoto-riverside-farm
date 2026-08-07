@@ -26,3 +26,16 @@ export function resizeImage(file: File, maxPx = 200, quality = 0.72): Promise<st
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * A disease photo, sized for diagnosis rather than for a thumbnail.
+ *
+ * These are what the AI actually looks at, so they keep far more detail than a
+ * staff portrait — but a raw phone capture is 4–11 MB as base64 and goes
+ * straight into a database row. 1280 px at q0.8 keeps lesions and leaf texture
+ * readable at a few hundred KB, which matters doubly now that one report can
+ * carry several angles.
+ */
+export function resizeDiseasePhoto(file: File): Promise<string> {
+  return resizeImage(file, 1280, 0.8);
+}
