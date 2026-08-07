@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "
 import { useRouter } from "next/navigation";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
 import type { Bed, Valve, GrowthStage, HealthStatus } from "@/lib/types";
+import { useIsMobile } from "@/lib/use-mobile";
 
 // Redesigned Farm Bed Map (from the "Farm bed map redesign" Claude Design
 // project). Two layouts — aerial 2D field lanes and an iso 3D field — toggled
@@ -49,8 +50,12 @@ type View = "2d" | "3d";
 
 export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState<Mode>("health");
   const [view, setView] = useState<View>("2d");
+  // On a phone the filter row costs most of the first screen, so it is folded
+  // away behind a toggle that shows how many filters are on.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [valveF, setValveF] = useState<string[]>([]);
   const [cropF, setCropF] = useState<string[]>([]);
@@ -145,15 +150,29 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
   ];
 
   const segBtn = (active: boolean): CSSProperties => ({
-    cursor: "pointer", border: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
-    padding: "8px 13px", borderRadius: 9, transition: "all .15s",
+    cursor: "pointer", border: "none", fontFamily: "inherit",
+    fontSize: isMobile ? 12 : 13, fontWeight: 600,
+    // taller tap target on touch, tighter horizontally so all five fit
+    padding: isMobile ? "9px 10px" : "8px 13px",
+    borderRadius: 9, transition: "all .15s", whiteSpace: "nowrap",
     color: active ? "#0e130c" : "#b7c7ad", background: active ? "#c7f04d" : "transparent",
   });
+
+  const activeFilters =
+    valveF.length + cropF.length + statusF.length + (readyF ? 1 : 0) + (query.trim() ? 1 : 0);
+  const showFilters = !isMobile || filtersOpen;
+
+  // The iso 3D field is a desktop view. At phone width you get a handful of
+  // 40 m beds at a steep angle with unreadable labels, and CSS 3D reserves the
+  // untransformed height so the field sinks below a screen of dead space.
+  // The 2D aerial view shows the same data better, so it is authoritative here.
+  const effectiveView: View = isMobile ? "2d" : view;
 
   return (
     <div className={grotesk.className} style={{ width: "100%", color: "#e7f0e2", background: "#0e130c", border: "1px solid rgba(180,200,160,.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 24px 60px -20px rgba(0,0,0,.6)" }}>
       <style>{`
         @keyframes fm-drawer{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes fm-sheet{from{transform:translateY(100%)}to{transform:translateY(0)}}
         @keyframes fm-toast{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
         @keyframes fm-pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.55)}50%{box-shadow:0 0 0 6px rgba(229,72,77,0)}}
         .fm-scroll::-webkit-scrollbar{width:8px;height:8px}
@@ -161,34 +180,57 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
       `}</style>
 
       {/* ── Header: title · 2D/3D · Health/Yield/Stage ──────────────────── */}
-      <div style={{ padding: embed ? "12px 14px" : "18px 22px 14px", background: "linear-gradient(180deg,#131a10,#0e130c)", borderBottom: "1px solid rgba(180,200,160,.10)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: embed ? "flex-end" : "space-between", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ padding: embed ? "12px 14px" : isMobile ? "13px 13px 11px" : "18px 22px 14px", background: "linear-gradient(180deg,#131a10,#0e130c)", borderBottom: "1px solid rgba(180,200,160,.10)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: embed ? "flex-end" : "space-between", gap: isMobile ? 10 : 16, flexWrap: "wrap" }}>
           {!embed && (
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20, fontWeight: 700 }}>Farm Map</span>
-                <span style={{ ...mono.style, fontSize: 10.5, color: "#0e130c", background: "#c7f04d", padding: "3px 8px", borderRadius: 999, fontWeight: 700 }}>{view === "2d" ? "Aerial field" : "3D field"}</span>
+                <span style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700 }}>Farm Map</span>
+                <span style={{ ...mono.style, fontSize: 10.5, color: "#0e130c", background: "#c7f04d", padding: "3px 8px", borderRadius: 999, fontWeight: 700 }}>{effectiveView === "2d" ? "Aerial field" : "3D field"}</span>
               </div>
-              <div style={{ marginTop: 5, fontSize: 12.5, color: "#93a68c", ...mono.style }}>Entoto Mountain · Addis Ababa · 2800 m · 4.2 ha</div>
+              {!isMobile && (
+                <div style={{ marginTop: 5, fontSize: 12.5, color: "#93a68c", ...mono.style }}>Entoto Mountain · Addis Ababa · 2800 m · 4.2 ha</div>
+              )}
             </div>
           )}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: 6, background: "#0b0f09", border: "1px solid rgba(180,200,160,.12)", padding: 4, borderRadius: 12 }}>
-              <button onClick={() => setView("2d")} style={segBtn(view === "2d")}>🗺 2D</button>
-              <button onClick={() => setView("3d")} style={segBtn(view === "3d")}>🧊 3D</button>
-            </div>
-            <div style={{ display: "flex", gap: 6, background: "#0b0f09", border: "1px solid rgba(180,200,160,.12)", padding: 4, borderRadius: 12 }}>
+          <div style={{ display: "flex", gap: isMobile ? 6 : 10, flexWrap: "wrap", width: isMobile && !embed ? "100%" : undefined }}>
+            {/* 3D is desktop-only — see effectiveView above */}
+            {!isMobile && (
+              <div style={{ display: "flex", gap: 6, background: "#0b0f09", border: "1px solid rgba(180,200,160,.12)", padding: 4, borderRadius: 12 }}>
+                <button onClick={() => setView("2d")} style={segBtn(view === "2d")}>🗺 2D</button>
+                <button onClick={() => setView("3d")} style={segBtn(view === "3d")}>🧊 3D</button>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6, background: "#0b0f09", border: "1px solid rgba(180,200,160,.12)", padding: 4, borderRadius: 12, flex: isMobile ? 1 : undefined, justifyContent: "center" }}>
               {modeBtns.map((m) => (
-                <button key={m.key} onClick={() => setMode(m.key)} style={{ display: "flex", alignItems: "center", gap: 6, ...segBtn(mode === m.key) }}>
-                  <span style={{ fontSize: 14 }}>{m.emoji}</span>{m.label}
+                <button key={m.key} onClick={() => setMode(m.key)} style={{ display: "flex", alignItems: "center", gap: isMobile ? 3 : 6, ...segBtn(mode === m.key) }}>
+                  <span style={{ fontSize: 14 }}>{m.emoji}</span>{isMobile ? "" : m.label}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {!embed && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+        {/* Mobile: fold the filter row away behind a toggle */}
+        {!embed && isMobile && (
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button
+              onClick={() => setFiltersOpen((o) => !o)}
+              style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(180,200,160,.16)", background: "#0b0f09", color: activeFilters ? "#c7f04d" : "#b7c7ad" }}
+            >
+              ⌕ Search &amp; filters{activeFilters ? ` · ${activeFilters}` : ""} {filtersOpen ? "▲" : "▼"}
+            </button>
+            <button
+              onClick={() => setPicked(flagged.map((b) => b.id))}
+              style={{ cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(245,166,35,.35)", color: "#f5c15a", background: "rgba(245,166,35,.10)", whiteSpace: "nowrap" }}
+            >
+              ⚑ {flagged.length}
+            </button>
+          </div>
+        )}
+
+        {!embed && showFilters && (
+          <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", gap: 10, flexWrap: "wrap", marginTop: isMobile ? 10 : 14 }}>
             <div style={{ position: "relative", flex: 1, minWidth: 190 }}>
               <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#6f8168", fontSize: 13 }}>⌕</span>
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search bed, crop, valve…"
@@ -206,18 +248,32 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
                 return <button key={c} onClick={() => setCropF((f) => toggle(f, c))} style={{ cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, padding: "7px 10px", borderRadius: 9, border: `1px solid ${s.borderColor}`, color: s.color, background: s.background }}>{c}</button>;
               })}
             </div>
-            <button onClick={() => setPicked(flagged.map((b) => b.id))} style={{ marginLeft: "auto", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: "1px solid rgba(245,166,35,.35)", color: "#f5c15a", background: "rgba(245,166,35,.10)" }}>⚑ Select flagged ({flagged.length})</button>
+            {!isMobile && (
+              <button onClick={() => setPicked(flagged.map((b) => b.id))} style={{ marginLeft: "auto", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: "1px solid rgba(245,166,35,.35)", color: "#f5c15a", background: "rgba(245,166,35,.10)" }}>⚑ Select flagged ({flagged.length})</button>
+            )}
           </div>
         )}
       </div>
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
       <div style={{ position: "relative" }}>
-        <div className="fm-scroll" style={{ padding: 16, maxHeight: embed ? 460 : 660, overflow: "auto" }}>
+        {/* On a phone the 2D list grows naturally so the page scrolls once — a
+            nested scroll box inside a scrolling page is a trap on touch.
+            The 3D field still needs a bounded viewport: CSS 3D reserves the
+            UNtransformed height, so an unbounded container leaves a screen of
+            dead space above the foreshortened field. */}
+        <div
+          className="fm-scroll"
+          style={{
+            padding: isMobile ? 10 : 16,
+            maxHeight: embed ? 460 : isMobile ? undefined : 660,
+            overflow: isMobile ? "visible" : "auto",
+          }}
+        >
 
-          {view === "2d" ? (
-            <div style={{ position: "relative", padding: "22px 24px 10px", background: "#181008", backgroundImage: "radial-gradient(rgba(255,255,255,.028) 1px, transparent 1px)", backgroundSize: "20px 20px", borderRadius: 14, border: "1px solid rgba(180,200,160,.09)" }}>
-              <Compass />
+          {effectiveView === "2d" ? (
+            <div style={{ position: "relative", padding: isMobile ? "14px 10px 8px" : "22px 24px 10px", background: "#181008", backgroundImage: "radial-gradient(rgba(255,255,255,.028) 1px, transparent 1px)", backgroundSize: "20px 20px", borderRadius: 14, border: "1px solid rgba(180,200,160,.09)" }}>
+              <Compass mobile={isMobile} />
               {grouped.map(({ valve, beds: vb, ready }) => (
                 <div key={valve.id} style={{ marginBottom: 16 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 8px 2px" }}>
@@ -230,35 +286,56 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
                       const color = bedColor(b), dim = isDim(b), pick = picked.includes(b.id);
                       const plants = Math.round(b.lengthM * b.plantsPerMeter);
                       return (
-                        <div key={b.id} onClick={() => setSel(b.id)} style={{ display: "flex", alignItems: "center", gap: 10, opacity: dim ? 0.16 : 1, cursor: "pointer" }}>
-                          <span style={{ flex: "none", width: 52, ...mono.style, fontSize: 12, fontWeight: 700, color: "#b7c7ad" }}>{b.id}</span>
-                          <div style={{ position: "relative", height: 32, width: `${Math.max(21, Math.round((b.lengthM / RULER_MAX) * 100))}%`, minWidth: 96, borderRadius: 7, background: mix(color, "#181008", 0.82), borderLeft: `5px solid ${color}`, overflow: "hidden", boxShadow: "0 2px 8px -3px rgba(0,0,0,.5)" }}>
+                        <div key={b.id} onClick={() => setSel(b.id)} style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 10, opacity: dim ? 0.16 : 1, cursor: "pointer", minWidth: 0 }}>
+                          {/* nowrap + enough width for "A-BED-01" at this size,
+                              otherwise the id wraps and doubles the row height */}
+                          <span style={{ flex: "none", width: isMobile ? 54 : 52, ...mono.style, fontSize: isMobile ? 10.5 : 12, fontWeight: 700, color: "#b7c7ad", whiteSpace: "nowrap" }}>{b.id}</span>
+                          {/* Mobile: the bar takes the room the fixed meta column used to
+                              eat, and the meta text moves inside it — no more overflow. */}
+                          <div style={{ position: "relative", height: isMobile ? 40 : 32, flex: isMobile ? 1 : undefined, width: isMobile ? undefined : `${Math.max(21, Math.round((b.lengthM / RULER_MAX) * 100))}%`, minWidth: isMobile ? 0 : 96, borderRadius: 7, background: mix(color, "#181008", 0.82), borderLeft: `5px solid ${color}`, overflow: "hidden", boxShadow: "0 2px 8px -3px rgba(0,0,0,.5)" }}>
                             <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 15px)" }} />
                             {mode === "yield" && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${READY[b.stage]}%`, background: `linear-gradient(90deg, ${color}44, ${color}14)` }} />}
-                            <div style={{ position: "absolute", left: 10, top: 0, bottom: 0, display: "flex", alignItems: "center", fontSize: 11, color: "#e7f0e2", fontWeight: 500 }}>{b.variety}</div>
-                            <div style={{ position: "absolute", right: 9, top: 0, bottom: 0, display: "flex", alignItems: "center", ...mono.style, fontSize: 11, color: "#cdd9c4" }}>{b.lengthM}m</div>
-                            {b.health !== "healthy" && <div style={{ position: "absolute", right: 52, top: "50%", transform: "translateY(-50%)", width: 18, height: 18, borderRadius: "50%", background: color, color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", animation: "fm-pulse 2s infinite" }}>{b.health === "infected" ? "!" : "⚠"}</div>}
+                            {isMobile ? (
+                              <div style={{ position: "absolute", inset: 0, padding: "0 8px 0 9px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11, color: "#e7f0e2", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.variety}</div>
+                                <div style={{ ...mono.style, fontSize: 9.5, color: "#a9baa1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.lengthM}m · {plants.toLocaleString()} pl · {metricText(b)}</div>
+                              </div>
+                            ) : (
+                              <>
+                                <div style={{ position: "absolute", left: 10, top: 0, bottom: 0, display: "flex", alignItems: "center", fontSize: 11, color: "#e7f0e2", fontWeight: 500 }}>{b.variety}</div>
+                                <div style={{ position: "absolute", right: 9, top: 0, bottom: 0, display: "flex", alignItems: "center", ...mono.style, fontSize: 11, color: "#cdd9c4" }}>{b.lengthM}m</div>
+                              </>
+                            )}
+                            {b.health !== "healthy" && <div style={{ position: "absolute", right: isMobile ? 8 : 52, top: "50%", transform: "translateY(-50%)", width: 18, height: 18, borderRadius: "50%", background: color, color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", animation: "fm-pulse 2s infinite" }}>{b.health === "infected" ? "!" : "⚠"}</div>}
                           </div>
-                          <div style={{ flex: "none", width: 160, fontSize: 11.5, color: "#93a68c", ...mono.style }}>{plants.toLocaleString()} pl · {metricText(b)}</div>
-                          {!embed && <PickBox picked={pick} onToggle={(e) => { e.stopPropagation(); setPicked((p) => toggle(p, b.id)); }} />}
+                          {!isMobile && (
+                            <div style={{ flex: "none", width: 160, fontSize: 11.5, color: "#93a68c", ...mono.style }}>{plants.toLocaleString()} pl · {metricText(b)}</div>
+                          )}
+                          {!embed && <PickBox picked={pick} onToggle={(e) => { e.stopPropagation(); setPicked((p) => toggle(p, b.id)); }} big={isMobile} />}
                         </div>
                       );
                     })}
                   </div>
                 </div>
               ))}
-              <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 24px 0 70px", ...mono.style, fontSize: 10.5, color: "#7d8f75", borderTop: "1px dashed rgba(180,200,160,.16)", paddingTop: 5 }}>
-                <span>0m</span><span>10m</span><span>20m</span><span>30m</span><span>40m</span><span>45m</span>
-              </div>
+              {/* The ruler only means anything while bar length is proportional to
+                  bed size. On mobile the bars are equal width so the labels fit, so
+                  the scale is dropped and each bed states its own length instead. */}
+              {!isMobile && (
+                <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 24px 0 70px", ...mono.style, fontSize: 10.5, color: "#7d8f75", borderTop: "1px dashed rgba(180,200,160,.16)", paddingTop: 5 }}>
+                  <span>0m</span><span>10m</span><span>20m</span><span>30m</span><span>40m</span><span>45m</span>
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{ perspective: "1500px", perspectiveOrigin: "50% 22%", padding: "26px 10px 56px", background: "#181008", backgroundImage: "radial-gradient(rgba(255,255,255,.028) 1px, transparent 1px)", backgroundSize: "20px 20px", borderRadius: 14, border: "1px solid rgba(180,200,160,.09)", overflow: "hidden" }}>
-              <Compass />
-              <div style={{ transform: "rotateX(55deg) rotateZ(-4deg)", transformStyle: "preserve-3d", width: "86%", margin: "20px auto 0" }}>
+            <div style={{ perspective: isMobile ? "1100px" : "1500px", perspectiveOrigin: isMobile ? "50% 50%" : "50% 22%", padding: isMobile ? "10px 6px 16px" : "26px 10px 56px", background: "#181008", backgroundImage: "radial-gradient(rgba(255,255,255,.028) 1px, transparent 1px)", backgroundSize: "20px 20px", borderRadius: 14, border: "1px solid rgba(180,200,160,.09)", overflow: "hidden" }}>
+              <Compass mobile={isMobile} />
+              {/* A shallower tilt keeps the beds readable on a small screen */}
+              <div style={{ transform: isMobile ? "rotateX(46deg) rotateZ(-3deg)" : "rotateX(55deg) rotateZ(-4deg)", transformStyle: "preserve-3d", width: isMobile ? "94%" : "86%", margin: isMobile ? "14px auto 0" : "20px auto 0" }}>
                 {grouped.map(({ valve, beds: vb, ready }) => (
-                  <div key={valve.id} style={{ marginBottom: 30, transformStyle: "preserve-3d", position: "relative" }}>
+                  <div key={valve.id} style={{ marginBottom: isMobile ? 18 : 30, transformStyle: "preserve-3d", position: "relative" }}>
                     <div style={{ position: "absolute", left: 0, top: -26, transform: "rotateZ(4deg) rotateX(-55deg)", transformOrigin: "left bottom", fontWeight: 700, color: valve.color, fontSize: 14, whiteSpace: "nowrap", textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>{valve.name} <span style={{ ...mono.style, fontSize: 11, color: "#a9baa1", fontWeight: 400 }}>{vb.length} beds · {ready} ready</span></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 20, transformStyle: "preserve-3d" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 13 : 20, transformStyle: "preserve-3d" }}>
                       {vb.map((b) => {
                         const color = bedColor(b), dim = isDim(b), dark = mix(color, "#000000", 0.52);
                         return (
@@ -282,9 +359,26 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
         </div>
 
         {/* ── Detail drawer ────────────────────────────────────────────── */}
+        {/* Backdrop — only on the mobile bottom sheet, so a tap anywhere closes it */}
+        {selBed && isMobile && (
+          <div onClick={() => setSel(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(2px)", zIndex: 45 }} />
+        )}
+
         {selBed && (
-          <div className="fm-scroll" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 320, maxWidth: "88%", background: "#10160d", borderLeft: "1px solid rgba(180,200,160,.14)", boxShadow: "-20px 0 50px -20px rgba(0,0,0,.7)", animation: "fm-drawer .22s ease", overflow: "auto", zIndex: 5 }}>
-            <div style={{ padding: "18px 18px 22px" }}>
+          <div
+            className="fm-scroll"
+            style={isMobile
+              // Bottom sheet, matching the app's existing mobile "more" menu.
+              // Fixed above the mobile nav bar so its actions stay reachable.
+              ? { position: "fixed", left: 0, right: 0, bottom: 0, maxHeight: "82vh", background: "#10160d", borderTop: "1px solid rgba(180,200,160,.14)", borderRadius: "22px 22px 0 0", boxShadow: "0 -20px 50px -20px rgba(0,0,0,.8)", animation: "fm-sheet .24s ease", overflow: "auto", zIndex: 50, overscrollBehavior: "contain" }
+              : { position: "absolute", top: 0, right: 0, bottom: 0, width: 320, maxWidth: "88%", background: "#10160d", borderLeft: "1px solid rgba(180,200,160,.14)", boxShadow: "-20px 0 50px -20px rgba(0,0,0,.7)", animation: "fm-drawer .22s ease", overflow: "auto", zIndex: 5 }}
+          >
+            {isMobile && (
+              <div style={{ position: "sticky", top: 0, padding: "9px 0 4px", background: "#10160d", zIndex: 1 }}>
+                <div style={{ width: 38, height: 4, borderRadius: 999, background: "rgba(180,200,160,.3)", margin: "0 auto" }} />
+              </div>
+            )}
+            <div style={{ padding: isMobile ? "6px 16px calc(18px + env(safe-area-inset-bottom))" : "18px 18px 22px" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                 <div>
                   <div style={{ ...mono.style, fontSize: 22, fontWeight: 700 }}>{selBed.id}</div>
@@ -330,18 +424,19 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
 
       {/* ── Footer: legend + status cards (full only) ────────────────────── */}
       {!embed && (
-        <div style={{ padding: "14px 22px 18px", borderTop: "1px solid rgba(180,200,160,.10)", background: "#0c1109" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ padding: isMobile ? "12px 13px 16px" : "14px 22px 18px", borderTop: "1px solid rgba(180,200,160,.10)", background: "#0c1109" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, flexWrap: "wrap", marginBottom: isMobile ? 11 : 14 }}>
             <span style={{ fontSize: 11, color: "#7d8f75", textTransform: "uppercase", letterSpacing: ".06em", fontWeight: 600 }}>{mode === "health" ? "Health" : mode === "yield" ? "Yield" : "Growth stage"}</span>
             {legendItems.map((l) => (
               <span key={l.l} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#b7c7ad" }}><span style={{ width: 11, height: 11, borderRadius: 3, background: l.c }} />{l.l}</span>
             ))}
-            <span style={{ marginLeft: "auto", ...mono.style, fontSize: 10.5, color: "#6f8168" }}>bar length = bed size · left edge = valve</span>
+            {!isMobile && <span style={{ marginLeft: "auto", ...mono.style, fontSize: 10.5, color: "#6f8168" }}>bar length = bed size · left edge = valve</span>}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+          {/* 4 across is unreadable at 360px — 2 across on a phone */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: isMobile ? 8 : 10 }}>
             {summary.map((c) => (
-              <button key={c.key} onClick={c.onClick} style={{ textAlign: "left", cursor: "pointer", background: c.active ? `${c.color}1e` : "#111710", border: `1px solid ${c.active ? c.color + "66" : "rgba(180,200,160,.10)"}`, borderRadius: 13, padding: "13px 14px", transition: "all .15s" }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ ...mono.style, fontSize: 24, fontWeight: 700, color: c.color }}>{c.count}</span><span style={{ fontSize: 11, color: "#93a68c" }}>beds</span></div>
+              <button key={c.key} onClick={c.onClick} style={{ textAlign: "left", cursor: "pointer", background: c.active ? `${c.color}1e` : "#111710", border: `1px solid ${c.active ? c.color + "66" : "rgba(180,200,160,.10)"}`, borderRadius: 13, padding: isMobile ? "11px 12px" : "13px 14px", transition: "all .15s" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ ...mono.style, fontSize: isMobile ? 21 : 24, fontWeight: 700, color: c.color }}>{c.count}</span><span style={{ fontSize: 11, color: "#93a68c" }}>beds</span></div>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600, marginTop: 3, color: "#e7f0e2" }}><span>{c.emoji}</span>{c.label}</div>
                 <div style={{ fontSize: 11, color: "#7d8f75", marginTop: 2 }}>{c.sub}</div>
               </button>
@@ -352,32 +447,41 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
 
       {/* ── Bulk bar (full only) ─────────────────────────────────────────── */}
       {!embed && picked.length > 0 && (
-        <div style={{ position: "sticky", bottom: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", background: "#151d0f", borderTop: "1px solid rgba(199,240,77,.25)", animation: "fm-toast .2s ease" }}>
-          <span style={{ ...mono.style, fontSize: 13, fontWeight: 700, color: "#c7f04d" }}>{picked.length} bed{picked.length === 1 ? "" : "s"} selected</span>
-          <button onClick={() => assignTask(picked)} style={{ cursor: "pointer", border: "none", background: "#c7f04d", color: "#0e130c", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "9px 15px", borderRadius: 9 }}>Assign treatment task</button>
-          <button onClick={() => setPicked([])} style={{ cursor: "pointer", border: "1px solid rgba(180,200,160,.18)", background: "transparent", color: "#b7c7ad", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "9px 14px", borderRadius: 9 }}>Clear</button>
+        /* On mobile this floats above the app's bottom nav so it is never hidden */
+        <div style={isMobile
+          ? { position: "fixed", left: 8, right: 8, bottom: "calc(68px + env(safe-area-inset-bottom))", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "#151d0f", border: "1px solid rgba(199,240,77,.3)", borderRadius: 14, boxShadow: "0 12px 30px -8px rgba(0,0,0,.7)", animation: "fm-toast .2s ease", zIndex: 44 }
+          : { position: "sticky", bottom: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", background: "#151d0f", borderTop: "1px solid rgba(199,240,77,.25)", animation: "fm-toast .2s ease" }}>
+          <span style={{ ...mono.style, fontSize: 13, fontWeight: 700, color: "#c7f04d", whiteSpace: "nowrap" }}>{picked.length} bed{picked.length === 1 ? "" : "s"}</span>
+          <button onClick={() => assignTask(picked)} style={{ flex: isMobile ? 1 : undefined, cursor: "pointer", border: "none", background: "#c7f04d", color: "#0e130c", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: isMobile ? "10px 12px" : "9px 15px", borderRadius: 9 }}>Assign {isMobile ? "task" : "treatment task"}</button>
+          <button onClick={() => setPicked([])} style={{ cursor: "pointer", border: "1px solid rgba(180,200,160,.18)", background: "transparent", color: "#b7c7ad", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: isMobile ? "10px 12px" : "9px 14px", borderRadius: 9 }}>Clear</button>
         </div>
       )}
 
       {/* ── Toast ────────────────────────────────────────────────────────── */}
       {toast && (
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 22, background: "#0b0f09", border: "1px solid rgba(199,240,77,.35)", color: "#e7f0e2", padding: "11px 18px", borderRadius: 11, fontSize: 13, fontWeight: 600, boxShadow: "0 14px 34px -12px rgba(0,0,0,.7)", animation: "fm-toast .2s ease", zIndex: 20 }}>✓ {toast}</div>
+        <div style={isMobile
+          ? { position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(76px + env(safe-area-inset-bottom))", maxWidth: "88vw", background: "#0b0f09", border: "1px solid rgba(199,240,77,.35)", color: "#e7f0e2", padding: "11px 16px", borderRadius: 11, fontSize: 13, fontWeight: 600, textAlign: "center", boxShadow: "0 14px 34px -12px rgba(0,0,0,.7)", animation: "fm-toast .2s ease", zIndex: 60 }
+          : { position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 22, background: "#0b0f09", border: "1px solid rgba(199,240,77,.35)", color: "#e7f0e2", padding: "11px 18px", borderRadius: 11, fontSize: 13, fontWeight: 600, boxShadow: "0 14px 34px -12px rgba(0,0,0,.7)", animation: "fm-toast .2s ease", zIndex: 20 }}>✓ {toast}</div>
       )}
     </div>
   );
 }
 
-function Compass() {
+function Compass({ mobile }: { mobile?: boolean }) {
+  // Smaller and tucked in on phones so it does not sit on top of a bed row.
+  const s = mobile ? 32 : 46;
   return (
-    <div style={{ position: "absolute", top: 16, right: 18, zIndex: 3, width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 50% 35%,#1d2733,#0b0f14)", border: "1px solid rgba(180,200,160,.18)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
-      <span style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderBottom: "9px solid #e7f0e2" }} />
-      <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, fontWeight: 700, color: "#e7f0e2" }}>N</span>
+    <div style={{ position: "absolute", top: mobile ? 8 : 16, right: mobile ? 8 : 18, zIndex: 3, width: s, height: s, borderRadius: "50%", background: "radial-gradient(circle at 50% 35%,#1d2733,#0b0f14)", border: "1px solid rgba(180,200,160,.18)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, opacity: mobile ? 0.85 : 1 }}>
+      <span style={{ width: 0, height: 0, borderLeft: mobile ? "4px solid transparent" : "5px solid transparent", borderRight: mobile ? "4px solid transparent" : "5px solid transparent", borderBottom: `${mobile ? 7 : 9}px solid #e7f0e2` }} />
+      <span style={{ fontFamily: "'Space Mono',monospace", fontSize: mobile ? 8 : 10, fontWeight: 700, color: "#e7f0e2" }}>N</span>
     </div>
   );
 }
 
-function PickBox({ picked, onToggle }: { picked: boolean; onToggle: (e: MouseEvent) => void }) {
+function PickBox({ picked, onToggle, big }: { picked: boolean; onToggle: (e: MouseEvent) => void; big?: boolean }) {
+  // `big` widens the touch target on phones — 20px is below the ~44px minimum.
+  const s = big ? 30 : 20;
   return (
-    <div onClick={onToggle} style={{ flex: "none", width: 20, height: 20, borderRadius: 6, border: `1px solid ${picked ? "#c7f04d" : "rgba(180,200,160,.3)"}`, background: picked ? "#c7f04d" : "transparent", color: "#0e130c", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{picked ? "✓" : ""}</div>
+    <div onClick={onToggle} style={{ flex: "none", width: s, height: s, borderRadius: big ? 8 : 6, border: `1px solid ${picked ? "#c7f04d" : "rgba(180,200,160,.3)"}`, background: picked ? "#c7f04d" : "transparent", color: "#0e130c", fontSize: big ? 15 : 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{picked ? "✓" : ""}</div>
   );
 }
