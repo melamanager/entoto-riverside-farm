@@ -249,10 +249,15 @@ model AttendanceRecord {
   farmer       Farmer           @relation("AttendanceFarmer", fields: [farmerId], references: [id])
   date         String
   status       AttendanceStatus
-  checkInTime   String?
-  checkOutTime  String?
-  hoursWorked   Float?
-  overtimeHours Float?  @default(0)
+  // A farm day has two sessions, split by the lunch break:
+  //   checkInTime (morning arrival) → morningCheckOutTime (leaves ~12:00)
+  //   afternoonCheckInTime (returns ~13:00) → checkOutTime (end of day)
+  checkInTime          String?
+  morningCheckOutTime  String?
+  afternoonCheckInTime String?
+  checkOutTime         String?
+  hoursWorked          Float?
+  overtimeHours        Float?  @default(0)
   recordedBy   String
   recorder     Farmer           @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
   note         String?

@@ -145,7 +145,13 @@ export interface AttendanceRecord {
   farmerId: string;
   date: string;
   status: AttendanceStatus;
+  /** Morning arrival */
   checkInTime?: string;
+  /** Leaves for lunch — 6 o'clock local (12:00) */
+  morningCheckOutTime?: string;
+  /** Returns from lunch — 7 o'clock local (13:00) */
+  afternoonCheckInTime?: string;
+  /** End of day */
   checkOutTime?: string;
   hoursWorked?: number;
   overtimeHours?: number;

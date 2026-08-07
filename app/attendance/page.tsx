@@ -11,6 +11,7 @@ import type { AttendanceRecord, AttendanceStatus } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
 import { useAuth } from "@/lib/auth";
 import { useReference } from "@/lib/reference";
+import { calcHoursWorked } from "@/lib/attendance";
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -19,17 +20,12 @@ const STATUS_ICONS = {
   leave: Palmtree,
 };
 
+// The farm day runs in two sessions: staff arrive in the morning, break for
+// lunch at 6 o'clock local (12:00), return at 7 o'clock (13:00), finish at 17:00.
 const DEFAULT_CHECK_IN = "06:00";
+const DEFAULT_MORNING_OUT = "12:00";
+const DEFAULT_AFTERNOON_IN = "13:00";
 const DEFAULT_CHECK_OUT = "17:00";
-
-// "06:00" + "17:00" -> 11.0 (hours, 1 decimal); null when either time is missing
-function hoursBetween(checkIn?: string | null, checkOut?: string | null): number | null {
-  if (!checkIn || !checkOut) return null;
-  const [ih, im] = checkIn.split(":").map(Number);
-  const [oh, om] = checkOut.split(":").map(Number);
-  const diff = (oh * 60 + om - (ih * 60 + im)) / 60;
-  return diff > 0 ? Math.round(diff * 10) / 10 : null;
-}
 
 export default function AttendancePage() {
   const options = useOptions();
@@ -51,6 +47,8 @@ export default function AttendancePage() {
 
   const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
   const [checkIns, setCheckIns] = useState<Record<string, string>>({});
+  const [morningOuts, setMorningOuts] = useState<Record<string, string>>({});
+  const [afternoonIns, setAfternoonIns] = useState<Record<string, string>>({});
   const [checkOuts, setCheckOuts] = useState<Record<string, string>>({});
   const [recorders, setRecorders] = useState<Record<string, string>>({});
   const [viewDate, setViewDate] = useState(today);
@@ -64,6 +62,8 @@ export default function AttendancePage() {
       const records = attData as AttendanceRecord[];
       setSelected(Object.fromEntries(records.map(a => [a.farmerId, a.status])));
       setCheckIns(Object.fromEntries(records.filter(a => a.checkInTime).map(a => [a.farmerId, a.checkInTime!])));
+      setMorningOuts(Object.fromEntries(records.filter(a => a.morningCheckOutTime).map(a => [a.farmerId, a.morningCheckOutTime!])));
+      setAfternoonIns(Object.fromEntries(records.filter(a => a.afternoonCheckInTime).map(a => [a.farmerId, a.afternoonCheckInTime!])));
       setCheckOuts(Object.fromEntries(records.filter(a => a.checkOutTime).map(a => [a.farmerId, a.checkOutTime!])));
       setAttLoaded(true);
     });
@@ -110,14 +110,26 @@ export default function AttendancePage() {
         const status = selected[f.id];
         const working = status === "present" || status === "late";
         const checkIn = working ? (checkIns[f.id] ?? DEFAULT_CHECK_IN) : undefined;
+        const morningOut = working ? (morningOuts[f.id] ?? DEFAULT_MORNING_OUT) : undefined;
+        const afternoonIn = working ? (afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN) : undefined;
         const checkOut = working ? (checkOuts[f.id] ?? undefined) : undefined;
-        const hours = working ? hoursBetween(checkIn, checkOut) : 0;
+        // Both sessions, so the lunch break is not counted as worked time.
+        const hours = working
+          ? calcHoursWorked({
+              checkInTime: checkIn,
+              morningCheckOutTime: morningOut,
+              afternoonCheckInTime: afternoonIn,
+              checkOutTime: checkOut,
+            })
+          : 0;
         return {
           farmerId: f.id,
           date: today,
           status,
           // undefined leaves an existing value untouched on re-save; absent/leave explicitly clears
           checkInTime: working ? checkIn : null,
+          morningCheckOutTime: working ? morningOut : null,
+          afternoonCheckInTime: working ? afternoonIn : null,
           checkOutTime: working ? (checkOut ?? undefined) : null,
           hoursWorked: working ? (hours ?? undefined) : 0,
           overtimeHours: working
@@ -143,15 +155,19 @@ export default function AttendancePage() {
   }
 
   function exportCsv() {
-    const header = "Date,Staff,Status,Check-in,Check-out,Hours,Overtime";
+    const header = "Date,Staff,Status,Morning in,Lunch out,Afternoon in,Day out,Hours,Overtime";
     const rows = farmers.map(f => {
       const status = selected[f.id] ?? "";
       const working = status === "present" || status === "late";
       const ci = working ? (checkIns[f.id] ?? DEFAULT_CHECK_IN) : "";
+      const mo = working ? (morningOuts[f.id] ?? DEFAULT_MORNING_OUT) : "";
+      const ai = working ? (afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN) : "";
       const co = working ? (checkOuts[f.id] ?? "") : "";
-      const hours = working ? hoursBetween(ci, co) : 0;
-      const ot = hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - 8) * 10) / 10) : "";
-      return [today, f.name, status, ci, co, hours ?? "", ot].join(",");
+      const hours = working
+        ? calcHoursWorked({ checkInTime: ci, morningCheckOutTime: mo, afternoonCheckInTime: ai, checkOutTime: co })
+        : 0;
+      const ot = hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : "";
+      return [today, f.name, status, ci, mo, ai, co, hours ?? "", ot].join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -233,8 +249,10 @@ export default function AttendancePage() {
               <tr>
                 <th>Staff Member</th>
                 <th>Assigned Valve</th>
-                <th>Check-in</th>
-                <th>Check-out</th>
+                <th>Morning in</th>
+                <th>Lunch out</th>
+                <th>Afternoon in</th>
+                <th>Day out</th>
                 <th>Hours / OT</th>
                 <th className="text-center" colSpan={4}>Mark Attendance</th>
                 <th>Current Status</th>
@@ -245,7 +263,14 @@ export default function AttendancePage() {
                 const valve = valves.filter(v => f.assignedValves.includes(v.id));
                 const status = selected[f.id];
                 const working = status === "present" || status === "late";
-                const hours = working ? hoursBetween(checkIns[f.id] ?? DEFAULT_CHECK_IN, checkOuts[f.id]) : null;
+                const hours = working
+                  ? calcHoursWorked({
+                      checkInTime: checkIns[f.id] ?? DEFAULT_CHECK_IN,
+                      morningCheckOutTime: morningOuts[f.id] ?? DEFAULT_MORNING_OUT,
+                      afternoonCheckInTime: afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN,
+                      checkOutTime: checkOuts[f.id],
+                    })
+                  : null;
                 const ot = hours !== null ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : null;
                 const StatusIcon = status ? STATUS_ICONS[status] : null;
                 return (
@@ -274,6 +299,24 @@ export default function AttendancePage() {
                         value={checkIns[f.id] ?? DEFAULT_CHECK_IN}
                         disabled={!working}
                         onChange={e => { setCheckIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="time"
+                        value={morningOuts[f.id] ?? DEFAULT_MORNING_OUT}
+                        disabled={!working}
+                        onChange={e => { setMorningOuts(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="time"
+                        value={afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN}
+                        disabled={!working}
+                        onChange={e => { setAfternoonIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
                         className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
                       />
                     </td>
@@ -364,7 +407,7 @@ export default function AttendancePage() {
             <table className="w-full pro-table">
               <thead>
                 <tr>
-                  <th>Farmer</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th><th>Overtime</th><th>Recorded By</th>
+                  <th>Farmer</th><th>Status</th><th>Morning in</th><th>Lunch out</th><th>Afternoon in</th><th>Day out</th><th>Hours</th><th>Overtime</th><th>Recorded By</th>
                 </tr>
               </thead>
               <tbody>
@@ -389,6 +432,8 @@ export default function AttendancePage() {
                         ) : "—"}
                       </td>
                       <td className="tabular-nums text-foreground/70">{rec?.checkInTime ?? "—"}</td>
+                      <td className="tabular-nums text-foreground/70">{rec?.morningCheckOutTime ?? "—"}</td>
+                      <td className="tabular-nums text-foreground/70">{rec?.afternoonCheckInTime ?? "—"}</td>
                       <td className="tabular-nums text-foreground/70">{rec?.checkOutTime ?? "—"}</td>
                       <td className="tabular-nums text-foreground/70">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
                       <td className="tabular-nums text-foreground/70">

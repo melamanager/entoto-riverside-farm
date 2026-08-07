@@ -282,6 +282,8 @@ export default function SupervisorPage() {
                 <th className="text-left">Role</th>
                 <th className="text-left">{t.common.valve}</th>
                 <th className="text-left">{t.attendance.checkIn}</th>
+                <th className="text-left">{t.attendance.morningCheckOut}</th>
+                <th className="text-left">{t.attendance.afternoonCheckIn}</th>
                 <th className="text-left">{t.attendance.checkOut}</th>
                 <th className="text-left">{t.attendance.hours}</th>
                 <th className="text-left">{t.common.status}</th>
@@ -302,6 +304,8 @@ export default function SupervisorPage() {
                     <td><Badge variant="outline" className="text-[10px] capitalize">{f.role}</Badge></td>
                     <td className="text-muted-foreground">{valve}</td>
                     <td className="tabular-nums text-foreground/70">{rec?.checkInTime ?? "—"}</td>
+                    <td className="tabular-nums text-foreground/70">{rec?.morningCheckOutTime ?? "—"}</td>
+                    <td className="tabular-nums text-foreground/70">{rec?.afternoonCheckInTime ?? "—"}</td>
                     <td className="tabular-nums text-foreground/70">{rec?.checkOutTime ?? "—"}</td>
                     <td className="tabular-nums text-foreground/70">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
                     <td>

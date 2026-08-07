@@ -279,7 +279,10 @@ async function main() {
         farmerId: f.id,
         date: ds,
         status: st,
+        // Two sessions per day, split by the lunch break (out 12:00, back 13:00)
         checkInTime: st === "present" ? "06:00" : st === "late" ? "07:30" : undefined,
+        morningCheckOutTime: (st === "present" || st === "late") ? "12:00" : undefined,
+        afternoonCheckInTime: (st === "present" || st === "late") ? "13:00" : undefined,
         checkOutTime: (st === "present" || st === "late") ? "17:00" : undefined,
         hoursWorked: st === "present" ? 10 : st === "late" ? 8.5 : 0,
         overtimeHours: st === "present" ? 2 : st === "late" ? 0.5 : 0,
