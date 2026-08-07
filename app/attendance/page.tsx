@@ -5,13 +5,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users } from "lucide-react";
+import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import type { AttendanceRecord, AttendanceStatus } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
 import { useAuth } from "@/lib/auth";
 import { useReference } from "@/lib/reference";
-import { calcHoursWorked } from "@/lib/attendance";
+import { CONFIG_DEFAULTS } from "@/lib/config";
+import { calcHoursWorked, deriveDayStatus, isWorking, isHalfDay } from "@/lib/attendance";
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -20,12 +21,22 @@ const STATUS_ICONS = {
   leave: Palmtree,
 };
 
-// The farm day runs in two sessions: staff arrive in the morning, break for
-// lunch at 6 o'clock local (12:00), return at 7 o'clock (13:00), finish at 17:00.
-const DEFAULT_CHECK_IN = "06:00";
-const DEFAULT_MORNING_OUT = "12:00";
-const DEFAULT_AFTERNOON_IN = "13:00";
-const DEFAULT_CHECK_OUT = "17:00";
+type Session = "morning" | "afternoon";
+
+/** The four working-session boundaries, configurable per farm. */
+type SessionTimes = {
+  morningStart: string;
+  morningEnd: string;
+  afternoonStart: string;
+  afternoonEnd: string;
+};
+
+const DEFAULT_TIMES: SessionTimes = {
+  morningStart: CONFIG_DEFAULTS.morningStart,
+  morningEnd: CONFIG_DEFAULTS.morningEnd,
+  afternoonStart: CONFIG_DEFAULTS.afternoonStart,
+  afternoonEnd: CONFIG_DEFAULTS.afternoonEnd,
+};
 
 export default function AttendancePage() {
   const options = useOptions();
@@ -45,7 +56,16 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState(false);
   const [workdayHours, setWorkdayHours] = useState(8); // OT threshold — from Settings, not hard-coded
 
-  const [selected, setSelected] = useState<Record<string, AttendanceStatus>>({});
+  // Only managers and supervisors may retune the session boundaries.
+  const canEditTimes = user?.role === "manager" || user?.role === "supervisor";
+  const [times, setTimes] = useState<SessionTimes>(DEFAULT_TIMES);
+  const [timesDraft, setTimesDraft] = useState<SessionTimes>(DEFAULT_TIMES);
+  const [editingTimes, setEditingTimes] = useState(false);
+  const [savingTimes, setSavingTimes] = useState(false);
+
+  // Each session is marked independently.
+  const [morningSel, setMorningSel] = useState<Record<string, AttendanceStatus>>({});
+  const [afternoonSel, setAfternoonSel] = useState<Record<string, AttendanceStatus>>({});
   const [checkIns, setCheckIns] = useState<Record<string, string>>({});
   const [morningOuts, setMorningOuts] = useState<Record<string, string>>({});
   const [afternoonIns, setAfternoonIns] = useState<Record<string, string>>({});
@@ -60,7 +80,9 @@ export default function AttendancePage() {
   useEffect(() => {
     fetch(`/api/attendance?date=${today}`).then(r => r.json()).then((attData) => {
       const records = attData as AttendanceRecord[];
-      setSelected(Object.fromEntries(records.map(a => [a.farmerId, a.status])));
+      // Legacy rows have no per-session status — fall back to the whole day.
+      setMorningSel(Object.fromEntries(records.map(a => [a.farmerId, a.morningStatus ?? a.status])));
+      setAfternoonSel(Object.fromEntries(records.map(a => [a.farmerId, a.afternoonStatus ?? a.status])));
       setCheckIns(Object.fromEntries(records.filter(a => a.checkInTime).map(a => [a.farmerId, a.checkInTime!])));
       setMorningOuts(Object.fromEntries(records.filter(a => a.morningCheckOutTime).map(a => [a.farmerId, a.morningCheckOutTime!])));
       setAfternoonIns(Object.fromEntries(records.filter(a => a.afternoonCheckInTime).map(a => [a.farmerId, a.afternoonCheckInTime!])));
@@ -69,9 +91,20 @@ export default function AttendancePage() {
     });
   }, [today]);
 
-  // the standard workday (hours before overtime) is configurable in Settings
+  // Workday length (OT threshold) and the session boundaries both live in config
   useEffect(() => {
-    fetch("/api/config").then(r => (r.ok ? r.json() : null)).then(c => { if (c?.workdayHours) setWorkdayHours(c.workdayHours); });
+    fetch("/api/config").then(r => (r.ok ? r.json() : null)).then(c => {
+      if (!c) return;
+      if (c.workdayHours) setWorkdayHours(c.workdayHours);
+      const t: SessionTimes = {
+        morningStart: c.morningStart ?? DEFAULT_TIMES.morningStart,
+        morningEnd: c.morningEnd ?? DEFAULT_TIMES.morningEnd,
+        afternoonStart: c.afternoonStart ?? DEFAULT_TIMES.afternoonStart,
+        afternoonEnd: c.afternoonEnd ?? DEFAULT_TIMES.afternoonEnd,
+      };
+      setTimes(t);
+      setTimesDraft(t);
+    });
   }, []);
 
   // Refetch historic records when viewDate changes (and it's not today)
@@ -89,55 +122,94 @@ export default function AttendancePage() {
       });
   }, [viewDate, today]);
 
-  function setStatus(farmerId: string, status: AttendanceStatus) {
-    setSelected(prev => ({ ...prev, [farmerId]: status }));
+  /**
+   * Mark one session. A normal day is the same both halves, so setting one
+   * mirrors into the other while it is still blank — the supervisor only has
+   * to touch the afternoon when it actually differs.
+   */
+  function setSessionStatus(farmerId: string, session: Session, status: AttendanceStatus) {
+    if (session === "morning") {
+      setMorningSel(prev => ({ ...prev, [farmerId]: status }));
+      setAfternoonSel(prev => (prev[farmerId] ? prev : { ...prev, [farmerId]: status }));
+    } else {
+      setAfternoonSel(prev => ({ ...prev, [farmerId]: status }));
+      setMorningSel(prev => (prev[farmerId] ? prev : { ...prev, [farmerId]: status }));
+    }
     setSaved(false);
   }
 
   function markAllPresent() {
-    setSelected(Object.fromEntries(farmers.map(f => [f.id, "present" as AttendanceStatus])));
+    const all = Object.fromEntries(farmers.map(f => [f.id, "present" as AttendanceStatus]));
+    setMorningSel(all);
+    setAfternoonSel(all);
     setSaved(false);
-    toast.info("All staff marked present — adjust exceptions, then save.");
+    toast.info("All staff marked present for both sessions — adjust exceptions, then save.");
+  }
+
+  /** Marked when at least one session has been set. */
+  const isMarked = (id: string) => Boolean(morningSel[id] || afternoonSel[id]);
+  const dayStatusOf = (id: string): AttendanceStatus | undefined => {
+    const m = morningSel[id], a = afternoonSel[id];
+    if (!m && !a) return undefined;
+    return deriveDayStatus(m ?? a!, a ?? m!);
+  };
+
+  /** Hours for one person, counting only the sessions actually worked. */
+  const hoursFor = (id: string): number | null => {
+    const m = morningSel[id], a = afternoonSel[id];
+    if (!m && !a) return null;
+    return calcHoursWorked(
+      {
+        checkInTime: checkIns[id] ?? times.morningStart,
+        morningCheckOutTime: morningOuts[id] ?? times.morningEnd,
+        afternoonCheckInTime: afternoonIns[id] ?? times.afternoonStart,
+        checkOutTime: checkOuts[id] ?? times.afternoonEnd,
+      },
+      { morningWorked: isWorking(m), afternoonWorked: isWorking(a) },
+    );
+  };
+
+  async function saveSessionTimes() {
+    setSavingTimes(true);
+    const res = await fetch("/api/attendance/session-times", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(timesDraft),
+    });
+    setSavingTimes(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error("Could not save session times", { description: err.error ?? "Check the values and try again." });
+      return;
+    }
+    setTimes(timesDraft);
+    setEditingTimes(false);
+    toast.success("Session times updated", { description: "New defaults apply to the register from now on." });
   }
 
   async function saveAttendance() {
     if (!user) { toast.error("Session expired — please sign in again."); return; }
-    if (Object.keys(selected).length === 0) { toast.error("Mark at least one staff member first."); return; }
+    const marked = farmers.filter(f => isMarked(f.id));
+    if (marked.length === 0) { toast.error("Mark at least one staff member first."); return; }
     setSaving(true);
-    const body = farmers
-      .filter(f => selected[f.id])
-      .map(f => {
-        const status = selected[f.id];
-        const working = status === "present" || status === "late";
-        const checkIn = working ? (checkIns[f.id] ?? DEFAULT_CHECK_IN) : undefined;
-        const morningOut = working ? (morningOuts[f.id] ?? DEFAULT_MORNING_OUT) : undefined;
-        const afternoonIn = working ? (afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN) : undefined;
-        const checkOut = working ? (checkOuts[f.id] ?? undefined) : undefined;
-        // Both sessions, so the lunch break is not counted as worked time.
-        const hours = working
-          ? calcHoursWorked({
-              checkInTime: checkIn,
-              morningCheckOutTime: morningOut,
-              afternoonCheckInTime: afternoonIn,
-              checkOutTime: checkOut,
-            })
-          : 0;
-        return {
-          farmerId: f.id,
-          date: today,
-          status,
-          // undefined leaves an existing value untouched on re-save; absent/leave explicitly clears
-          checkInTime: working ? checkIn : null,
-          morningCheckOutTime: working ? morningOut : null,
-          afternoonCheckInTime: working ? afternoonIn : null,
-          checkOutTime: working ? (checkOut ?? undefined) : null,
-          hoursWorked: working ? (hours ?? undefined) : 0,
-          overtimeHours: working
-            ? (hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : undefined)
-            : 0,
-          recordedBy: user.id,
-        };
-      });
+    const body = marked.map(f => {
+      const morning = morningSel[f.id] ?? afternoonSel[f.id];
+      const afternoon = afternoonSel[f.id] ?? morningSel[f.id];
+      const mWorked = isWorking(morning);
+      const aWorked = isWorking(afternoon);
+      return {
+        farmerId: f.id,
+        date: today,
+        morningStatus: morning,
+        afternoonStatus: afternoon,
+        // times for a session that wasn't worked are cleared server-side too
+        checkInTime: mWorked ? (checkIns[f.id] ?? times.morningStart) : null,
+        morningCheckOutTime: mWorked ? (morningOuts[f.id] ?? times.morningEnd) : null,
+        afternoonCheckInTime: aWorked ? (afternoonIns[f.id] ?? times.afternoonStart) : null,
+        checkOutTime: aWorked ? (checkOuts[f.id] ?? times.afternoonEnd) : null,
+        recordedBy: user.id,
+      };
+    });
     const res = await fetch("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -148,26 +220,29 @@ export default function AttendancePage() {
       toast.error("Failed to save attendance", { description: "Check your connection and try again." });
       return;
     }
+    const halfDays = marked.filter(f => isHalfDay(morningSel[f.id], afternoonSel[f.id])).length;
     toast.success("Attendance saved", {
-      description: `${body.length} staff recorded by ${user.name}. Hours & overtime calculated from check-in/out.`,
+      description: `${body.length} staff recorded by ${user.name}.`
+        + (halfDays > 0 ? ` ${halfDays} half-day(s).` : "")
+        + " Hours & overtime calculated per session.",
     });
     setSaved(true);
   }
 
   function exportCsv() {
-    const header = "Date,Staff,Status,Morning in,Lunch out,Afternoon in,Day out,Hours,Overtime";
+    const header = "Date,Staff,Morning,Afternoon,Day,Morning in,Lunch out,Afternoon in,Day out,Hours,Overtime";
     const rows = farmers.map(f => {
-      const status = selected[f.id] ?? "";
-      const working = status === "present" || status === "late";
-      const ci = working ? (checkIns[f.id] ?? DEFAULT_CHECK_IN) : "";
-      const mo = working ? (morningOuts[f.id] ?? DEFAULT_MORNING_OUT) : "";
-      const ai = working ? (afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN) : "";
-      const co = working ? (checkOuts[f.id] ?? "") : "";
-      const hours = working
-        ? calcHoursWorked({ checkInTime: ci, morningCheckOutTime: mo, afternoonCheckInTime: ai, checkOutTime: co })
-        : 0;
-      const ot = hours !== null && hours !== undefined ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : "";
-      return [today, f.name, status, ci, mo, ai, co, hours ?? "", ot].join(",");
+      const m = morningSel[f.id] ?? "";
+      const a = afternoonSel[f.id] ?? "";
+      const mWorked = isWorking(m as AttendanceStatus);
+      const aWorked = isWorking(a as AttendanceStatus);
+      const ci = mWorked ? (checkIns[f.id] ?? times.morningStart) : "";
+      const mo = mWorked ? (morningOuts[f.id] ?? times.morningEnd) : "";
+      const ai = aWorked ? (afternoonIns[f.id] ?? times.afternoonStart) : "";
+      const co = aWorked ? (checkOuts[f.id] ?? times.afternoonEnd) : "";
+      const hours = hoursFor(f.id);
+      const ot = hours !== null ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : "";
+      return [today, f.name, m, a, dayStatusOf(f.id) ?? "", ci, mo, ai, co, hours ?? "", ot].join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -177,13 +252,35 @@ export default function AttendancePage() {
     URL.revokeObjectURL(a.href);
   }
 
-  const presentCount = Object.values(selected).filter(s => s === "present").length;
-  const lateCount = Object.values(selected).filter(s => s === "late").length;
-  const absentCount = Object.values(selected).filter(s => s === "absent").length;
+  const dayStatuses = farmers.map(f => dayStatusOf(f.id)).filter(Boolean) as AttendanceStatus[];
+  const presentCount = dayStatuses.filter(s => s === "present").length;
+  const lateCount = dayStatuses.filter(s => s === "late").length;
+  const absentCount = dayStatuses.filter(s => s === "absent").length;
+  const halfDayCount = farmers.filter(f => isHalfDay(morningSel[f.id], afternoonSel[f.id])).length;
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
   }
+
+  /** Compact status picker for one session. */
+  const StatusPicker = ({ farmerId, session, value }: { farmerId: string; session: Session; value?: AttendanceStatus }) => (
+    <div className="flex gap-1">
+      {statuses.map(s => (
+        <button
+          key={s.value}
+          onClick={() => setSessionStatus(farmerId, session, s.value)}
+          title={`${session === "morning" ? "Morning" : "Afternoon"}: ${s.label}`}
+          className={`size-7 rounded-full border-2 text-[10px] font-bold transition-all ${
+            value === s.value
+              ? `${s.color} border-transparent text-white scale-110`
+              : "bg-muted border-border text-muted-foreground hover:border-muted-foreground"
+          }`}
+        >
+          {s.label[0]}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="p-6 md:p-8 max-w-[1200px] mx-auto space-y-6">
@@ -194,7 +291,7 @@ export default function AttendancePage() {
             <CalendarCheck className="size-5 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">Attendance</h1>
           </div>
-          <p className="text-muted-foreground text-sm">Daily attendance tracking for all farm staff</p>
+          <p className="text-muted-foreground text-sm">Morning and afternoon sessions, marked separately</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2" onClick={markAllPresent}>
@@ -215,7 +312,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="p-4 bg-primary/10 border-primary/30">
           <div className="text-2xl font-bold text-primary tabular-nums">{presentCount}</div>
           <div className="text-xs text-primary font-medium mt-0.5">Present</div>
@@ -228,6 +325,10 @@ export default function AttendancePage() {
           <div className="text-2xl font-bold text-red-700 tabular-nums">{absentCount}</div>
           <div className="text-xs text-red-600 font-medium mt-0.5">Absent</div>
         </Card>
+        <Card className="p-4 bg-indigo-50 border-indigo-200">
+          <div className="text-2xl font-bold text-indigo-700 tabular-nums">{halfDayCount}</div>
+          <div className="text-xs text-indigo-600 font-medium mt-0.5">Half day</div>
+        </Card>
         <Card className="p-4 bg-muted border-border">
           <div className="text-2xl font-bold text-foreground/80 tabular-nums">{farmers.length}</div>
           <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Staff</div>
@@ -236,43 +337,85 @@ export default function AttendancePage() {
 
       {/* Today's register */}
       <Card className="border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border flex-wrap">
           <div className="font-semibold text-foreground">
             Daily Register — {new Date(today).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
           </div>
-          {saved && <Badge className="bg-primary/15 text-primary border-primary/30"><CheckCircle2 className="size-3 mr-1"/>Saved</Badge>}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              Morning {times.morningStart}–{times.morningEnd} · Afternoon {times.afternoonStart}–{times.afternoonEnd}
+            </span>
+            {canEditTimes && (
+              <Button variant="outline" size="sm" className="gap-1.5 h-7 text-[11px]"
+                onClick={() => { setTimesDraft(times); setEditingTimes(v => !v); }}>
+                <Settings2 className="size-3" /> {editingTimes ? "Cancel" : "Edit times"}
+              </Button>
+            )}
+            {saved && <Badge className="bg-primary/15 text-primary border-primary/30"><CheckCircle2 className="size-3 mr-1"/>Saved</Badge>}
+          </div>
         </div>
+
+        {/* Session-time configuration — supervisors and managers */}
+        {editingTimes && canEditTimes && (
+          <div className="px-5 py-4 border-b border-border bg-muted/50">
+            <div className="text-xs font-semibold text-foreground mb-3">Working session times</div>
+            <div className="flex flex-wrap items-end gap-4">
+              {([
+                { key: "morningStart",   label: "Morning starts" },
+                { key: "morningEnd",     label: "Lunch break at" },
+                { key: "afternoonStart", label: "Afternoon starts" },
+                { key: "afternoonEnd",   label: "Day ends" },
+              ] as { key: keyof SessionTimes; label: string }[]).map(({ key, label }) => (
+                <label key={key} className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+                  <input
+                    type="time"
+                    value={timesDraft[key]}
+                    onChange={e => setTimesDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                    className="text-xs border border-border rounded px-2 py-1 w-28 text-foreground"
+                  />
+                </label>
+              ))}
+              <Button size="sm" className="gap-1.5" onClick={saveSessionTimes} disabled={savingTimes}>
+                <Save className="size-3.5" /> {savingTimes ? "Saving…" : "Save times"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-3">
+              These become the default check-in/out times on the register. Existing records are not changed.
+            </p>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full pro-table">
             <thead>
               <tr>
-                <th>Staff Member</th>
-                <th>Assigned Valve</th>
-                <th>Morning in</th>
-                <th>Lunch out</th>
-                <th>Afternoon in</th>
-                <th>Day out</th>
-                <th>Hours / OT</th>
-                <th className="text-center" colSpan={4}>Mark Attendance</th>
-                <th>Current Status</th>
+                <th rowSpan={2}>Staff Member</th>
+                <th rowSpan={2}>Valve</th>
+                <th colSpan={2} className="text-center border-l border-border">Morning</th>
+                <th colSpan={2} className="text-center border-l border-border">Afternoon</th>
+                <th rowSpan={2} className="border-l border-border">Hours / OT</th>
+                <th rowSpan={2}>Day</th>
+              </tr>
+              <tr>
+                <th className="border-l border-border font-normal text-[10px]">Status</th>
+                <th className="font-normal text-[10px]">In / Out</th>
+                <th className="border-l border-border font-normal text-[10px]">Status</th>
+                <th className="font-normal text-[10px]">In / Out</th>
               </tr>
             </thead>
             <tbody>
               {farmers.map(f => {
                 const valve = valves.filter(v => f.assignedValves.includes(v.id));
-                const status = selected[f.id];
-                const working = status === "present" || status === "late";
-                const hours = working
-                  ? calcHoursWorked({
-                      checkInTime: checkIns[f.id] ?? DEFAULT_CHECK_IN,
-                      morningCheckOutTime: morningOuts[f.id] ?? DEFAULT_MORNING_OUT,
-                      afternoonCheckInTime: afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN,
-                      checkOutTime: checkOuts[f.id],
-                    })
-                  : null;
+                const morning = morningSel[f.id];
+                const afternoon = afternoonSel[f.id];
+                const mWorked = isWorking(morning);
+                const aWorked = isWorking(afternoon);
+                const day = dayStatusOf(f.id);
+                const hours = hoursFor(f.id);
                 const ot = hours !== null ? Math.max(0, Math.round((hours - workdayHours) * 10) / 10) : null;
-                const StatusIcon = status ? STATUS_ICONS[status] : null;
+                const half = isHalfDay(morning, afternoon);
+                const StatusIcon = day ? STATUS_ICONS[day] : null;
                 return (
                   <tr key={f.id}>
                     <td>
@@ -293,44 +436,58 @@ export default function AttendancePage() {
                         ))}
                       </div>
                     </td>
-                    <td>
-                      <input
-                        type="time"
-                        value={checkIns[f.id] ?? DEFAULT_CHECK_IN}
-                        disabled={!working}
-                        onChange={e => { setCheckIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
-                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
-                      />
+
+                    {/* ── Morning ── */}
+                    <td className="border-l border-border">
+                      <StatusPicker farmerId={f.id} session="morning" value={morning} />
                     </td>
                     <td>
-                      <input
-                        type="time"
-                        value={morningOuts[f.id] ?? DEFAULT_MORNING_OUT}
-                        disabled={!working}
-                        onChange={e => { setMorningOuts(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
-                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
-                      />
+                      <div className="flex gap-1">
+                        <input
+                          type="time"
+                          aria-label="Morning in"
+                          value={checkIns[f.id] ?? times.morningStart}
+                          disabled={!mWorked}
+                          onChange={e => { setCheckIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                          className="text-xs border border-border rounded px-1.5 py-1 w-[86px] text-foreground disabled:opacity-40"
+                        />
+                        <input
+                          type="time"
+                          aria-label="Lunch out"
+                          value={morningOuts[f.id] ?? times.morningEnd}
+                          disabled={!mWorked}
+                          onChange={e => { setMorningOuts(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                          className="text-xs border border-border rounded px-1.5 py-1 w-[86px] text-foreground disabled:opacity-40"
+                        />
+                      </div>
+                    </td>
+
+                    {/* ── Afternoon ── */}
+                    <td className="border-l border-border">
+                      <StatusPicker farmerId={f.id} session="afternoon" value={afternoon} />
                     </td>
                     <td>
-                      <input
-                        type="time"
-                        value={afternoonIns[f.id] ?? DEFAULT_AFTERNOON_IN}
-                        disabled={!working}
-                        onChange={e => { setAfternoonIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
-                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
-                      />
+                      <div className="flex gap-1">
+                        <input
+                          type="time"
+                          aria-label="Afternoon in"
+                          value={afternoonIns[f.id] ?? times.afternoonStart}
+                          disabled={!aWorked}
+                          onChange={e => { setAfternoonIns(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                          className="text-xs border border-border rounded px-1.5 py-1 w-[86px] text-foreground disabled:opacity-40"
+                        />
+                        <input
+                          type="time"
+                          aria-label="Day out"
+                          value={checkOuts[f.id] ?? times.afternoonEnd}
+                          disabled={!aWorked}
+                          onChange={e => { setCheckOuts(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
+                          className="text-xs border border-border rounded px-1.5 py-1 w-[86px] text-foreground disabled:opacity-40"
+                        />
+                      </div>
                     </td>
-                    <td>
-                      <input
-                        type="time"
-                        value={checkOuts[f.id] ?? ""}
-                        disabled={!working}
-                        placeholder={DEFAULT_CHECK_OUT}
-                        onChange={e => { setCheckOuts(prev=>({...prev,[f.id]:e.target.value})); setSaved(false); }}
-                        className="text-xs border border-border rounded px-2 py-1 w-24 text-foreground disabled:opacity-40"
-                      />
-                    </td>
-                    <td className="tabular-nums text-xs">
+
+                    <td className="tabular-nums text-xs border-l border-border">
                       {hours !== null ? (
                         <span>
                           {hours}h
@@ -340,34 +497,19 @@ export default function AttendancePage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    {statuses.map(s => (
-                      <td key={s.value} className="text-center px-2">
-                        <button
-                          onClick={() => setStatus(f.id, s.value)}
-                          title={s.label}
-                          className={`size-8 rounded-full border-2 transition-all ${
-                            status === s.value
-                              ? `${s.color} border-transparent scale-110`
-                              : "bg-muted border-border hover:border-muted-foreground"
-                          }`}
-                        >
-                          {status === s.value && (
-                            <span className="text-white text-[10px] font-bold">{s.label[0]}</span>
-                          )}
-                        </button>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">{s.label}</div>
-                      </td>
-                    ))}
                     <td>
-                      {status ? (
-                        <Badge className={`text-[10px] capitalize gap-1 ${
-                          status==="present"?"bg-primary/15 text-primary border-primary/30 hover:bg-primary/15":
-                          status==="late"?"bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100":
-                          status==="absent"?"bg-red-100 text-red-700 border-red-200 hover:bg-red-100":
-                          "bg-muted text-muted-foreground hover:bg-muted"
-                        }`}>
-                          {StatusIcon && <StatusIcon className="size-2.5"/>}{status}
-                        </Badge>
+                      {day ? (
+                        <div className="flex flex-col gap-0.5 items-start">
+                          <Badge className={`text-[10px] capitalize gap-1 ${
+                            day==="present"?"bg-primary/15 text-primary border-primary/30 hover:bg-primary/15":
+                            day==="late"?"bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100":
+                            day==="absent"?"bg-red-100 text-red-700 border-red-200 hover:bg-red-100":
+                            "bg-muted text-muted-foreground hover:bg-muted"
+                          }`}>
+                            {StatusIcon && <StatusIcon className="size-2.5"/>}{day}
+                          </Badge>
+                          {half && <span className="text-[9px] font-semibold text-indigo-600">half day</span>}
+                        </div>
                       ) : (
                         <span className="text-[11px] text-muted-foreground">— Not set</span>
                       )}
@@ -407,12 +549,20 @@ export default function AttendancePage() {
             <table className="w-full pro-table">
               <thead>
                 <tr>
-                  <th>Farmer</th><th>Status</th><th>Morning in</th><th>Lunch out</th><th>Afternoon in</th><th>Day out</th><th>Hours</th><th>Overtime</th><th>Recorded By</th>
+                  <th>Farmer</th><th>Morning</th><th>Afternoon</th><th>Day</th><th>Morning in</th><th>Lunch out</th><th>Afternoon in</th><th>Day out</th><th>Hours</th><th>Overtime</th><th>Recorded By</th>
                 </tr>
               </thead>
               <tbody>
                 {farmers.map(f => {
                   const rec = historicRecords.find(a=>a.farmerId===f.id);
+                  const pill = (s?: AttendanceStatus | null) => s ? (
+                    <Badge className={`text-[10px] capitalize ${
+                      s==="present"?"bg-primary/15 text-primary border-primary/30 hover:bg-primary/15":
+                      s==="late"?"bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100":
+                      s==="absent"?"bg-red-100 text-red-700 border-red-200 hover:bg-red-100":
+                      "bg-muted text-muted-foreground hover:bg-muted"
+                    }`}>{s}</Badge>
+                  ) : <span className="text-muted-foreground">—</span>;
                   return (
                     <tr key={f.id}>
                       <td>
@@ -421,14 +571,16 @@ export default function AttendancePage() {
                           <span className="font-medium text-sm">{f.name}</span>
                         </div>
                       </td>
+                      <td>{pill(rec?.morningStatus ?? rec?.status)}</td>
+                      <td>{pill(rec?.afternoonStatus ?? rec?.status)}</td>
                       <td>
                         {rec ? (
-                          <Badge className={`text-[10px] capitalize ${
-                            rec.status==="present"?"bg-primary/15 text-primary border-primary/30 hover:bg-primary/15":
-                            rec.status==="late"?"bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100":
-                            rec.status==="absent"?"bg-red-100 text-red-700 border-red-200 hover:bg-red-100":
-                            "bg-muted text-muted-foreground hover:bg-muted"
-                          }`}>{rec.status}</Badge>
+                          <div className="flex flex-col gap-0.5 items-start">
+                            {pill(rec.status)}
+                            {isHalfDay(rec.morningStatus, rec.afternoonStatus) && (
+                              <span className="text-[9px] font-semibold text-indigo-600">half day</span>
+                            )}
+                          </div>
                         ) : "—"}
                       </td>
                       <td className="tabular-nums text-foreground/70">{rec?.checkInTime ?? "—"}</td>

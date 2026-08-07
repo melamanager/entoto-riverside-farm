@@ -252,6 +252,10 @@ model AttendanceRecord {
   // A farm day has two sessions, split by the lunch break:
   //   checkInTime (morning arrival) → morningCheckOutTime (leaves ~12:00)
   //   afternoonCheckInTime (returns ~13:00) → checkOutTime (end of day)
+  // Each session is marked separately; `status` above is derived from the two
+  // so anything reading a single status per day keeps working.
+  morningStatus        AttendanceStatus?
+  afternoonStatus      AttendanceStatus?
   checkInTime          String?
   morningCheckOutTime  String?
   afternoonCheckInTime String?

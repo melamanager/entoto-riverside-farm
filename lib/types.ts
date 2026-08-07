@@ -144,7 +144,12 @@ export interface AttendanceRecord {
   id: string;
   farmerId: string;
   date: string;
+  /** Whole-day summary, derived from the two sessions below */
   status: AttendanceStatus;
+  /** Morning session (arrival → lunch) */
+  morningStatus?: AttendanceStatus;
+  /** Afternoon session (back from lunch → end of day) */
+  afternoonStatus?: AttendanceStatus;
   /** Morning arrival */
   checkInTime?: string;
   /** Leaves for lunch — 6 o'clock local (12:00) */

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { calcHoursWorked } from "@/lib/attendance";
+import { requireCapability } from "@/lib/guard";
+import { getFarmConfig } from "@/lib/config-server";
+import { calcHoursWorked, deriveDayStatus, isWorking } from "@/lib/attendance";
+import type { AttendanceStatus } from "@/lib/types";
 
-const NON_WORKING = new Set(["absent", "leave"]);
+const VALID_STATUS = new Set<AttendanceStatus>(["present", "absent", "late", "leave"]);
 
 const TIME_FIELDS = [
   "checkInTime",
@@ -13,8 +15,8 @@ const TIME_FIELDS = [
 ] as const;
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requireCapability("attendance");
+  if (!gate.ok) return gate.response;
 
   const { id } = await params;
   const body = await req.json();
@@ -24,25 +26,47 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const data: Record<string, unknown> = { ...body };
 
-  // Merge patched times over the stored ones, then re-derive hoursWorked so it
-  // can never drift out of sync with the recorded times.
-  const status = (data.status as string) ?? existing.status;
-  if (NON_WORKING.has(status)) {
-    for (const f of TIME_FIELDS) data[f] = null;
-    data.hoursWorked = 0;
-  } else {
-    const pick = (f: (typeof TIME_FIELDS)[number]): string | null =>
-      (f in data ? (data[f] as string | null) : existing[f]) || null;
+  // Merge patched session statuses over the stored ones. Fall back to the
+  // whole-day status for legacy rows that predate the per-session columns.
+  const morning = (data.morningStatus as AttendanceStatus)
+    ?? existing.morningStatus
+    ?? (data.status as AttendanceStatus)
+    ?? existing.status;
+  const afternoon = (data.afternoonStatus as AttendanceStatus)
+    ?? existing.afternoonStatus
+    ?? (data.status as AttendanceStatus)
+    ?? existing.status;
 
-    const merged = {
-      checkInTime: pick("checkInTime"),
-      morningCheckOutTime: pick("morningCheckOutTime"),
-      afternoonCheckInTime: pick("afternoonCheckInTime"),
-      checkOutTime: pick("checkOutTime"),
-    };
-    for (const f of TIME_FIELDS) if (f in data) data[f] = merged[f];
-    data.hoursWorked = calcHoursWorked(merged);
+  if (!VALID_STATUS.has(morning) || !VALID_STATUS.has(afternoon)) {
+    return NextResponse.json({ error: "Invalid attendance status" }, { status: 400 });
   }
+
+  const morningWorked = isWorking(morning);
+  const afternoonWorked = isWorking(afternoon);
+
+  // Merge patched times over the stored ones, dropping any session that was not
+  // worked, then re-derive status and hoursWorked so they can never drift.
+  const pick = (f: (typeof TIME_FIELDS)[number]): string | null =>
+    (f in data ? (data[f] as string | null) : existing[f]) || null;
+
+  const merged = {
+    checkInTime: morningWorked ? pick("checkInTime") : null,
+    morningCheckOutTime: morningWorked ? pick("morningCheckOutTime") : null,
+    afternoonCheckInTime: afternoonWorked ? pick("afternoonCheckInTime") : null,
+    checkOutTime: afternoonWorked ? pick("checkOutTime") : null,
+  };
+  for (const f of TIME_FIELDS) data[f] = merged[f];
+
+  data.morningStatus = morning;
+  data.afternoonStatus = afternoon;
+  data.status = deriveDayStatus(morning, afternoon);
+
+  const hours = calcHoursWorked(merged, { morningWorked, afternoonWorked }) ?? 0;
+  data.hoursWorked = hours;
+
+  // overtime follows the configured workday, never the client
+  const wd = (await getFarmConfig()).workdayHours || 8;
+  data.overtimeHours = Math.max(0, Math.round((hours - wd) * 10) / 10);
 
   const record = await prisma.attendanceRecord.update({ where: { id }, data });
   return NextResponse.json(record);

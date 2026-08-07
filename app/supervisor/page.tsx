@@ -19,6 +19,7 @@ import { useLang } from "@/lib/lang";
 import { useAuth } from "@/lib/auth";
 import { EN, AM } from "@/lib/translations";
 import type { Farmer, Valve, Bed, HarvestRecord, DiseaseReport, Task, AttendanceRecord } from "@/lib/types";
+import { isHalfDay } from "@/lib/attendance";
 import type { FollowUp } from "@/lib/erp-types";
 
 const TODAY = new Date().toLocaleDateString("en-CA");
@@ -307,7 +308,12 @@ export default function SupervisorPage() {
                     <td className="tabular-nums text-foreground/70">{rec?.morningCheckOutTime ?? "—"}</td>
                     <td className="tabular-nums text-foreground/70">{rec?.afternoonCheckInTime ?? "—"}</td>
                     <td className="tabular-nums text-foreground/70">{rec?.checkOutTime ?? "—"}</td>
-                    <td className="tabular-nums text-foreground/70">{rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}</td>
+                    <td className="tabular-nums text-foreground/70">
+                      {rec?.hoursWorked ? `${rec.hoursWorked}h` : "—"}
+                      {rec && isHalfDay(rec.morningStatus, rec.afternoonStatus) && (
+                        <span className="ml-1 text-[9px] font-semibold text-indigo-600">½</span>
+                      )}
+                    </td>
                     <td>
                       {rec ? (
                         <Badge className={`text-[10px] capitalize ${

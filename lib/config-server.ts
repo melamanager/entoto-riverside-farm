@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { CONFIG_DEFAULTS, CONFIG_KEYS, NUM_KEYS, BOOL_KEYS, type FarmConfig } from "@/lib/config";
+import { CONFIG_DEFAULTS, CONFIG_KEYS, NUM_KEYS, STR_KEYS, BOOL_KEYS, TIME_RE, type FarmConfig } from "@/lib/config";
 
 // server-side: read the live config (falls back to defaults on any error)
 export async function getFarmConfig(): Promise<FarmConfig> {
@@ -11,6 +11,11 @@ export async function getFarmConfig(): Promise<FarmConfig> {
     for (const [k, field] of Object.entries(NUM_KEYS)) {
       const v = map.get(k);
       if (v != null && Number.isFinite(Number(v))) (cfg[field] as number) = Number(v);
+    }
+    // times are only accepted in "HH:MM"; anything else falls back to the default
+    for (const [k, field] of Object.entries(STR_KEYS)) {
+      const v = map.get(k);
+      if (v != null && TIME_RE.test(v)) (cfg[field] as string) = v;
     }
     for (const [k, field] of Object.entries(BOOL_KEYS)) {
       const v = map.get(k);

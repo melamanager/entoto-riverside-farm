@@ -10,6 +10,7 @@ import { DollarSign, CheckCircle2, Clock, Download, Users, Calculator, Plus } fr
 import { toast } from "sonner";
 import type { PayrollRecord, PayrollStatus } from "@/lib/erp-types";
 import type { AttendanceRecord, Farmer } from "@/lib/types";
+import { dayWeight } from "@/lib/attendance";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 
@@ -197,7 +198,9 @@ export default function PayrollPage() {
         }
         return true;
       });
-      const daysWorked = farmerAtt.filter(a => a.status === "present" || a.status === "late").length;
+      // Half days pay half: a person present in the morning but absent after
+      // lunch counts 0.5. Legacy records with no per-session status count 1.
+      const daysWorked = farmerAtt.reduce((s, a) => s + dayWeight(a), 0);
       const totalHours = farmerAtt.reduce((s, a) => s + (a.hoursWorked ?? 0), 0);
       // prefer explicitly recorded daily overtime (Daily Routines page); fall back to derived estimate
       const recordedOT = farmerAtt.reduce((s, a) => s + (a.overtimeHours ?? 0), 0);

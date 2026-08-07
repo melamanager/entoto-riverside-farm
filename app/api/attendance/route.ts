@@ -3,17 +3,18 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getFarmConfig } from "@/lib/config-server";
 import { requireCapability } from "@/lib/guard";
-import { calcHoursWorked } from "@/lib/attendance";
+import { calcHoursWorked, deriveDayStatus, isWorking } from "@/lib/attendance";
 import type { AttendanceStatus } from "@/lib/types";
 
 const VALID_STATUS = new Set<AttendanceStatus>(["present", "absent", "late", "leave"]);
-/** Statuses where the person did not work, so all times are cleared. */
-const NON_WORKING = new Set<AttendanceStatus>(["absent", "leave"]);
 
 type AttendanceInput = {
   farmerId: string;
   date: string;
-  status: AttendanceStatus;
+  /** Optional — derived from the two sessions when omitted */
+  status?: AttendanceStatus;
+  morningStatus?: AttendanceStatus;
+  afternoonStatus?: AttendanceStatus;
   checkInTime?: string | null;
   morningCheckOutTime?: string | null;
   afternoonCheckInTime?: string | null;
@@ -23,34 +24,42 @@ type AttendanceInput = {
   bedId?: string | null;
 };
 
-/**
- * Whitelist incoming fields and derive hoursWorked server-side from the two
- * sessions of the day, so a client cannot write an arbitrary column or an
- * hours total that disagrees with the recorded times.
- */
-function normalize(raw: AttendanceInput) {
-  const nonWorking = NON_WORKING.has(raw.status);
+/** Each record must carry a usable status for both sessions. */
+function sessionsOf(raw: AttendanceInput): { morning: AttendanceStatus; afternoon: AttendanceStatus } | null {
+  // Fall back to the whole-day status when a client only sends that (older
+  // clients, Telegram bot, bulk imports).
+  const morning = raw.morningStatus ?? raw.status;
+  const afternoon = raw.afternoonStatus ?? raw.status;
+  if (!morning || !afternoon) return null;
+  if (!VALID_STATUS.has(morning) || !VALID_STATUS.has(afternoon)) return null;
+  return { morning, afternoon };
+}
 
-  const times = nonWorking
-    ? {
-        checkInTime: null,
-        morningCheckOutTime: null,
-        afternoonCheckInTime: null,
-        checkOutTime: null,
-      }
-    : {
-        checkInTime: raw.checkInTime || null,
-        morningCheckOutTime: raw.morningCheckOutTime || null,
-        afternoonCheckInTime: raw.afternoonCheckInTime || null,
-        checkOutTime: raw.checkOutTime || null,
-      };
+/**
+ * Whitelist incoming fields and derive status + hoursWorked server-side from
+ * the two sessions, so a client cannot write an arbitrary column or an hours
+ * total that disagrees with the recorded times and session statuses.
+ */
+function normalize(raw: AttendanceInput, morning: AttendanceStatus, afternoon: AttendanceStatus) {
+  const morningWorked = isWorking(morning);
+  const afternoonWorked = isWorking(afternoon);
+
+  // Only keep the times for sessions that were actually worked.
+  const times = {
+    checkInTime: morningWorked ? raw.checkInTime || null : null,
+    morningCheckOutTime: morningWorked ? raw.morningCheckOutTime || null : null,
+    afternoonCheckInTime: afternoonWorked ? raw.afternoonCheckInTime || null : null,
+    checkOutTime: afternoonWorked ? raw.checkOutTime || null : null,
+  };
 
   return {
     farmerId: raw.farmerId,
     date: raw.date,
-    status: raw.status,
+    status: deriveDayStatus(morning, afternoon),
+    morningStatus: morning,
+    afternoonStatus: afternoon,
     ...times,
-    hoursWorked: nonWorking ? 0 : calcHoursWorked(times),
+    hoursWorked: calcHoursWorked(times, { morningWorked, afternoonWorked }) ?? 0,
     recordedBy: raw.recordedBy,
     ...(raw.note !== undefined ? { note: raw.note || null } : {}),
     ...(raw.bedId !== undefined ? { bedId: raw.bedId || null } : {}),
@@ -84,11 +93,15 @@ export async function POST(req: Request) {
 
   const body = await req.json();
 
-  // Reject unknown statuses up front rather than letting Prisma fail mid-batch.
+  // Reject unusable statuses up front rather than letting Prisma fail mid-batch.
   const incoming: AttendanceInput[] = Array.isArray(body) ? body : [body];
-  const bad = incoming.find(r => !VALID_STATUS.has(r.status));
-  if (bad) {
-    return NextResponse.json({ error: `Invalid status: ${String(bad.status)}` }, { status: 400 });
+  for (const r of incoming) {
+    if (!sessionsOf(r)) {
+      return NextResponse.json(
+        { error: `Invalid or missing attendance status for ${r.farmerId ?? "record"}` },
+        { status: 400 },
+      );
+    }
   }
 
   // overtime is derived authoritatively from the configured workday, so it's
@@ -105,7 +118,8 @@ export async function POST(req: Request) {
   if (Array.isArray(body)) {
     const results = [];
     for (const raw of body as AttendanceInput[]) {
-      const rec = withOt(normalize(raw));
+      const s = sessionsOf(raw)!;
+      const rec = withOt(normalize(raw, s.morning, s.afternoon));
       const result = await prisma.attendanceRecord.upsert({
         where: { farmerId_date: { farmerId: rec.farmerId, date: rec.date } },
         update: rec as never,
@@ -116,8 +130,10 @@ export async function POST(req: Request) {
     return NextResponse.json(results, { status: 201 });
   }
 
+  const single = body as AttendanceInput;
+  const s = sessionsOf(single)!;
   const record = await prisma.attendanceRecord.create({
-    data: withOt(normalize(body as AttendanceInput)) as never,
+    data: withOt(normalize(single, s.morning, s.afternoon)) as never,
   });
   return NextResponse.json(record, { status: 201 });
 }
