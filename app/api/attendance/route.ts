@@ -73,10 +73,17 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   const farmerId = searchParams.get("farmerId");
+  // Inclusive YYYY-MM-DD range, for the report views. Dates sort lexically in
+  // this format, so a string comparison is a correct date comparison.
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
 
   const records = await prisma.attendanceRecord.findMany({
     where: {
       ...(date ? { date } : {}),
+      ...(!date && (from || to)
+        ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+        : {}),
       ...(farmerId ? { farmerId } : {}),
     },
     include: { farmer: true },

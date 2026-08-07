@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users, Settings2 } from "lucide-react";
+import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users, Settings2, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import type { AttendanceRecord, AttendanceStatus } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
@@ -303,6 +304,11 @@ export default function AttendancePage() {
           <p className="text-muted-foreground text-sm">Morning and afternoon sessions, marked separately</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/attendance/report">
+            <Button variant="outline" size="sm" className="gap-2">
+              <BarChart3 className="size-3.5" /> Report
+            </Button>
+          </Link>
           <Button variant="outline" size="sm" className="gap-2" onClick={markAllPresent}>
             <Users className="size-3.5" /> Mark All Present
           </Button>
