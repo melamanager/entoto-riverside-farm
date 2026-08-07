@@ -3,6 +3,24 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recommendationSideEffects } from "@/lib/disease-recommend";
 
+/**
+ * One report, including the base64 photo blobs the list deliberately omits.
+ * Fetched only when someone actually opens a photo.
+ */
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const report = await prisma.diseaseReport.findUnique({
+    where: { id },
+    include: { bed: true, reporter: { omit: { photo: true } } },
+  });
+  if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json(report);
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

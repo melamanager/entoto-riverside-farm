@@ -51,7 +51,7 @@ export default function PayrollPage() {
       const months = [...new Set(parsed.map(r => r.month))].sort().reverse();
       if (months.length > 0) setSelectedMonth(months[0]);
     });
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
+    fetch("/api/farmers?photos=1").then(r => r.json()).then(setFarmers);
     fetch("/api/attendance").then(r => r.json()).then(setAttendance);
     fetch("/api/config").then(r => r.ok ? r.json() : null).then(c => c && setCfg({
       workdayHours: c.workdayHours ?? 8,

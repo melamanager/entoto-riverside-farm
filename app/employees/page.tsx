@@ -66,13 +66,13 @@ export default function EmployeesPage() {
   const [loginPw, setLoginPw] = useState("");
 
   async function fetchFarmers() {
-    const data: Farmer[] = await fetch("/api/farmers").then(r => r.json());
+    const data: Farmer[] = await fetch("/api/farmers?photos=1").then(r => r.json());
     setFarmers(data);
   }
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/farmers").then(r => r.json()),
+      fetch("/api/farmers?photos=1").then(r => r.json()),
       fetch("/api/valves").then(r => r.json()),
       fetch("/api/tasks").then(r => r.json()),
       fetch("/api/assignments").then(r => r.json()),

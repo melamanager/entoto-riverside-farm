@@ -22,15 +22,16 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useReference } from "@/lib/reference";
 
 export default function DiseasesPage() {
   const { isAm } = useLang();
   const t = isAm ? AM : EN;
   const { user, isManager, isSupervisor } = useAuth();
   const [diseases, setDiseases] = useState<DiseaseReport[]>([]);
-  const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [beds, setBeds] = useState<Bed[]>([]);
-  const [valves, setValves] = useState<Valve[]>([]);
+  // farmers/beds/valves come from the shared cached store — this page used to
+  // refetch all three itself on every visit.
+  const { farmers, beds, valves } = useReference();
 
   const refreshDiseases = useCallback(() => {
     fetch("/api/diseases").then(r => r.json()).then((data: DiseaseReport[]) => setDiseases(data));
@@ -38,10 +39,19 @@ export default function DiseasesPage() {
 
   useEffect(() => {
     refreshDiseases();
-    fetch("/api/farmers").then(r => r.json()).then(setFarmers);
-    fetch("/api/beds").then(r => r.json()).then(setBeds);
-    fetch("/api/valves").then(r => r.json()).then(setValves);
   }, [refreshDiseases]);
+
+  /**
+   * The list omits the base64 proof photo, so fetch the one being opened.
+   */
+  async function openProofPhoto(id: string) {
+    setPreviewUrl("loading");
+    const res = await fetch(`/api/diseases/${id}`);
+    if (!res.ok) { setPreviewUrl(null); toast.error("Couldn't load that photo"); return; }
+    const full = await res.json() as DiseaseReport;
+    if (full.proofImageUrl) setPreviewUrl(full.proofImageUrl);
+    else { setPreviewUrl(null); toast.error("No proof photo on this report"); }
+  }
 
   function getBed(bedId: string): Bed | undefined { return beds.find(b => b.id === bedId); }
   function getFarmer(farmerId: string): Farmer | undefined { return farmers.find(f => f.id === farmerId); }
@@ -143,13 +153,18 @@ export default function DiseasesPage() {
     setRecommendTarget(null);
   }
 
-  function markResolved(d: DiseaseReport) {
-    // Flow 5: if proof was required, make manager review it first
-    if (d.requiresImageProof && d.proofImageUrl) {
-      setProofReviewTarget(d);
+  async function markResolved(d: DiseaseReport) {
+    // Flow 5: if proof was required, make manager review it first.
+    // The list omits the photo bytes, so existence comes from hasProofImage and
+    // the image itself is fetched only when the review dialog opens.
+    const hasProof = d.hasProofImage ?? Boolean(d.proofImageUrl);
+    if (d.requiresImageProof && hasProof) {
+      const res = await fetch(`/api/diseases/${d.id}`);
+      if (!res.ok) { toast.error("Couldn't load the proof photo"); return; }
+      setProofReviewTarget(await res.json() as DiseaseReport);
       return;
     }
-    if (d.requiresImageProof && !d.proofImageUrl) {
+    if (d.requiresImageProof && !hasProof) {
       toast.error("Cannot resolve — supervisor has not uploaded proof photo yet.");
       return;
     }
@@ -169,12 +184,20 @@ export default function DiseasesPage() {
   }
 
   /* ── Supervisor: confirm treatment applied ───────────────────────────── */
-  function openConfirm(d: DiseaseReport) {
+  async function openConfirm(d: DiseaseReport) {
     setConfirmTarget(d);
     setTreatmentNote(d.treatmentNote ?? "");
     setProofImage(d.proofImageUrl ?? null);
     setProofImageName("");
     setConfirmOpen(true);
+    // pull the already-uploaded photo back in, since the list omits it
+    if (!d.proofImageUrl && (d.hasProofImage ?? false)) {
+      const res = await fetch(`/api/diseases/${d.id}`);
+      if (res.ok) {
+        const full = await res.json() as DiseaseReport;
+        if (full.proofImageUrl) setProofImage(full.proofImageUrl);
+      }
+    }
   }
 
   function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -430,9 +453,9 @@ export default function DiseasesPage() {
                                 "{d.treatmentNote}"
                               </div>
                             )}
-                            {d.proofImageUrl && (
+                            {(d.proofImageUrl || d.hasProofImage) && (
                               <button
-                                onClick={() => setPreviewUrl(d.proofImageUrl!)}
+                                onClick={() => openProofPhoto(d.id)}
                                 className="flex items-center gap-1.5 text-[11px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1.5 rounded-md hover:bg-purple-100 transition-colors"
                               >
                                 <FileImage className="size-3" /> View proof photo
@@ -468,7 +491,7 @@ export default function DiseasesPage() {
                             onClick={() => markResolved(d)}
                           >
                             <CheckCircle2 className="size-3.5" />
-                            {d.requiresImageProof && d.proofImageUrl ? t.diseases.reviewResolve : t.diseases.markResolved}
+                            {d.requiresImageProof && (d.hasProofImage ?? Boolean(d.proofImageUrl)) ? t.diseases.reviewResolve : t.diseases.markResolved}
                           </Button>
                         )}
 
@@ -813,7 +836,9 @@ export default function DiseasesPage() {
           onClick={() => setPreviewUrl(null)}
         >
           <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
-            <img src={previewUrl} alt="Proof" className="w-full rounded-xl shadow-2xl" />
+            {previewUrl === "loading"
+              ? <div className="w-full aspect-video rounded-xl bg-card/80 grid place-items-center text-sm text-muted-foreground">Loading photo…</div>
+              : <img src={previewUrl} alt="Proof" className="w-full rounded-xl shadow-2xl" />}
             <button
               onClick={() => setPreviewUrl(null)}
               className="absolute top-3 right-3 size-8 rounded-full bg-black/60 text-white grid place-items-center hover:bg-black/80"

@@ -98,7 +98,12 @@ export interface DiseaseReport {
   notificationChannels: Array<"telegram" | "sms">;
   managerRecommendation?: string;   // manager's written recommendation sent to supervisor
   requiresImageProof?: boolean;     // manager requires supervisor to upload photo proof
-  proofImageUrl?: string;           // supervisor's uploaded proof image (data URL)
+  /** Supervisor's uploaded proof image (data URL). Multi-MB base64, so list
+   *  endpoints omit it — fetch GET /api/diseases/[id] when actually showing it. */
+  proofImageUrl?: string;
+  /** Set by the list endpoint so the UI knows a proof photo exists without
+   *  paying to download it. */
+  hasProofImage?: boolean;
 }
 
 export interface ProgressNote {

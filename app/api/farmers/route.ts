@@ -12,6 +12,9 @@ export async function GET(req: Request) {
   // default so historical views (payroll, past attendance) can still name
   // people who have since left.
   const activeOnly = searchParams.get("active") === "1";
+  // `photo` is a base64 portrait (~40 KB each) and almost every screen shows
+  // initials instead, so it is opt-in: only Employees and Payroll ask for it.
+  const withPhotos = searchParams.get("photos") === "1";
 
   // Attendance rate and performance are DERIVED from real records, never from
   // the stored columns (which were demo values that never updated). Both are
@@ -24,6 +27,7 @@ export async function GET(req: Request) {
         ...(activeOnly ? { archivedAt: null } : {}),
       },
       orderBy: { name: "asc" },
+      ...(withPhotos ? {} : { omit: { photo: true } }),
       include: { user: { select: { id: true } } }, // to flag who can log in
     }),
     prisma.attendanceRecord.groupBy({ by: ["farmerId"], _count: { _all: true } }),
