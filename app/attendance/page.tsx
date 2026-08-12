@@ -14,6 +14,8 @@ import { useAuth } from "@/lib/auth";
 import { useReference } from "@/lib/reference";
 import { CONFIG_DEFAULTS } from "@/lib/config";
 import { calcHoursWorked, deriveDayStatus, isWorking, isHalfDay } from "@/lib/attendance";
+import { useIsMobile } from "@/lib/use-mobile";
+import { ChevronDown } from "lucide-react";
 
 const STATUS_ICONS = {
   present: CheckCircle2,
@@ -43,6 +45,10 @@ const DEFAULT_TIMES: SessionTimes = {
 export default function AttendancePage() {
   const options = useOptions();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  // On a phone the register is a list of people, and only the exception gets
+  // opened up — the normal day is one tap per person.
+  const [openCard, setOpenCard] = useState<string | null>(null);
   const statuses = options.attendanceStatuses.map(s => ({
     value: s.value as AttendanceStatus,
     label: s.label,
@@ -146,6 +152,13 @@ export default function AttendancePage() {
       setAfternoonSel(prev => ({ ...prev, [farmerId]: status }));
       setMorningSel(prev => (prev[farmerId] ? prev : { ...prev, [farmerId]: status }));
     }
+    setSaved(false);
+  }
+
+  /** One tap sets the whole day; the card expands only when it differs. */
+  function setWholeDay(farmerId: string, status: AttendanceStatus) {
+    setMorningSel(prev => ({ ...prev, [farmerId]: status }));
+    setAfternoonSel(prev => ({ ...prev, [farmerId]: status }));
     setSaved(false);
   }
 
@@ -290,6 +303,7 @@ export default function AttendancePage() {
   const absentCount = dayStatuses.filter(s => s === "absent").length;
   const halfDayCount = farmers.filter(f => isHalfDay(morningSel[f.id], afternoonSel[f.id])).length;
   const holidayCount = dayStatuses.filter(s => s === "holiday").length;
+  const markedCount = farmers.filter(f => isMarked(f.id)).length;
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
@@ -324,31 +338,49 @@ export default function AttendancePage() {
             <CalendarCheck className="size-5 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">Attendance</h1>
           </div>
-          <p className="text-muted-foreground text-sm">Morning and afternoon sessions, marked separately</p>
+          <p className="text-muted-foreground text-sm">{isMobile ? "Tap each person" : "Morning and afternoon sessions, marked separately"}</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/attendance/report">
-            <Button variant="outline" size="sm" className="gap-2">
-              <BarChart3 className="size-3.5" /> Report
-            </Button>
-          </Link>
-          <Button variant="outline" size="sm" className="gap-2" onClick={markAllPresent}>
-            <Users className="size-3.5" /> Mark All Present
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={markHoliday}>
-            <CalendarOff className="size-3.5" /> Holiday
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={exportCsv}>
-            <Download className="size-3.5" /> Export CSV
-          </Button>
-          <Button
-            size="sm"
-            className="gap-2 bg-primary hover:bg-primary/90"
-            onClick={saveAttendance}
-            disabled={saving}
-          >
-            <Save className="size-3.5" /> {saving ? "Saving…" : "Save Attendance"}
-          </Button>
+          {isMobile ? (
+            <div className="flex gap-2 w-full">
+              <Button size="sm" className="flex-1 gap-1.5" onClick={markAllPresent}>
+                <Users className="size-3.5" /> All present
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={markHoliday}>
+                <CalendarOff className="size-3.5" /> Holiday
+              </Button>
+              <Link href="/attendance/report">
+                <Button variant="outline" size="sm" className="px-2.5" aria-label="Report">
+                  <BarChart3 className="size-3.5" />
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <>
+              <Link href="/attendance/report">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <BarChart3 className="size-3.5" /> Report
+                </Button>
+              </Link>
+              <Button variant="outline" size="sm" className="gap-2" onClick={markAllPresent}>
+                <Users className="size-3.5" /> Mark All Present
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={markHoliday}>
+                <CalendarOff className="size-3.5" /> Holiday
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={exportCsv}>
+                <Download className="size-3.5" /> Export CSV
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2 bg-primary hover:bg-primary/90"
+                onClick={saveAttendance}
+                disabled={saving}
+              >
+                <Save className="size-3.5" /> {saving ? "Saving…" : "Save Attendance"}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -369,39 +401,233 @@ export default function AttendancePage() {
         </Card>
       )}
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card className="p-4 bg-primary/10 border-primary/30">
-          <div className="text-2xl font-bold text-primary tabular-nums">{presentCount}</div>
-          <div className="text-xs text-primary font-medium mt-0.5">Present</div>
-        </Card>
-        <Card className="p-4 bg-amber-50 border-amber-200">
-          <div className="text-2xl font-bold text-amber-700 tabular-nums">{lateCount}</div>
-          <div className="text-xs text-amber-600 font-medium mt-0.5">Late</div>
-        </Card>
-        <Card className="p-4 bg-red-50 border-red-200">
-          <div className="text-2xl font-bold text-red-700 tabular-nums">{absentCount}</div>
-          <div className="text-xs text-red-600 font-medium mt-0.5">Absent</div>
-        </Card>
-        {holidayCount > 0 ? (
-          <Card className="p-4 bg-sky-50 border-sky-200">
-            <div className="text-2xl font-bold text-sky-700 tabular-nums">{holidayCount}</div>
-            <div className="text-xs text-sky-600 font-medium mt-0.5">Holiday</div>
+      {/* Summary — a compact strip on a phone, cards on a wide screen.
+          Five big cards used to fill the whole first screen before you could
+          see a single name. */}
+      {isMobile ? (
+        <div className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
+          {[
+            { n: presentCount, l: "present", c: "bg-primary/15 text-primary border-primary/30" },
+            { n: lateCount,    l: "late",    c: "bg-amber-100 text-amber-700 border-amber-200" },
+            { n: absentCount,  l: "absent",  c: "bg-red-100 text-red-700 border-red-200" },
+            ...(holidayCount > 0 ? [{ n: holidayCount, l: "holiday", c: "bg-sky-100 text-sky-700 border-sky-200" }] : []),
+            ...(halfDayCount > 0 ? [{ n: halfDayCount, l: "half day", c: "bg-indigo-100 text-indigo-700 border-indigo-200" }] : []),
+          ].map(x => (
+            <span key={x.l} className={`shrink-0 text-[11px] font-semibold rounded-full border px-2.5 py-1 tabular-nums ${x.c}`}>
+              {x.n} {x.l}
+            </span>
+          ))}
+          <span className="shrink-0 text-[11px] font-medium rounded-full border border-border bg-muted text-muted-foreground px-2.5 py-1 tabular-nums">
+            {markedCount}/{farmers.length} marked
+          </span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card className="p-4 bg-primary/10 border-primary/30">
+            <div className="text-2xl font-bold text-primary tabular-nums">{presentCount}</div>
+            <div className="text-xs text-primary font-medium mt-0.5">Present</div>
           </Card>
-        ) : (
-          <Card className="p-4 bg-indigo-50 border-indigo-200">
-            <div className="text-2xl font-bold text-indigo-700 tabular-nums">{halfDayCount}</div>
-            <div className="text-xs text-indigo-600 font-medium mt-0.5">Half day</div>
+          <Card className="p-4 bg-amber-50 border-amber-200">
+            <div className="text-2xl font-bold text-amber-700 tabular-nums">{lateCount}</div>
+            <div className="text-xs text-amber-600 font-medium mt-0.5">Late</div>
           </Card>
-        )}
-        <Card className="p-4 bg-muted border-border">
-          <div className="text-2xl font-bold text-foreground/80 tabular-nums">{farmers.length}</div>
-          <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Staff</div>
-        </Card>
-      </div>
+          <Card className="p-4 bg-red-50 border-red-200">
+            <div className="text-2xl font-bold text-red-700 tabular-nums">{absentCount}</div>
+            <div className="text-xs text-red-600 font-medium mt-0.5">Absent</div>
+          </Card>
+          {holidayCount > 0 ? (
+            <Card className="p-4 bg-sky-50 border-sky-200">
+              <div className="text-2xl font-bold text-sky-700 tabular-nums">{holidayCount}</div>
+              <div className="text-xs text-sky-600 font-medium mt-0.5">Holiday</div>
+            </Card>
+          ) : (
+            <Card className="p-4 bg-indigo-50 border-indigo-200">
+              <div className="text-2xl font-bold text-indigo-700 tabular-nums">{halfDayCount}</div>
+              <div className="text-xs text-indigo-600 font-medium mt-0.5">Half day</div>
+            </Card>
+          )}
+          <Card className="p-4 bg-muted border-border">
+            <div className="text-2xl font-bold text-foreground/80 tabular-nums">{farmers.length}</div>
+            <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Staff</div>
+          </Card>
+        </div>
+      )}
 
-      {/* Today's register */}
-      <Card className="border border-border shadow-sm overflow-hidden">
+      {/* ── Mobile register: a list of people, one tap each ──────────────
+          The table below is 1156px wide — on a phone that meant scrolling
+          sideways three screens to mark one person. Here the common case is a
+          single tap, and the card only opens when the day is not uniform. */}
+      {isMobile ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-0.5">
+            <div className="text-sm font-semibold text-foreground">
+              {new Date(today).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long" })}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {times.morningStart}–{times.morningEnd} · {times.afternoonStart}–{times.afternoonEnd}
+              </span>
+              {canEditTimes && (
+                <button onClick={() => { setTimesDraft(times); setEditingTimes(v => !v); }}
+                  className="text-muted-foreground hover:text-foreground" aria-label="Edit session times">
+                  <Settings2 className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {editingTimes && canEditTimes && (
+            <Card className="p-3 bg-muted/50">
+              <div className="text-xs font-semibold mb-2">Working session times</div>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: "morningStart", label: "Morning starts" },
+                  { key: "morningEnd", label: "Lunch break at" },
+                  { key: "afternoonStart", label: "Afternoon starts" },
+                  { key: "afternoonEnd", label: "Day ends" },
+                ] as { key: keyof SessionTimes; label: string }[]).map(({ key, label }) => (
+                  <label key={key} className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+                    <input type="time" value={timesDraft[key]}
+                      onChange={e => setTimesDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                      className="text-xs border border-border rounded px-2 py-1.5 text-foreground" />
+                  </label>
+                ))}
+              </div>
+              <Button size="sm" className="w-full mt-2 gap-1.5" onClick={saveSessionTimes} disabled={savingTimes}>
+                <Save className="size-3.5" /> {savingTimes ? "Saving…" : "Save times"}
+              </Button>
+            </Card>
+          )}
+
+          {farmers.map(f => {
+            const morning = morningSel[f.id];
+            const afternoon = afternoonSel[f.id];
+            const day = dayStatusOf(f.id);
+            const split = Boolean(morning && afternoon && morning !== afternoon);
+            const hours = hoursFor(f.id);
+            const open = openCard === f.id;
+            const StatusIcon = day ? STATUS_ICONS[day] : null;
+
+            return (
+              <Card key={f.id} className={`p-3 ${day ? "" : "border-dashed"}`}>
+                <div className="flex items-center gap-2.5 mb-2.5">
+                  <Avatar className="size-9 shrink-0">
+                    <AvatarFallback className="bg-muted text-muted-foreground text-xs font-bold">{f.avatar}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-sm text-foreground truncate">{f.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate capitalize">
+                      {f.jobTitle || f.role}
+                      {hours !== null && <span className="tabular-nums"> · {hours}h</span>}
+                    </div>
+                  </div>
+                  {day && StatusIcon && (
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                      {split && <span className="text-indigo-600">½</span>}
+                      <StatusIcon className="size-3.5" />
+                    </span>
+                  )}
+                </div>
+
+                {/* One tap marks the whole day */}
+                <div className="grid grid-cols-5 gap-1">
+                  {statuses.map(st => {
+                    const on = !split && day === st.value;
+                    return (
+                      <button
+                        key={st.value}
+                        onClick={() => setWholeDay(f.id, st.value)}
+                        aria-pressed={on}
+                        className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border py-2 min-h-[46px] transition-colors ${
+                          on ? `${st.color} border-transparent text-white`
+                             : "bg-card border-border text-muted-foreground active:bg-accent"}`}
+                      >
+                        {(() => { const I = STATUS_ICONS[st.value]; return I ? <I className="size-4" /> : null; })()}
+                        <span className="text-[9.5px] font-semibold leading-none">{st.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setOpenCard(open ? null : f.id)}
+                  className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] text-muted-foreground py-1"
+                >
+                  {split
+                    ? <span className="text-indigo-600 font-semibold">Morning {morning} · Afternoon {afternoon}</span>
+                    : "Different morning / afternoon, or edit times"}
+                  <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
+                </button>
+
+                {open && (
+                  <div className="mt-2 pt-2 border-t border-border space-y-3">
+                    {(["morning", "afternoon"] as Session[]).map(session => {
+                      const val = session === "morning" ? morning : afternoon;
+                      const worked = isWorking(val);
+                      return (
+                        <div key={session}>
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{session}</div>
+                          <div className="grid grid-cols-5 gap-1">
+                            {statuses.map(st => (
+                              <button
+                                key={st.value}
+                                onClick={() => setSessionStatus(f.id, session, st.value)}
+                                aria-label={st.label}
+                                title={st.label}
+                                className={`flex items-center justify-center rounded-md border py-1.5 min-h-[36px] transition-colors ${
+                                  val === st.value ? `${st.color} border-transparent text-white`
+                                                   : "bg-card border-border text-muted-foreground active:bg-accent"}`}
+                              >
+                                {(() => { const I = STATUS_ICONS[st.value]; return I ? <I className="size-3.5" /> : <span className="text-[10px]">{st.label[0]}</span>; })()}
+                              </button>
+                            ))}
+                          </div>
+                          {worked && (
+                            <div className="flex gap-1.5 mt-1.5">
+                              <input type="time" aria-label={`${session} in`}
+                                value={session === "morning" ? (checkIns[f.id] ?? times.morningStart) : (afternoonIns[f.id] ?? times.afternoonStart)}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  session === "morning" ? setCheckIns(p2 => ({ ...p2, [f.id]: v })) : setAfternoonIns(p2 => ({ ...p2, [f.id]: v }));
+                                  setSaved(false);
+                                }}
+                                className="flex-1 text-xs border border-border rounded px-2 py-1.5 text-foreground" />
+                              <input type="time" aria-label={`${session} out`}
+                                value={session === "morning" ? (morningOuts[f.id] ?? times.morningEnd) : (checkOuts[f.id] ?? times.afternoonEnd)}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  session === "morning" ? setMorningOuts(p2 => ({ ...p2, [f.id]: v })) : setCheckOuts(p2 => ({ ...p2, [f.id]: v }));
+                                  setSaved(false);
+                                }}
+                                className="flex-1 text-xs border border-border rounded px-2 py-1.5 text-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+
+          {/* Sticky save — sits above the app's bottom nav, where the thumb is */}
+          <div className="sticky z-30" style={{ bottom: "calc(68px + env(safe-area-inset-bottom))" }}>
+            <Button
+              onClick={saveAttendance}
+              disabled={saving || markedCount === 0}
+              className="w-full gap-2 shadow-lg h-12 text-sm"
+            >
+              <Save className="size-4" />
+              {saving ? "Saving…" : saved ? "Saved ✓" : `Save attendance (${markedCount}/${farmers.length})`}
+            </Button>
+          </div>
+          <div className="h-2" />
+        </div>
+      ) : (
+        /* Desktop register — the wide table works well with a mouse */
+        <Card className="border border-border shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border flex-wrap">
           <div className="font-semibold text-foreground">
             Daily Register — {new Date(today).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
@@ -596,6 +822,7 @@ export default function AttendancePage() {
           </Button>
         </div>
       </Card>
+      )}
 
       {/* History */}
       <Card className="border border-border shadow-sm p-5">
