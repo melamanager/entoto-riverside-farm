@@ -18,7 +18,8 @@ export type Capability =
   | "planting"        // manage planting records
   | "stock"           // record store movements
   | "orders"          // record customer orders / sales
-  | "packaging";      // record packaging batches
+  | "packaging"       // record packaging batches
+  | "maintenance";    // log bed / farm maintenance actually done
 
 export const CAPABILITIES: { key: Capability; label: string; hint: string }[] = [
   { key: "attendance",     label: "Take attendance",   hint: "Mark who is present each day" },
@@ -30,13 +31,14 @@ export const CAPABILITIES: { key: Capability; label: string; hint: string }[] = 
   { key: "stock",          label: "Manage store",      hint: "Record stock in/out movements" },
   { key: "orders",         label: "Record sales",      hint: "Create customer orders" },
   { key: "packaging",      label: "Record packaging",  hint: "Log packaging batches" },
+  { key: "maintenance",    label: "Log maintenance",   hint: "Record weeding, bed upkeep and repairs that were done" },
 ];
 
 // What a supervisor can already do without any explicit grant (keeps existing
 // behaviour intact — supervisors ran the farm day-to-day before permissions).
 export const SUPERVISOR_CAPABILITIES: Capability[] = [
   "attendance", "harvest", "watering", "disease_report",
-  "tasks_assign", "planting", "stock", "orders", "packaging",
+  "tasks_assign", "planting", "stock", "orders", "packaging", "maintenance",
 ];
 
 export type PermissionSubject = {

@@ -29,7 +29,11 @@ type DailyData = {
   };
   fertigation: { applied: number; scheduled: number; skipped: number; treatmentsApplied: number };
   harvest: { records: number; totalKg: number; beds: number };
-  maintenance: { total: number; done: number; tasks: { id: string; title: string; status: string; assignee: string }[] };
+  maintenance: {
+    total: number; done: number; tasks: { id: string; title: string; status: string; assignee: string }[];
+    logged: number; bedsWorked: number;
+    logs: { id: string; activities: string[]; valveIds: string[]; bedsCount: number | null; note: string | null; by: string }[];
+  };
   sales: { orders: number; totalETB: number; totalKg: number };
   stock: {
     inCount: number; outCount: number; inValueETB: number; outValueETB: number;
@@ -140,6 +144,19 @@ const NOTE_TYPE_STYLE: Record<DailyNoteT["type"], string> = {
 
 /* ── page ───────────────────────────────────────────────────────────── */
 
+/** The kinds of upkeep a supervisor can record, with readable labels. */
+const MAINT_ACTIVITIES = [
+  { key: "weeding",          label: "Weeding" },
+  { key: "bed_maintenance",  label: "Bed maintenance" },
+  { key: "mulching",         label: "Mulching" },
+  { key: "pruning",          label: "Pruning / runner removal" },
+  { key: "drip_check",       label: "Drip line check" },
+  { key: "trellis_support",  label: "Trellis / support" },
+  { key: "cleaning",         label: "Clearing & cleaning" },
+  { key: "other",            label: "Other" },
+];
+const MAINT_LABEL = (k: string) => MAINT_ACTIVITIES.find(a => a.key === k)?.label ?? k;
+
 export default function RoutinesPage() {
   const { user, isManager } = useAuth();
   const { isAm } = useLang();
@@ -158,6 +175,13 @@ export default function RoutinesPage() {
 
   const [wateringForm, setWateringForm] = useState({ valveIds: [] as string[], status: "done", startTime: "06:00", durationMin: 25, waterVolumeL: 0, notes: "" });
   const [maintForm, setMaintForm] = useState({ title: "", description: "", assignedTo: "", priority: "medium" });
+  // logging upkeep that was actually done (no manager needed)
+  const [logOpen, setLogOpen] = useState(false);
+  const [logSaving, setLogSaving] = useState(false);
+  const valveName = (id: string) =>
+    daily?.watering.valves.find(v => v.id === id)?.name ?? id;
+  const [logForm, setLogForm] = useState<{ activities: string[]; valveIds: string[]; bedsCount: string; note: string }>(
+    { activities: [], valveIds: [], bedsCount: "", note: "" });
   const [otRecords, setOtRecords] = useState<AttendanceRec[]>([]);
 
   const [notes, setNotes] = useState<DailyNoteT[]>([]);
@@ -228,7 +252,7 @@ export default function RoutinesPage() {
   const activity = {
     fertigation: !!daily && (daily.fertigation.applied > 0 || daily.fertigation.scheduled > 0 || daily.fertigation.treatmentsApplied > 0),
     harvest:     !!daily && daily.harvest.records > 0,
-    maintenance: !!daily && daily.maintenance.total > 0,
+    maintenance: !!daily && (daily.maintenance.total > 0 || daily.maintenance.logged > 0),
     sales:       !!daily && daily.sales.orders > 0,
     store:       !!daily && (daily.stock.inCount + daily.stock.outCount) > 0,
   };
@@ -239,7 +263,12 @@ export default function RoutinesPage() {
     watering: daily.watering.valvesWatered === 0 ? "pending" : daily.watering.valvesWatered < daily.watering.totalValves ? "partial" : "done",
     fertigation: nilOr("fertigation", daily.fertigation.scheduled > 0 ? "partial" : (daily.fertigation.applied > 0 || daily.fertigation.treatmentsApplied > 0) ? "done" : "pending"),
     harvest: nilOr("harvest", daily.harvest.records > 0 ? "done" : "pending"),
-    maintenance: nilOr("maintenance", daily.maintenance.total === 0 ? "pending" : daily.maintenance.done === daily.maintenance.total ? "done" : "partial"),
+    // work logged directly counts on its own — an assigned task still has to
+    // be finished before the day is "done"
+    maintenance: nilOr("maintenance",
+      daily.maintenance.total === 0 && daily.maintenance.logged === 0 ? "pending"
+        : daily.maintenance.total > 0 && daily.maintenance.done < daily.maintenance.total ? "partial"
+        : "done"),
     sales: nilOr("sales", daily.sales.orders > 0 ? "done" : "pending"),
     stock: nilOr("store", (daily.stock.inCount + daily.stock.outCount) > 0 ? "done" : "pending"),
     overtime: daily.overtime.workers > 0 ? "done" : "pending",
@@ -320,6 +349,38 @@ export default function RoutinesPage() {
     }
     toast.success(saved === 1 ? "Watering logged" : `Watering logged for ${saved} valves`);
     setWateringOpen(false);
+    loadDaily();
+  }
+
+  /** Record upkeep that was already done, rather than assigning it to someone. */
+  async function saveMaintLog() {
+    if (logForm.activities.length === 0) { toast.error("Choose what was done"); return; }
+    if (logForm.valveIds.length === 0) { toast.error("Choose which valve zones"); return; }
+    setLogSaving(true);
+    const res = await fetch("/api/maintenance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date,
+        activities: logForm.activities,
+        valveIds: logForm.valveIds,
+        bedsCount: logForm.bedsCount === "" ? null : Number(logForm.bedsCount),
+        note: logForm.note || null,
+      }),
+    });
+    setLogSaving(false);
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      toast.error(e.error ?? "Couldn't save the maintenance log");
+      return;
+    }
+    const zones = logForm.valveIds.length;
+    toast.success("Maintenance recorded", {
+      description: `${logForm.activities.map(MAINT_LABEL).join(", ")} — ${zones} zone${zones === 1 ? "" : "s"}`
+        + (logForm.bedsCount ? `, ${logForm.bedsCount} beds` : ""),
+    });
+    setLogOpen(false);
+    setLogForm({ activities: [], valveIds: [], bedsCount: "", note: "" });
     loadDaily();
   }
 
@@ -574,16 +635,35 @@ export default function RoutinesPage() {
                   <div className="flex items-center gap-2"><Shovel className="size-4 text-orange-500" /><span className="font-semibold text-sm">{t.routines.maintenance}</span></div>
                   <StatusBadge status={statuses.maintenance} t={t} />
                 </div>
-                <div className="text-2xl font-bold">{daily.maintenance.done}<span className="text-sm text-muted-foreground font-normal"> / {daily.maintenance.total} tasks done</span></div>
-                <div className="text-xs text-muted-foreground space-y-0.5 max-h-16 overflow-y-auto">
-                  {daily.maintenance.tasks.slice(0, 3).map(task => (
+                <div className="text-2xl font-bold">
+                  {daily.maintenance.logged > 0
+                    ? <>{daily.maintenance.logged}<span className="text-sm text-muted-foreground font-normal"> logged{daily.maintenance.bedsWorked > 0 ? ` · ${daily.maintenance.bedsWorked} beds` : ""}</span></>
+                    : <>{daily.maintenance.done}<span className="text-sm text-muted-foreground font-normal"> / {daily.maintenance.total} tasks done</span></>}
+                </div>
+                <div className="text-xs text-muted-foreground space-y-0.5 max-h-20 overflow-y-auto">
+                  {daily.maintenance.logs.slice(0, 3).map(l => (
+                    <div key={l.id} className="truncate">
+                      ✓ {l.activities.map(MAINT_LABEL).join(", ")}
+                      {" — "}
+                      {l.valveIds.map(v => valveName(v)).join(", ")}
+                      {l.bedsCount ? ` · ${l.bedsCount} beds` : ""}
+                      <span className="opacity-70"> ({l.by})</span>
+                    </div>
+                  ))}
+                  {daily.maintenance.tasks.slice(0, 2).map(task => (
                     <div key={task.id} className="truncate">{task.status === "done" ? "✓" : "○"} {task.title}</div>
                   ))}
-                  {daily.maintenance.total === 0 && <span>No maintenance tasks for this day</span>}
+                  {daily.maintenance.total === 0 && daily.maintenance.logged === 0 && <span>Nothing recorded for this day</span>}
                 </div>
-                <Button size="sm" variant="outline" className="w-full gap-1" onClick={() => setMaintOpen(true)}>
-                  <Plus className="size-3" /> {t.routines.addMaintTask}
-                </Button>
+                <div className="flex gap-2">
+                  {/* the work usually just gets done — record it without waiting for a manager */}
+                  <Button size="sm" className="flex-1 gap-1 bg-primary hover:bg-primary/90" onClick={() => setLogOpen(true)}>
+                    <ClipboardCheck className="size-3" /> Log work done
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => setMaintOpen(true)}>
+                    <Plus className="size-3" /> {t.routines.addMaintTask}
+                  </Button>
+                </div>
                 <NilRow area="maintenance" active={activity.maintenance} />
               </Card>
 
@@ -1022,6 +1102,116 @@ export default function RoutinesPage() {
       </Dialog>
 
       {/* ── Maintenance task dialog ── */}
+      {/* Log maintenance that was actually done — no manager needed */}
+      <Dialog open={logOpen} onOpenChange={setLogOpen}>
+        <DialogContent className="max-w-md max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="size-4 text-primary" /> Log maintenance done
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Record upkeep your team has already carried out. Use “Assign task” instead when
+              you want someone else to do it later.
+            </p>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">What was done *</label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {MAINT_ACTIVITIES.map(a => {
+                  const on = logForm.activities.includes(a.key);
+                  return (
+                    <button
+                      key={a.key}
+                      type="button"
+                      onClick={() => setLogForm(f => ({
+                        ...f,
+                        activities: on ? f.activities.filter(x => x !== a.key) : [...f.activities, a.key],
+                      }))}
+                      className={`text-[11px] font-medium px-2.5 py-1.5 rounded-md border transition-colors ${
+                        on ? "bg-primary text-primary-foreground border-primary"
+                           : "bg-card border-border text-muted-foreground hover:bg-accent"}`}
+                    >
+                      {a.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Which zones *</label>
+                <button
+                  type="button"
+                  className="text-[11px] font-semibold text-primary hover:underline"
+                  onClick={() => setLogForm(f => ({
+                    ...f,
+                    valveIds: f.valveIds.length === (daily?.watering.valves.length ?? 0)
+                      ? []
+                      : (daily?.watering.valves.map(v => v.id) ?? []),
+                  }))}
+                >
+                  {logForm.valveIds.length === (daily?.watering.valves.length ?? 0) ? "Clear all" : "Select all"}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {daily?.watering.valves.map(v => {
+                  const on = logForm.valveIds.includes(v.id);
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setLogForm(f => ({
+                        ...f,
+                        valveIds: on ? f.valveIds.filter(x => x !== v.id) : [...f.valveIds, v.id],
+                      }))}
+                      className={`text-[11px] font-semibold px-3 py-1.5 rounded-md border transition-colors ${
+                        on ? "text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground hover:bg-accent"}`}
+                      style={on ? { background: v.color } : undefined}
+                    >
+                      {v.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1">
+                Pick several to cover a stretch — e.g. Valve A through Valve C in one entry.
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">How many beds (optional)</label>
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={logForm.bedsCount}
+                onChange={e => setLogForm(f => ({ ...f, bedsCount: e.target.value }))}
+                placeholder="e.g. 14"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Note (optional)</label>
+              <textarea
+                rows={2}
+                value={logForm.note}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setLogForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="Anything the manager should know"
+                className={inputCls}
+              />
+            </div>
+
+            <Button className="w-full gap-2" onClick={saveMaintLog} disabled={logSaving}>
+              <ClipboardCheck className="size-4" /> {logSaving ? "Saving…" : "Record it"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={maintOpen} onOpenChange={setMaintOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>{t.routines.maintenance} — {fmtDate(date)}</DialogTitle></DialogHeader>

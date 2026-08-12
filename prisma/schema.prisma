@@ -80,6 +80,30 @@ model Farmer {
   routineAcksGiven      RoutineAck[]        @relation("AckManager")
   scheduledJobs         ScheduledJob[]
   routineNilReports     RoutineNilReport[]  @relation("NilReportDeclarer")
+  maintenanceLogs       MaintenanceLog[]    @relation("MaintenanceRecorder")
+}
+
+/// Bed / farm upkeep that was ACTUALLY DONE, recorded by whoever did it.
+///
+/// Assigning a task needs a manager to be there to assign it, and they often
+/// are not. Supervisors are on the farm, so they can log the work directly:
+/// "Valve A and B, 14 beds, weeded and mulched". Assigned tasks still exist —
+/// this is the other half, for work that just gets done.
+model MaintenanceLog {
+  id         String   @id @default(cuid())
+  date       String   // YYYY-MM-DD (Africa/Addis_Ababa)
+  /// what was done — weeding, mulching, pruning, bed_repair, drip_check, other
+  activities Json     @default("[]")
+  /// which irrigation zones this covered (one, several, or all)
+  valveIds   Json     @default("[]")
+  /// how many beds were worked on across those zones
+  bedsCount  Int?
+  note       String?
+  recordedBy String
+  recorder   Farmer   @relation("MaintenanceRecorder", fields: [recordedBy], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([date])
 }
 
 // "Nothing to report today" declaration for a routine area (harvest, sales,

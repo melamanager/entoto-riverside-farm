@@ -22,6 +22,7 @@ export async function GET(req: Request) {
     treatmentsApplied,
     harvests,
     maintenanceTasks,
+    maintenanceLogs,
     orders,
     stockTxns,
   ] = await Promise.all([
@@ -35,6 +36,12 @@ export async function GET(req: Request) {
     prisma.task.findMany({
       where: { category: "maintenance", OR: [{ dueDate: date }, { completedAt: { gte: dayStart, lte: dayEnd } }] },
       select: { id: true, title: true, status: true, assignee: { select: { name: true } } },
+    }),
+    // upkeep recorded directly by whoever did it (no manager needed)
+    prisma.maintenanceLog.findMany({
+      where: { date },
+      include: { recorder: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.customerOrder.findMany({ where: { orderDate: date }, select: { totalAmount: true, advancePaid: true, customerName: true, quantityKg: true } }),
     prisma.stockTransaction.findMany({ where: { date }, include: { item: { select: { name: true, unit: true, costPerUnit: true } } } }),
@@ -93,6 +100,17 @@ export async function GET(req: Request) {
       total: maintenanceTasks.length,
       done: maintenanceTasks.filter((t) => t.status === "done").length,
       tasks: maintenanceTasks.map((t) => ({ id: t.id, title: t.title, status: t.status, assignee: t.assignee.name })),
+      // work logged directly — counts towards the routine on its own
+      logged: maintenanceLogs.length,
+      bedsWorked: maintenanceLogs.reduce((s2, l) => s2 + (l.bedsCount ?? 0), 0),
+      logs: maintenanceLogs.map((l) => ({
+        id: l.id,
+        activities: l.activities as string[],
+        valveIds: l.valveIds as string[],
+        bedsCount: l.bedsCount,
+        note: l.note,
+        by: l.recorder.name,
+      })),
     },
     sales: {
       orders: orders.length,
