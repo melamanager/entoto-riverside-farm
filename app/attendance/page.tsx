@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users, Settings2, BarChart3 } from "lucide-react";
+import { CalendarCheck, CalendarOff, Download, CheckCircle2, XCircle, Clock, Palmtree, Save, Users, Settings2, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import type { AttendanceRecord, AttendanceStatus } from "@/lib/types";
 import { useOptions } from "@/lib/use-options";
@@ -20,6 +20,7 @@ const STATUS_ICONS = {
   late: Clock,
   absent: XCircle,
   leave: Palmtree,
+  holiday: CalendarOff,
 };
 
 type Session = "morning" | "afternoon";
@@ -156,6 +157,27 @@ export default function AttendancePage() {
     toast.info("All staff marked present for both sessions — adjust exceptions, then save.");
   }
 
+  /**
+   * The farm is shut — Sunday or a public holiday. Recording it is better than
+   * leaving the day blank: nobody is marked absent, the day is not counted
+   * against anyone's attendance rate, and it is clear the day was accounted
+   * for rather than forgotten.
+   */
+  function markHoliday() {
+    const all = Object.fromEntries(farmers.map(f => [f.id, "holiday" as AttendanceStatus]));
+    setMorningSel(all);
+    setAfternoonSel(all);
+    setSaved(false);
+    toast.info("Whole day marked as holiday — save to record it.", {
+      description: "Nobody is counted absent and it will not affect attendance rates.",
+    });
+  }
+
+  // Sundays are not worked here, so nudge rather than silently leaving it blank
+  const isSunday = new Date(`${today}T00:00:00`).getDay() === 0;
+  const dayMarkedHoliday =
+    farmers.length > 0 && farmers.every(f => morningSel[f.id] === "holiday");
+
   /** Marked when at least one session has been set. */
   const isMarked = (id: string) => Boolean(morningSel[id] || afternoonSel[id]);
   const dayStatusOf = (id: string): AttendanceStatus | undefined => {
@@ -267,6 +289,7 @@ export default function AttendancePage() {
   const lateCount = dayStatuses.filter(s => s === "late").length;
   const absentCount = dayStatuses.filter(s => s === "absent").length;
   const halfDayCount = farmers.filter(f => isHalfDay(morningSel[f.id], afternoonSel[f.id])).length;
+  const holidayCount = dayStatuses.filter(s => s === "holiday").length;
 
   if (loading) {
     return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
@@ -312,6 +335,9 @@ export default function AttendancePage() {
           <Button variant="outline" size="sm" className="gap-2" onClick={markAllPresent}>
             <Users className="size-3.5" /> Mark All Present
           </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={markHoliday}>
+            <CalendarOff className="size-3.5" /> Holiday
+          </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={exportCsv}>
             <Download className="size-3.5" /> Export CSV
           </Button>
@@ -325,6 +351,23 @@ export default function AttendancePage() {
           </Button>
         </div>
       </div>
+
+      {/* The farm does not work Sundays — offer the holiday instead of a blank day */}
+      {isSunday && !dayMarkedHoliday && (
+        <Card className="border border-sky-300 bg-sky-50 p-4 flex items-start gap-3 flex-wrap">
+          <CalendarOff className="size-4 text-sky-600 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-[200px]">
+            <div className="font-semibold text-sky-900 text-sm">It&rsquo;s Sunday</div>
+            <p className="text-xs text-sky-800 mt-0.5">
+              The farm does not normally work today. Marking it a holiday records the day
+              properly — nobody is counted absent and attendance rates are unaffected.
+            </p>
+          </div>
+          <Button size="sm" className="gap-1.5 bg-sky-600 hover:bg-sky-700 shrink-0" onClick={markHoliday}>
+            <CalendarOff className="size-3.5" /> Mark as holiday
+          </Button>
+        </Card>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -340,10 +383,17 @@ export default function AttendancePage() {
           <div className="text-2xl font-bold text-red-700 tabular-nums">{absentCount}</div>
           <div className="text-xs text-red-600 font-medium mt-0.5">Absent</div>
         </Card>
-        <Card className="p-4 bg-indigo-50 border-indigo-200">
-          <div className="text-2xl font-bold text-indigo-700 tabular-nums">{halfDayCount}</div>
-          <div className="text-xs text-indigo-600 font-medium mt-0.5">Half day</div>
-        </Card>
+        {holidayCount > 0 ? (
+          <Card className="p-4 bg-sky-50 border-sky-200">
+            <div className="text-2xl font-bold text-sky-700 tabular-nums">{holidayCount}</div>
+            <div className="text-xs text-sky-600 font-medium mt-0.5">Holiday</div>
+          </Card>
+        ) : (
+          <Card className="p-4 bg-indigo-50 border-indigo-200">
+            <div className="text-2xl font-bold text-indigo-700 tabular-nums">{halfDayCount}</div>
+            <div className="text-xs text-indigo-600 font-medium mt-0.5">Half day</div>
+          </Card>
+        )}
         <Card className="p-4 bg-muted border-border">
           <div className="text-2xl font-bold text-foreground/80 tabular-nums">{farmers.length}</div>
           <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Staff</div>

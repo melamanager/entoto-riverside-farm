@@ -5,7 +5,7 @@ import { getFarmConfig } from "@/lib/config-server";
 import { calcHoursWorked, deriveDayStatus, isWorking } from "@/lib/attendance";
 import type { AttendanceStatus } from "@/lib/types";
 
-const VALID_STATUS = new Set<AttendanceStatus>(["present", "absent", "late", "leave"]);
+const VALID_STATUS = new Set<AttendanceStatus>(["present", "absent", "late", "leave", "holiday"]);
 
 const TIME_FIELDS = [
   "checkInTime",

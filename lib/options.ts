@@ -97,6 +97,7 @@ export const OPTION_DEFAULTS = {
     { value: "late", label: "Late", color: "bg-amber-500" },
     { value: "absent", label: "Absent", color: "bg-red-500" },
     { value: "leave", label: "Leave", color: "bg-slate-400" },
+    { value: "holiday", label: "Holiday", color: "bg-sky-500" },
   ],
   stockCategories: Object.entries(STOCK_CATEGORY_LABELS).map(([value, label]) => ({
     value,

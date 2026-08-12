@@ -3,7 +3,9 @@ export type GrowthStage = "planted" | "vegetative" | "flowering" | "fruiting" | 
 export type DiseaseType = "powdery_mildew" | "root_rot" | "gray_mold" | "leaf_spot" | "nitrogen_deficiency";
 export type DiseaseStatus = "open" | "notified" | "treating" | "resolved";
 export type TaskStatus = "pending" | "in_progress" | "done";
-export type AttendanceStatus = "present" | "absent" | "late" | "leave";
+// "holiday" = farm closed (Sunday / public holiday): not worked, not absent,
+// and excluded from attendance rate so it costs nobody anything.
+export type AttendanceStatus = "present" | "absent" | "late" | "leave" | "holiday";
 
 export interface Farmer {
   id: string;

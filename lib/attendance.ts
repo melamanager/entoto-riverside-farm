@@ -30,6 +30,17 @@ export function isWorking(status?: AttendanceStatus | null): boolean {
   return status === "present" || status === "late";
 }
 
+/**
+ * The farm was closed — Sunday or a public holiday.
+ *
+ * This is neither worked nor absent. It is excluded from the attendance
+ * denominator entirely, so a holiday never drags anyone's rate down, and it is
+ * still a positive record: the day was accounted for, not forgotten.
+ */
+export function isHoliday(status?: AttendanceStatus | null): boolean {
+  return status === "holiday";
+}
+
 /** "HH:MM" → minutes since midnight, or null when unparseable. */
 export function toMinutes(t?: string | null): number | null {
   if (!t) return null;
@@ -90,7 +101,8 @@ export function deriveDayStatus(
 ): AttendanceStatus {
   const worked = [morning, afternoon].filter(isWorking);
   if (worked.length > 0) return worked.includes("late") ? "late" : "present";
-  // Neither session worked — "leave" only when the whole day was leave.
+  // Neither session worked.
+  if (morning === "holiday" && afternoon === "holiday") return "holiday";
   if (morning === "leave" && afternoon === "leave") return "leave";
   return "absent";
 }
@@ -111,6 +123,8 @@ export function dayWeight(rec: {
   morningStatus?: AttendanceStatus | null;
   afternoonStatus?: AttendanceStatus | null;
 }): number {
+  // The farm was shut — nothing was worked, and nothing is owed for it.
+  if (rec.status === "holiday") return 0;
   if (rec.morningStatus && rec.afternoonStatus) {
     return (isWorking(rec.morningStatus) ? 0.5 : 0) + (isWorking(rec.afternoonStatus) ? 0.5 : 0);
   }

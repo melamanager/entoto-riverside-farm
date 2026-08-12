@@ -680,6 +680,9 @@ enum AttendanceStatus {
   absent
   late
   leave
+  /// Farm closed — Sunday, public holiday. Not worked and NOT absent, so it is
+  /// excluded from attendance rate rather than counting against anyone.
+  holiday
 }
 
 enum NotificationType {

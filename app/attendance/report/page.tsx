@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   BarChart3, ChevronLeft, ChevronRight, Download, Printer, AlertTriangle,
-  CheckCircle2, Clock, XCircle, Palmtree, CalendarCheck, ArrowLeft, CircleSlash,
+  CheckCircle2, Clock, XCircle, Palmtree, CalendarCheck, CalendarOff, ArrowLeft, CircleSlash,
 } from "lucide-react";
 import type { AttendanceRecord, AttendanceStatus } from "@/lib/types";
 import { useReference } from "@/lib/reference";
@@ -24,12 +24,14 @@ const CELL: Record<string, string> = {
   late:    "bg-amber-400",
   absent:  "bg-red-400",
   leave:   "bg-slate-300",
+  holiday: "bg-sky-300",
 };
 const LEGEND: { key: string; label: string; icon: React.ElementType }[] = [
   { key: "present", label: "Present", icon: CheckCircle2 },
   { key: "late",    label: "Late",    icon: Clock },
   { key: "absent",  label: "Absent",  icon: XCircle },
   { key: "leave",   label: "Leave",   icon: Palmtree },
+  { key: "holiday", label: "Holiday", icon: CalendarOff },
 ];
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -68,10 +70,10 @@ export default function AttendanceReportPage() {
   }, [cadence, from, to]);
 
   function exportCsv() {
-    const header = "Staff,Role,Expected days,Days worked,Half days,Late,Absent,Leave,Not recorded,Hours,Overtime,Attendance %";
+    const header = "Staff,Role,Expected days,Days worked,Half days,Late,Absent,Leave,Holiday,Not recorded,Hours,Overtime,Attendance %";
     const lines = rows.map(r => [
       r.farmer.name, r.farmer.jobTitle || r.farmer.role, r.expectedDays, r.daysWorked,
-      r.halfDays, r.lateCount, r.absentDays, r.leaveDays, r.missingDays,
+      r.halfDays, r.lateCount, r.absentDays, r.leaveDays, r.holidayDays, r.missingDays,
       r.hours, r.overtime, r.attendancePct ?? "",
     ].join(","));
     const blob = new Blob([[`Attendance ${from} to ${to}`, header, ...lines].join("\n")], { type: "text/csv" });
@@ -163,6 +165,10 @@ export default function AttendanceReportPage() {
             <Kpi label="Absent" value={`${totals.absentDays}`} tone="red" sub={`${totals.leaveDays} on leave`} />
             <Kpi label="Not recorded" value={`${totals.missingDays}`} tone={totals.missingDays > 0 ? "amber" : "slate"}
                  sub={`${totals.workingDays.length} working days`} />
+            {totals.holidayDays > 0 && (
+              <Kpi label="Holiday" value={`${totals.holidayDays}`} tone="blue"
+                   sub="not counted against anyone" />
+            )}
           </div>
 
           {/* Gap warning — the thing managers actually miss */}
@@ -204,7 +210,7 @@ export default function AttendanceReportPage() {
                 <thead>
                   <tr>
                     <th>Staff</th><th>Expected</th><th>Worked</th><th>Half</th>
-                    <th>Late</th><th>Absent</th><th>Leave</th><th>Not rec.</th>
+                    <th>Late</th><th>Absent</th><th>Leave</th><th>Holiday</th><th>Not rec.</th>
                     <th>Hours</th><th>OT</th><th>Attendance</th>
                   </tr>
                 </thead>
@@ -231,6 +237,7 @@ export default function AttendanceReportPage() {
                       <td className="tabular-nums text-foreground/70">{r.lateCount || "—"}</td>
                       <td className="tabular-nums text-foreground/70">{r.absentDays || "—"}</td>
                       <td className="tabular-nums text-foreground/70">{r.leaveDays || "—"}</td>
+                      <td className="tabular-nums text-sky-600">{r.holidayDays || "—"}</td>
                       <td className={`tabular-nums ${r.missingDays > 0 ? "text-amber-600 font-semibold" : "text-foreground/70"}`}>{r.missingDays || "—"}</td>
                       <td className="tabular-nums text-foreground/70">{r.hours}</td>
                       <td className="tabular-nums text-foreground/70">

@@ -1,5 +1,5 @@
 import type { AttendanceRecord, AttendanceStatus, Farmer } from "@/lib/types";
-import { isWorking, isHalfDay, dayWeight } from "@/lib/attendance";
+import { isWorking, isHalfDay, isHoliday, dayWeight } from "@/lib/attendance";
 
 /**
  * Attendance reporting maths.
@@ -25,6 +25,7 @@ export interface PersonRow {
   absentDays: number;
   leaveDays: number;
   missingDays: number;    // roster days with no record at all
+  holidayDays: number;    // farm closed — excluded from expectedDays
   hours: number;
   overtime: number;
   attendancePct: number | null;
@@ -39,6 +40,7 @@ export interface ReportTotals {
   absentDays: number;
   leaveDays: number;
   missingDays: number;
+  holidayDays: number;
   hours: number;
   overtime: number;
   attendancePct: number | null;
@@ -126,8 +128,18 @@ export function buildReport(
 ): { rows: PersonRow[]; totals: ReportTotals } {
   const inRange = records.filter(r => r.date >= from && r.date <= to);
 
-  // A working day is any date attendance was actually taken.
-  const workingDays = Array.from(new Set(inRange.map(r => r.date))).sort();
+  // A day where every record says "holiday" is a closed day, not a working one.
+  const closedDays = new Set(
+    Array.from(new Set(inRange.map(r => r.date))).filter(d => {
+      const onDay = inRange.filter(r => r.date === d);
+      return onDay.length > 0 && onDay.every(r => isHoliday(r.status));
+    }),
+  );
+
+  // A working day is any date attendance was taken and the farm was open.
+  const workingDays = Array.from(new Set(inRange.map(r => r.date)))
+    .filter(d => !closedDays.has(d))
+    .sort();
   const workingSet = new Set(workingDays);
 
   // Only report on people who were here during the period, plus anyone who has
@@ -147,11 +159,14 @@ export function buildReport(
     const expectedDates = Array.from(new Set([...rosterDays, ...mine.map(r => r.date)])).sort();
 
     let daysWorked = 0, halfDays = 0, lateCount = 0, absentDays = 0, leaveDays = 0;
-    let missingDays = 0, hours = 0, overtime = 0;
+    let missingDays = 0, holidayDays = 0, hours = 0, overtime = 0;
 
     for (const d of expectedDates) {
       const rec = byDate.get(d);
       if (!rec) { missingDays += 1; continue; }
+
+      // Farm closed for this person — costs them nothing either way.
+      if (isHoliday(rec.status)) { holidayDays += 1; continue; }
 
       daysWorked += dayWeight(rec);
       hours += rec.hoursWorked ?? 0;
@@ -168,7 +183,8 @@ export function buildReport(
       }
     }
 
-    const expectedDays = expectedDates.length;
+    // Closed days are not "expected" of anyone, so they leave the rate alone.
+    const expectedDays = expectedDates.length - holidayDays;
     return {
       farmer,
       byDate,
@@ -179,6 +195,7 @@ export function buildReport(
       absentDays,
       leaveDays,
       missingDays,
+      holidayDays,
       hours: round2(hours),
       overtime: round2(overtime),
       attendancePct: expectedDays > 0 ? Math.round((daysWorked / expectedDays) * 100) : null,
@@ -205,6 +222,7 @@ export function buildReport(
       absentDays: sum(r => r.absentDays),
       leaveDays: sum(r => r.leaveDays),
       missingDays: sum(r => r.missingDays),
+      holidayDays: sum(r => r.holidayDays),
       hours: round2(sum(r => r.hours)),
       overtime: round2(sum(r => r.overtime)),
       attendancePct: expectedDays > 0 ? Math.round((daysWorked / expectedDays) * 100) : null,
