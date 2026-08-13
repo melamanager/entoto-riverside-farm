@@ -4,6 +4,7 @@ import { requireCapability } from "@/lib/guard";
 import { getFarmConfig } from "@/lib/config-server";
 import { calcHoursWorked, deriveDayStatus, isWorking } from "@/lib/attendance";
 import type { AttendanceStatus } from "@/lib/types";
+import { todayAddis } from "@/lib/dates";
 
 const VALID_STATUS = new Set<AttendanceStatus>(["present", "absent", "late", "leave", "holiday"]);
 
@@ -23,6 +24,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const existing = await prisma.attendanceRecord.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Correcting an already-recorded day changes what someone is paid for work
+  // already done — a manager's call, not a supervisor's.
+  const today = todayAddis();
+  if (existing.date < today && gate.role !== "manager") {
+    return NextResponse.json(
+      {
+        error: "Only a manager can change attendance for a past date.",
+        detail: `${existing.date} has already been recorded — ask a manager to correct it.`,
+      },
+      { status: 403 },
+    );
+  }
 
   const data: Record<string, unknown> = { ...body };
 
@@ -67,6 +81,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // overtime follows the configured workday, never the client
   const wd = (await getFarmConfig()).workdayHours || 8;
   data.overtimeHours = Math.max(0, Math.round((hours - wd) * 10) / 10);
+
+  if (existing.date < today) {
+    data.editedBy = gate.userId;
+    data.editedAt = new Date();
+  }
 
   const record = await prisma.attendanceRecord.update({ where: { id }, data });
   return NextResponse.json(record);

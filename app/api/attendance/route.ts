@@ -5,6 +5,7 @@ import { getFarmConfig } from "@/lib/config-server";
 import { requireCapability } from "@/lib/guard";
 import { calcHoursWorked, deriveDayStatus, isWorking } from "@/lib/attendance";
 import type { AttendanceStatus } from "@/lib/types";
+import { todayAddis } from "@/lib/dates";
 
 const VALID_STATUS = new Set<AttendanceStatus>(["present", "absent", "late", "leave", "holiday"]);
 
@@ -99,6 +100,38 @@ export async function POST(req: Request) {
   if (!gate.ok) return gate.response;
 
   const body = await req.json();
+  const isManager = gate.role === "manager";
+  const today = todayAddis();
+
+  // Who may write which day.
+  //
+  // Taking attendance is a supervisor's job, but only for TODAY — they are
+  // recording what they can see. Correcting an earlier day (a date entered
+  // wrong, a day that got skipped) changes what people are paid for work
+  // already done, so it is a manager's call alone. Nobody records the future.
+  const dates = Array.from(new Set(
+    (Array.isArray(body) ? body : [body]).map((r: { date?: string }) => r?.date).filter(Boolean),
+  )) as string[];
+
+  const future = dates.filter(d => d > today);
+  if (future.length > 0) {
+    return NextResponse.json(
+      { error: `Attendance cannot be recorded for a future date (${future[0]}).` },
+      { status: 400 },
+    );
+  }
+
+  const past = dates.filter(d => d < today);
+  if (past.length > 0 && !isManager) {
+    return NextResponse.json(
+      {
+        error: "Only a manager can change attendance for a past date.",
+        detail: `You can record today (${today}). ${past[0]} has already been recorded — ask a manager to correct it.`,
+        pastDates: past,
+      },
+      { status: 403 },
+    );
+  }
 
   // Reject unusable statuses up front rather than letting Prisma fail mid-batch.
   const incoming: AttendanceInput[] = Array.isArray(body) ? body : [body];
@@ -122,11 +155,16 @@ export async function POST(req: Request) {
         : 0,
   });
 
+  // A correction to an earlier day is stamped, so the change is traceable —
+  // it affects pay, and `recordedBy` must keep naming whoever took the register.
+  const stamp = <T extends { date: string }>(rec: T) =>
+    rec.date < today ? { ...rec, editedBy: gate.userId, editedAt: new Date() } : rec;
+
   if (Array.isArray(body)) {
     const results = [];
     for (const raw of body as AttendanceInput[]) {
       const s = sessionsOf(raw)!;
-      const rec = withOt(normalize(raw, s.morning, s.afternoon));
+      const rec = stamp(withOt(normalize(raw, s.morning, s.afternoon)));
       const result = await prisma.attendanceRecord.upsert({
         where: { farmerId_date: { farmerId: rec.farmerId, date: rec.date } },
         update: rec as never,
@@ -140,7 +178,7 @@ export async function POST(req: Request) {
   const single = body as AttendanceInput;
   const s = sessionsOf(single)!;
   const record = await prisma.attendanceRecord.create({
-    data: withOt(normalize(single, s.morning, s.afternoon)) as never,
+    data: stamp(withOt(normalize(single, s.morning, s.afternoon))) as never,
   });
   return NextResponse.json(record, { status: 201 });
 }

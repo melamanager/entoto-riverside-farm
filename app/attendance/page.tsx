@@ -55,6 +55,11 @@ export default function AttendancePage() {
     color: s.color ?? "bg-slate-400",
   }));
   const today = new Date().toLocaleDateString("en-CA");
+  // Supervisors record today. Correcting an earlier day changes what people are
+  // paid for work already done, so only a manager can move this off today.
+  const isManager = user?.role === "manager";
+  const [registerDate, setRegisterDate] = useState(today);
+  const editingPast = registerDate < today;
 
   // farmers + valves come from the shared, cached reference store (no refetch)
   const { farmers: allFarmers, valves, loaded: refLoaded } = useReference();
@@ -95,7 +100,8 @@ export default function AttendancePage() {
 
   // Only today's attendance is page-specific; farmers/valves are shared.
   useEffect(() => {
-    fetch(`/api/attendance?date=${today}`).then(r => r.json()).then((attData) => {
+    setAttLoaded(false);
+    fetch(`/api/attendance?date=${registerDate}`).then(r => r.json()).then((attData) => {
       const records = attData as AttendanceRecord[];
       // Legacy rows have no per-session status — fall back to the whole day.
       setMorningSel(Object.fromEntries(records.map(a => [a.farmerId, a.morningStatus ?? a.status])));
@@ -104,9 +110,12 @@ export default function AttendancePage() {
       setMorningOuts(Object.fromEntries(records.filter(a => a.morningCheckOutTime).map(a => [a.farmerId, a.morningCheckOutTime!])));
       setAfternoonIns(Object.fromEntries(records.filter(a => a.afternoonCheckInTime).map(a => [a.farmerId, a.afternoonCheckInTime!])));
       setCheckOuts(Object.fromEntries(records.filter(a => a.checkOutTime).map(a => [a.farmerId, a.checkOutTime!])));
+      // a day with no records yet starts blank rather than keeping the last day's
+      if (records.length === 0) { setMorningSel({}); setAfternoonSel({}); }
+      setSaved(false);
       setAttLoaded(true);
     });
-  }, [today]);
+  }, [registerDate]);
 
   // Workday length (OT threshold) and the session boundaries both live in config
   useEffect(() => {
@@ -244,7 +253,7 @@ export default function AttendancePage() {
       const aWorked = isWorking(afternoon);
       return {
         farmerId: f.id,
-        date: today,
+        date: registerDate,
         morningStatus: morning,
         afternoonStatus: afternoon,
         // times for a session that wasn't worked are cleared server-side too
@@ -262,7 +271,14 @@ export default function AttendancePage() {
     });
     setSaving(false);
     if (!res.ok) {
-      toast.error("Failed to save attendance", { description: "Check your connection and try again." });
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        toast.error(err.error ?? "Only a manager can change a past date", { description: err.detail });
+      } else {
+        toast.error(err.error ?? "Failed to save attendance", {
+          description: err.detail ?? "Check your connection and try again.",
+        });
+      }
       return;
     }
     const halfDays = marked.filter(f => isHalfDay(morningSel[f.id], afternoonSel[f.id])).length;
@@ -384,8 +400,39 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      {/* Correcting an earlier day — managers only */}
+      {isManager && (
+        <Card className={`p-3 flex items-center gap-3 flex-wrap ${editingPast ? "border-amber-300 bg-amber-50" : ""}`}>
+          <label className="text-xs font-semibold text-foreground shrink-0">
+            {editingPast ? "Correcting" : "Register for"}
+          </label>
+          <input
+            type="date"
+            value={registerDate}
+            max={today}
+            onChange={e => setRegisterDate(e.target.value || today)}
+            className="text-xs border border-border rounded px-2 py-1.5 text-foreground bg-card"
+          />
+          {editingPast ? (
+            <>
+              <span className="text-[11px] text-amber-800 flex-1 min-w-[180px]">
+                You are changing a day that has already passed. This affects what people are
+                paid — the correction is recorded against your name.
+              </span>
+              <Button size="sm" variant="outline" className="shrink-0" onClick={() => setRegisterDate(today)}>
+                Back to today
+              </Button>
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              Pick an earlier date to fix a day that was missed or entered wrong.
+            </span>
+          )}
+        </Card>
+      )}
+
       {/* The farm does not work Sundays — offer the holiday instead of a blank day */}
-      {isSunday && !dayMarkedHoliday && (
+      {isSunday && !editingPast && !dayMarkedHoliday && (
         <Card className="border border-sky-300 bg-sky-50 p-4 flex items-start gap-3 flex-wrap">
           <CalendarOff className="size-4 text-sky-600 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-[200px]">
@@ -461,7 +508,8 @@ export default function AttendancePage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between px-0.5">
             <div className="text-sm font-semibold text-foreground">
-              {new Date(today).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long" })}
+              {new Date(`${registerDate}T00:00:00`).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long" })}
+              {editingPast && <span className="ml-1 text-[10px] font-semibold text-amber-600 uppercase">correcting</span>}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-muted-foreground tabular-nums">
@@ -630,7 +678,8 @@ export default function AttendancePage() {
         <Card className="border border-border shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border flex-wrap">
           <div className="font-semibold text-foreground">
-            Daily Register — {new Date(today).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
+            Daily Register — {new Date(`${registerDate}T00:00:00`).toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
+            {editingPast && <span className="ml-2 text-[10px] font-semibold text-amber-600 uppercase">correcting a past day</span>}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted-foreground tabular-nums">

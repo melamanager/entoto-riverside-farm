@@ -319,6 +319,10 @@ model AttendanceRecord {
   checkOutTime         String?
   hoursWorked          Float?
   overtimeHours        Float?  @default(0)
+  // Set when a manager corrects a day that had already passed. recordedBy keeps
+  // naming whoever originally took the register, so a correction is traceable.
+  editedBy             String?
+  editedAt             DateTime?
   recordedBy   String
   recorder     Farmer           @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
   note         String?
