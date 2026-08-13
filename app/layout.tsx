@@ -9,6 +9,7 @@ import { LangProvider } from "@/lib/lang";
 import { ReferenceProvider } from "@/lib/reference";
 import { MobileNav } from "@/components/mobile-nav";
 import { SessionProvider } from "next-auth/react";
+import { ThemeProvider, THEME_INIT_SCRIPT } from "@/lib/theme";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -19,8 +20,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* sets the theme class before first paint, so there is no flash */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full bg-background text-foreground">
+        <ThemeProvider>
         <SessionProvider>
         <LangProvider>
         <AuthProvider>
@@ -37,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </AuthProvider>
         </LangProvider>
         </SessionProvider>
+        </ThemeProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>

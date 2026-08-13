@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Search, LogIn, X, AlertTriangle, Wheat, Droplets, ListChecks, MessageSquare, Package } from "lucide-react";
+import { Bell, Search, LogIn, X, AlertTriangle, Wheat, Droplets, ListChecks, MessageSquare, Package, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/lib/theme";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -73,6 +74,7 @@ export function Topbar() {
   const router = useRouter();
 
   const [notifOpen, setNotifOpen]     = useState(false);
+  const { resolved, toggle: toggleTheme } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [beds, setBeds]               = useState<Bed[]>([]);
   const [farmers, setFarmers]         = useState<Farmer[]>([]);
@@ -273,6 +275,18 @@ export function Topbar() {
         <div className="hidden lg:block text-xs text-muted-foreground px-2 border-r border-border">
           {new Date().toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}
         </div>
+
+        {/* Light / dark */}
+        <button
+          onClick={toggleTheme}
+          className="p-2 rounded-md hover:bg-accent transition-colors"
+          aria-label={resolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={resolved === "dark" ? "Light mode" : "Dark mode"}
+        >
+          {resolved === "dark"
+            ? <Sun className="size-4 text-muted-foreground" />
+            : <Moon className="size-4 text-muted-foreground" />}
+        </button>
 
         {/* ── Notifications bell ────────────────────────────────────────── */}
         <div className="relative" ref={notifRef}>

@@ -9,11 +9,13 @@ import {
   Shield, UserCircle2, Package, ShoppingCart,
   DollarSign, Beaker, BarChart3,
   CalendarDays, Zap, Languages, Warehouse, Settings, ClipboardCheck, BookOpen, MessageSquare,
+  Sun, Moon, Monitor,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
+import { useTheme } from "@/lib/theme";
 import type { Farmer } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ValveIcon } from "@/components/valve-icon";
@@ -101,6 +103,7 @@ export function MobileNav() {
   const pathname = usePathname();
   const router   = useRouter();
   const { user, login, logout, isManager, isSupervisor } = useAuth();
+  const { theme, setTheme } = useTheme();
   const { toggle, isAm } = useLang();
   const t = isAm ? AM : EN;
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -319,6 +322,32 @@ export function MobileNav() {
                     <span className={cn("px-2 py-0.5 rounded font-bold", isAm ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>አማ</span>
                   </div>
                 </button>
+              </div>
+
+              {/* Appearance */}
+              <div className="px-3 pb-2">
+                <div className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-muted border border-border text-sm font-semibold text-foreground/80">
+                  <span className="flex items-center gap-2">
+                    <Sun className="size-4 text-muted-foreground" />{isAm ? "ገጽታ" : "Appearance"}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {([
+                      { key: "light", Icon: Sun, label: isAm ? "ብርሃን" : "Light" },
+                      { key: "dark", Icon: Moon, label: isAm ? "ጨለማ" : "Dark" },
+                      { key: "system", Icon: Monitor, label: isAm ? "ስርዓት" : "Auto" },
+                    ] as const).map(({ key, Icon, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => setTheme(key)}
+                        aria-label={label}
+                        title={label}
+                        className={cn("px-2 py-1 rounded", theme === key ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                      >
+                        <Icon className="size-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Sign out */}
