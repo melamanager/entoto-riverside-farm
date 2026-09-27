@@ -7,7 +7,7 @@ import {
   FileBarChart, QrCode, ShieldCheck, CalendarCheck, ListChecks, ClipboardCheck, BookOpen, MessageSquare,
   ChevronRight, Leaf, LogIn, Package, ShoppingCart,
   DollarSign, Beaker,
-  BarChart3, CalendarDays, Zap, Warehouse, Languages, Settings,
+  BarChart3, CalendarDays, Zap, Warehouse, Languages, Settings, Layers, Printer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -43,6 +43,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/planting", labelKey: "plantingSchedule", icon: CalendarDays, roles: ["manager", "supervisor"] },
       { href: "/beds",     labelKey: "raisedBeds",        icon: Sprout,       roles: ["manager", "supervisor"] },
+      { href: "/bed-groups", labelKey: "bedGroups",       icon: Layers,       roles: ["manager"] },
     ],
   },
   {
@@ -78,7 +79,8 @@ const NAV_GROUPS: NavGroup[] = [
     groupKey: "reports",
     items: [
       { href: "/reports", labelKey: "analytics", icon: FileBarChart, roles: ["manager"] },
-      { href: "/scan",    labelKey: "qrCodes",   icon: QrCode,       roles: ["manager", "supervisor"] },
+      { href: "/scan",     labelKey: "qrCodes",  icon: QrCode,       roles: ["manager", "supervisor"] },
+      { href: "/qr-codes", labelKey: "qrStakes", icon: Printer,      roles: ["manager", "supervisor"] },
     ],
   },
   {

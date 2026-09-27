@@ -50,9 +50,44 @@ export interface Valve {
   height: number;
 }
 
+/**
+ * A sub-group of beds under one valve — the unit one worker owns, a QR stake
+ * identifies, and harvest/packaging/maintenance roll up to.
+ */
+export interface BedGroup {
+  id: string;
+  valveId: string;
+  name: string;
+  /** Amharic label for the same group */
+  nameAm?: string | null;
+  /** short code printed on the stake, unique farm-wide */
+  code: string;
+  note?: string | null;
+  active: boolean;
+  /** set by the API: bed ids in this group, in order */
+  bedIds?: string[];
+  /** set by the API: who is accountable right now */
+  owner?: { id: string; name: string } | null;
+  ownerSince?: string | null;
+}
+
+/** Who was accountable for a group, over what period. */
+export interface GroupAssignment {
+  id: string;
+  groupId: string;
+  farmerId: string;
+  farmerName?: string;
+  fromDate: string;
+  toDate?: string | null;
+  assignedBy: string;
+  note?: string | null;
+}
+
 export interface Bed {
   id: string;
   valveId: string;
+  /** sub-group this bed sits in; null when ungrouped */
+  groupId?: string | null;
   lengthM: number;
   plantsPerMeter: number;
   variety: string;

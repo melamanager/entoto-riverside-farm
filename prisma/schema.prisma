@@ -81,6 +81,57 @@ model Farmer {
   scheduledJobs         ScheduledJob[]
   routineNilReports     RoutineNilReport[]  @relation("NilReportDeclarer")
   maintenanceLogs       MaintenanceLog[]    @relation("MaintenanceRecorder")
+  groupAssignments      GroupAssignment[]   @relation("GroupOwner")
+}
+
+/// A sub-group of beds under one valve — "Valve A · Beds 1-4", the unit one
+/// worker is responsible for and the unit a QR stake identifies.
+///
+/// Harvest, packaging and maintenance all roll up to this. Records snapshot the
+/// group id at the time they were logged, so re-grouping beds for a new season
+/// never rewrites what happened under the old arrangement.
+model BedGroup {
+  id        String   @id @default(cuid())
+  valveId   String
+  valve     Valve    @relation(fields: [valveId], references: [id])
+  /// "Sub-Group A"
+  name      String
+  /// Amharic label for the same group, e.g. "ንዑስ ቡድን ሀ"
+  nameAm    String?
+  /// Short code printed on the stake. Unique farm-wide so a stake in a field
+  /// is never ambiguous.
+  code      String   @unique
+  note      String?
+  active    Boolean  @default(true)
+
+  beds        Bed[]
+  assignments GroupAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([valveId])
+}
+
+/// Who was responsible for a sub-group, and when.
+///
+/// The owner changes through the season. Work records still snapshot whoever
+/// actually did the job; this answers the different question of who was
+/// ACCOUNTABLE on a given date — including for work that never got done.
+model GroupAssignment {
+  id         String   @id @default(cuid())
+  groupId    String
+  group      BedGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  farmerId   String
+  farmer     Farmer   @relation("GroupOwner", fields: [farmerId], references: [id])
+  fromDate   String   // YYYY-MM-DD (Africa/Addis_Ababa)
+  /// null = still the current owner
+  toDate     String?
+  assignedBy String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([groupId, fromDate])
 }
 
 /// Bed / farm upkeep that was ACTUALLY DONE, recorded by whoever did it.
@@ -151,6 +202,7 @@ model Valve {
   height             Float
 
   beds               Bed[]
+  bedGroups          BedGroup[]
   workerAssignments  WorkerAssignment[]
   fertigationRecords FertigationRecord[]
   packagingRecords   PackagingRecord[]
@@ -176,6 +228,10 @@ model Bed {
   farmer         Farmer       @relation(fields: [farmerId], references: [id])
   row            Int
   col            Int
+  /// Sub-group this bed sits in, e.g. "Valve A · Beds 1-4". Optional: beds
+  /// outside any group keep working exactly as before.
+  groupId        String?
+  group          BedGroup?    @relation(fields: [groupId], references: [id])
 
   harvestRecords     HarvestRecord[]
   diseaseReports     DiseaseReport[]
