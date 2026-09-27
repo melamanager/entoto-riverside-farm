@@ -104,9 +104,10 @@ model BedGroup {
   note      String?
   active    Boolean  @default(true)
 
-  beds           Bed[]
-  assignments    GroupAssignment[]
-  harvestRecords HarvestRecord[]
+  beds             Bed[]
+  assignments      GroupAssignment[]
+  harvestRecords   HarvestRecord[]
+  packagingRecords PackagingRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -507,11 +508,20 @@ model PackagingRecord {
   packedDate   String
   valveId      String
   valve        Valve            @relation(fields: [valveId], references: [id])
+  /// Which sub-group this batch came from. One batch draws from one group, so
+  /// what gets sold traces back to a group exactly rather than by apportioning.
+  /// Snapshot at packing time, like the harvest record.
+  groupId      String?
+  group        BedGroup?        @relation(fields: [groupId], references: [id])
   variety      String
   harvestedKg  Decimal          @db.Decimal(10, 2)
   gradedKg     Decimal          @db.Decimal(10, 2)
   packedKg     Decimal          @db.Decimal(10, 2)
   rejectedKg   Decimal          @db.Decimal(10, 2)
+  /// Fruit thrown out at sorting because of DISEASE specifically. Kept apart
+  /// from rejectedKg: "bruised in handling" and "grey mould" point at
+  /// completely different problems — one the packer, one the bed.
+  diseasedKg   Decimal          @default(0) @db.Decimal(10, 2)
   packageSize  PackageSize
   packageCount Int
   cartonCount  Int

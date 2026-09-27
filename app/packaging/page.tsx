@@ -12,7 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import type { PackagingRecord, PackagingStatus, PackageSize, PackagingPurpose, CustomerOrder } from "@/lib/erp-types";
-import type { Farmer, Valve, Bed } from "@/lib/types";
+import type { Farmer, Valve, Bed, BedGroup } from "@/lib/types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { useOptions } from "@/lib/use-options";
@@ -36,9 +36,9 @@ function emptyForm() {
   const today = new Date().toLocaleDateString("en-CA");
   return {
   batchNumber: "", harvestDate: today, packedDate: today,
-  valveId: "", variety: "",
+  valveId: "", groupId: "", variety: "",
   harvestedKg: 20, gradedKg: 18, packedKg: 16,
-  rejectedKg: 2, packageSize: "500g" as PackageSize, packageCount: 32,
+  rejectedKg: 2, diseasedKg: 0, packageSize: "500g" as PackageSize, packageCount: 32,
   cartonCount: 2, plateCount: 0, lostKg: 0, purpose: "export" as PackagingPurpose,
   gradeAPct: 75, gradeBPct: 25, packedBy: "", status: "in_progress" as PackagingStatus,
   orderId: "",
@@ -72,6 +72,7 @@ export default function PackagingPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PackagingRecord | null>(null);
   const [form, setForm] = useState(emptyForm());
+  const [groups, setGroups] = useState<BedGroup[]>([]);
   const [harvestSource, setHarvestSource] = useState<string>("");
 
   useEffect(() => {
@@ -123,6 +124,11 @@ export default function PackagingPage() {
       .then(r => r.json())
       .then((data: Bed[]) => setBeds(data))
       .catch(() => toast.error("Failed to load beds"));
+
+    fetch("/api/bed-groups")
+      .then(r => (r.ok ? r.json() : []))
+      .then((data: BedGroup[]) => setGroups(data))
+      .catch(() => {});
   }, []);
 
   function openCreate(prefill?: Partial<ReturnType<typeof emptyForm>>) {
@@ -160,9 +166,11 @@ export default function PackagingPage() {
   function openEdit(r: PackagingRecord) {
     setForm({
       batchNumber: r.batchNumber, harvestDate: r.harvestDate, packedDate: r.packedDate,
-      valveId: r.valveId, variety: r.variety,
+      valveId: r.valveId, groupId: (r as { groupId?: string | null }).groupId ?? "", variety: r.variety,
       harvestedKg: r.harvestedKg, gradedKg: r.gradedKg,
-      packedKg: r.packedKg, rejectedKg: r.rejectedKg, packageSize: r.packageSize,
+      packedKg: r.packedKg, rejectedKg: r.rejectedKg,
+      diseasedKg: Number((r as { diseasedKg?: number | string }).diseasedKg ?? 0),
+      packageSize: r.packageSize,
       packageCount: r.packageCount, cartonCount: r.cartonCount, plateCount: r.plateCount,
       lostKg: r.lostKg, purpose: r.purpose, gradeAPct: r.gradeAPct, gradeBPct: r.gradeBPct,
       packedBy: r.packedBy, status: r.status, orderId: r.orderId ?? "",
@@ -174,6 +182,7 @@ export default function PackagingPage() {
   // returns an error string, or null if valid
   function validateBatch(f: ReturnType<typeof emptyForm>): string | null {
     if (!f.valveId) return "Please select a valve";
+    if (f.diseasedKg > f.rejectedKg + 0.001) return `Disease-affected (${f.diseasedKg}) cannot exceed rejected (${f.rejectedKg}) kg`;
     if (!f.variety.trim()) return "Variety is required";
     if (!f.packedBy) return "Select who packed the batch";
     if (f.harvestedKg <= 0) return "Harvested kg must be greater than 0";
@@ -353,6 +362,25 @@ export default function PackagingPage() {
           </div>
         </div>
 
+        {/* One batch comes from one sub-group — that is what makes the fruit
+            traceable from the bed all the way to the customer order. */}
+        <div>
+          <label className="text-xs font-semibold text-foreground/80 block mb-1">
+            Sub-group <span className="text-muted-foreground font-normal">· which stretch this batch came from</span>
+          </label>
+          <select value={form.groupId}
+            onChange={e => setForm(p => ({ ...p, groupId: e.target.value }))}
+            disabled={!form.valveId}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card disabled:opacity-50">
+            <option value="">{form.valveId ? "— Not from one group —" : "Select a valve first"}</option>
+            {groups.filter(g => g.valveId === form.valveId).map(g => (
+              <option key={g.id} value={g.id}>
+                {g.code} · {g.name}{g.owner ? ` — ${g.owner.name}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-foreground/80 block mb-1">Variety / Origin <span className="text-red-500">*</span></label>
@@ -409,6 +437,24 @@ export default function PackagingPage() {
               className="w-full border border-border rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
+
+        {/* Of the rejected fruit, how much was disease rather than handling.
+            Same number, different cause — and only one of them is the bed's
+            fault, so they have to be countable apart. */}
+        {form.rejectedKg > 0 && (
+          <div>
+            <label className="text-xs font-semibold text-foreground/80 block mb-1">
+              …of which disease-affected (kg)
+            </label>
+            <input type="number" min={0} max={form.rejectedKg} step={0.1} value={form.diseasedKg}
+              onChange={e => setForm(p => ({ ...p, diseasedKg: Number(e.target.value) }))}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Part of the {form.rejectedKg} kg rejected above. Bruising points at handling;
+              disease points at the bed.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-3">
           <div>
