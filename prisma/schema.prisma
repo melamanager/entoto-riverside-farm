@@ -104,8 +104,9 @@ model BedGroup {
   note      String?
   active    Boolean  @default(true)
 
-  beds        Bed[]
-  assignments GroupAssignment[]
+  beds           Bed[]
+  assignments    GroupAssignment[]
+  harvestRecords HarvestRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -248,8 +249,18 @@ model HarvestRecord {
   id           String  @id @default(cuid())
   bedId        String
   bed          Bed     @relation(fields: [bedId], references: [id])
+  /// The sub-group this was picked under, SNAPSHOT at logging time rather than
+  /// looked up through the bed. Re-grouping beds for a new season must not
+  /// rewrite which group last season's picking belonged to.
+  groupId      String?
+  group        BedGroup? @relation(fields: [groupId], references: [id])
   date         String
+  /// marketable fruit taken to packing
   kg           Decimal @db.Decimal(10, 2)
+  /// fruit discarded in the field — rotten, damaged, overripe. Separate from
+  /// pack-house rejects: this one is about how the picking was done.
+  wasteKg      Decimal @default(0) @db.Decimal(10, 2)
+  wasteReason  String?
   farmerId     String
   farmer       Farmer  @relation(fields: [farmerId], references: [id])
   qualityGrade String

@@ -12,9 +12,19 @@ import { Wheat, Plus, Package, ArrowRight, MessageSquareText } from "lucide-reac
 import { toast } from "sonner";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
-import type { Bed, Farmer, HarvestRecord, Valve } from "@/lib/types";
+import type { Bed, Farmer, HarvestRecord, Valve, BedGroup } from "@/lib/types";
 
 type PackPrompt = { bedId: string; kg: number; grade: "A" | "B" | "C" };
+
+/** Why fruit was thrown away in the field — each points at a different fix. */
+const WASTE_REASONS = [
+  { value: "rotten",   label: "Rotten / mouldy" },
+  { value: "damaged",  label: "Damaged in picking" },
+  { value: "overripe", label: "Overripe — picked too late" },
+  { value: "pest",     label: "Pest damage" },
+  { value: "disease",  label: "Disease-affected" },
+  { value: "other",    label: "Other" },
+];
 
 export default function HarvestPage() {
   const { isAm } = useLang();
@@ -22,6 +32,11 @@ export default function HarvestPage() {
   // multi-bed logging: selected bed id -> kg (string while typing)
   const [sel, setSel] = useState<Record<string, string>>({});
   const [fillAll, setFillAll] = useState("");
+  // Field waste: what was discarded while picking — rotten, damaged, overripe.
+  // Entered once for the picking session, since that is how it is observed.
+  const [wasteKg, setWasteKg] = useState("");
+  const [wasteReason, setWasteReason] = useState("");
+  const [groups, setGroups] = useState<BedGroup[]>([]);
   const [farmerId, setFarmerId] = useState("");
   const [grade, setGrade] = useState<"A"|"B"|"C">("A");
   const [note, setNote] = useState("");
@@ -50,10 +65,21 @@ export default function HarvestPage() {
       fetch("/api/beds").then(r => r.json()),
       fetch("/api/farmers").then(r => r.json()),
       fetch("/api/valves").then(r => r.json()),
-    ]).then(([b, f, v]) => {
+      fetch("/api/bed-groups").then(r => (r.ok ? r.json() : [])),
+    ]).then(([b, f, v, g]) => {
       setBeds(b);
       setFarmers(f);
       setValves(v);
+      setGroups(g as BedGroup[]);
+      // Arriving from a scanned group stake: preselect exactly those beds, so
+      // the picker does not have to find them again on a phone in a field.
+      const preset = (new URLSearchParams(window.location.search).get("beds") ?? "")
+        .split(",").map((x: string) => x.trim()).filter(Boolean);
+      if (preset.length > 0) {
+        const known = new Set((b as Bed[]).map(x => x.id));
+        const valid = preset.filter((id: string) => known.has(id));
+        if (valid.length > 0) setSel(Object.fromEntries(valid.map((id: string) => [id, ""])));
+      }
       const farmers = f as Farmer[];
       const firstFarmer = farmers.find(fm => fm.role === "farmer");
       if (firstFarmer) setFarmerId(firstFarmer.id);
@@ -99,9 +125,30 @@ export default function HarvestPage() {
     if (bad.length) { toast.error(`Enter kg for: ${bad.join(", ")}`); return; }
 
     const date = new Date().toLocaleDateString("en-CA");
-    const records = entries.map(([bedId, v]) => ({
+    const base = entries.map(([bedId, v]) => ({
       bedId, kg: +v, farmerId, qualityGrade: grade, date, note: note.trim() || undefined,
     }));
+
+    // One waste figure covers the picking session, so spread it over the beds
+    // by their share of the kg — and give the rounding remainder to the largest
+    // bed, so the parts add back up to exactly what was entered.
+    const totalWaste = Number(wasteKg) > 0 ? Number(wasteKg) : 0;
+    const totalPicked = base.reduce((s2, r) => s2 + r.kg, 0);
+    const records = base.map(r => ({
+      ...r,
+      wasteKg: totalWaste > 0 && totalPicked > 0
+        ? Math.round((totalWaste * (r.kg / totalPicked)) * 100) / 100
+        : 0,
+      wasteReason: totalWaste > 0 ? (wasteReason || undefined) : undefined,
+    }));
+    if (totalWaste > 0 && records.length > 0) {
+      const spread = records.reduce((s2, r) => s2 + r.wasteKg, 0);
+      const drift = Math.round((totalWaste - spread) * 100) / 100;
+      if (drift !== 0) {
+        const biggest = records.reduce((a, b) => (b.kg > a.kg ? b : a));
+        biggest.wasteKg = Math.round((biggest.wasteKg + drift) * 100) / 100;
+      }
+    }
 
     setSaving(true);
     let res: Response;
@@ -138,6 +185,8 @@ export default function HarvestPage() {
     setSel({});
     setFillAll("");
     setNote("");
+    setWasteKg("");
+    setWasteReason("");
     loadHarvests();
   }
 
@@ -184,6 +233,29 @@ export default function HarvestPage() {
                           {allOn ? "None" : "All"}
                         </button>
                       </div>
+                      {/* whole sub-group in one tap — this is how the stake is worked */}
+                      {groups.filter(g => g.valveId === v.id).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {groups.filter(g => g.valveId === v.id).map(g => {
+                            const ids = (g.bedIds ?? []).filter(id => vBeds.some(b => b.id === id));
+                            if (ids.length === 0) return null;
+                            const allOn = ids.every(id => id in sel);
+                            return (
+                              <button key={g.id} type="button"
+                                onClick={() => setSel(prev => {
+                                  const next = { ...prev };
+                                  if (allOn) ids.forEach(id => delete next[id]);
+                                  else ids.forEach(id => { if (!(id in next)) next[id] = fillAll || ""; });
+                                  return next;
+                                })}
+                                className={`text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${
+                                  allOn ? "bg-primary/15 text-primary border-primary/40" : "bg-card text-muted-foreground border-border hover:bg-accent"}`}>
+                                {g.code} · {g.name}{g.owner ? ` · ${g.owner.name.split(" ")[0]}` : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-1">
                         {vBeds.map(b => {
                           const on = b.id in sel;
@@ -223,6 +295,30 @@ export default function HarvestPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ── field waste ───────────────────────────────────────────
+                Discarded while picking. Kept apart from pack-house rejects:
+                this is the number that says how the picking went. */}
+            {selCount > 0 && (
+              <div className="rounded-md border border-border p-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs shrink-0">Discarded</Label>
+                  <Input type="number" step="0.1" min="0" value={wasteKg}
+                    onChange={e => setWasteKg(e.target.value)}
+                    placeholder="kg thrown away (optional)" className="h-7 text-xs" />
+                </div>
+                {Number(wasteKg) > 0 && (
+                  <select value={wasteReason} onChange={e => setWasteReason(e.target.value)}
+                    className="w-full h-7 text-xs border border-border rounded-md px-2 bg-card text-foreground">
+                    <option value="">Why? (optional)</option>
+                    {WASTE_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  For the whole pick. Split across the selected beds by their share of the kg.
+                </p>
               </div>
             )}
 

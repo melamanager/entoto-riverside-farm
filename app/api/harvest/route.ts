@@ -53,6 +53,20 @@ export async function POST(req: Request) {
     }
   }
 
+  // Which sub-group each bed sits in RIGHT NOW. Snapshotting it onto the record
+  // means a later re-grouping cannot rewrite which group this pick belonged to.
+  const bedRows = await prisma.bed.findMany({
+    where: { id: { in: items.map(it => String(it.bedId)) } },
+    select: { id: true, groupId: true },
+  });
+  const groupOfBed = new Map(bedRows.map(b => [b.id, b.groupId]));
+
+  const wasteOf = (it: Record<string, unknown>) => {
+    const raw = it.wasteKg;
+    const n = raw === undefined || raw === null || raw === "" ? 0 : Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
   // all-or-nothing: the client keeps its bed selection on failure, so a partial
   // commit followed by a retry would duplicate the beds that did save
   let created;
@@ -60,7 +74,11 @@ export async function POST(req: Request) {
     created = await prisma.$transaction(items.map(it => prisma.harvestRecord.create({
       data: {
         bedId: String(it.bedId),
+        // an explicit group (scanned a group stake) wins; otherwise the bed's own
+        groupId: (it.groupId as string) || groupOfBed.get(String(it.bedId)) || null,
         kg: new Prisma.Decimal(it.kg as number),
+        wasteKg: new Prisma.Decimal(wasteOf(it)),
+        wasteReason: typeof it.wasteReason === "string" && it.wasteReason.trim() ? it.wasteReason.trim() : null,
         farmerId: String(it.farmerId),
         qualityGrade: (it.qualityGrade as string) ?? "A",
         date: (it.date as string) ?? todayAddis(),

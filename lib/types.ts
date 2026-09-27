@@ -104,8 +104,14 @@ export interface Bed {
 export interface HarvestRecord {
   id: string;
   bedId: string;
+  /** Sub-group this was picked under — snapshot at logging time */
+  groupId?: string | null;
   date: string;
+  /** marketable fruit sent to packing */
   kg: number;
+  /** discarded in the field — rotten, damaged, overripe */
+  wasteKg?: number;
+  wasteReason?: string | null;
   farmerId: string;
   qualityGrade: "A" | "B" | "C";
   note?: string | null;
