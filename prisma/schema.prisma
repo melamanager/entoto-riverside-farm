@@ -149,6 +149,9 @@ model MaintenanceLog {
   activities Json     @default("[]")
   /// which irrigation zones this covered (one, several, or all)
   valveIds   Json     @default("[]")
+  /// which sub-groups this covered, when the work followed the group structure
+  /// rather than a whole zone. Snapshot of ids, like every other group link.
+  groupIds   Json     @default("[]")
   /// how many beds were worked on across those zones
   bedsCount  Int?
   note       String?

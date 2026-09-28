@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/guard";
+import { todayAddis } from "@/lib/dates";
 
 /** What a maintenance round can consist of. Free-text notes cover the rest. */
 export const MAINTENANCE_ACTIVITIES = [
@@ -57,21 +58,41 @@ export async function POST(req: Request) {
   const valveIds: string[] = Array.isArray(body.valveIds)
     ? body.valveIds.filter((v: unknown): v is string => typeof v === "string")
     : [];
+  const groupIds: string[] = Array.isArray(body.groupIds)
+    ? body.groupIds.filter((v: unknown): v is string => typeof v === "string")
+    : [];
 
   if (activities.length === 0) {
     return NextResponse.json({ error: "Choose at least one kind of work" }, { status: 400 });
   }
-  if (valveIds.length === 0) {
-    return NextResponse.json({ error: "Choose at least one valve zone" }, { status: 400 });
+  // Naming a sub-group is enough on its own — the zone comes with it. Only a
+  // log that names neither has nowhere to sit.
+  if (valveIds.length === 0 && groupIds.length === 0) {
+    return NextResponse.json({ error: "Choose at least one sub-group or valve zone" }, { status: 400 });
   }
 
   // Sanity-check the zones actually exist, so a typo cannot create a phantom log
-  const known = await prisma.valve.findMany({
-    where: { id: { in: valveIds } },
-    select: { id: true },
-  });
-  if (known.length !== valveIds.length) {
-    return NextResponse.json({ error: "Unknown valve in selection" }, { status: 400 });
+  if (valveIds.length > 0) {
+    const known = await prisma.valve.findMany({
+      where: { id: { in: valveIds } },
+      select: { id: true },
+    });
+    if (known.length !== valveIds.length) {
+      return NextResponse.json({ error: "Unknown valve in selection" }, { status: 400 });
+    }
+  }
+
+  if (groupIds.length > 0) {
+    const groups = await prisma.bedGroup.findMany({
+      where: { id: { in: groupIds } },
+      select: { id: true, valveId: true },
+    });
+    if (groups.length !== groupIds.length) {
+      return NextResponse.json({ error: "Unknown sub-group in selection" }, { status: 400 });
+    }
+    // a group's zone is implied — keep valveIds complete so zone-level reporting
+    // still sees this work
+    for (const g of groups) if (!valveIds.includes(g.valveId)) valveIds.push(g.valveId);
   }
 
   const bedsCount =
@@ -84,9 +105,10 @@ export async function POST(req: Request) {
 
   const log = await prisma.maintenanceLog.create({
     data: {
-      date: typeof body.date === "string" && body.date ? body.date : new Date().toLocaleDateString("en-CA"),
+      date: typeof body.date === "string" && body.date ? body.date : todayAddis(),
       activities,
       valveIds,
+      groupIds,
       bedsCount,
       note: body.note || null,
       recordedBy: gate.userId,

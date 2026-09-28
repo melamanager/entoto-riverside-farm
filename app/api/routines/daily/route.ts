@@ -107,6 +107,7 @@ export async function GET(req: Request) {
         id: l.id,
         activities: l.activities as string[],
         valveIds: l.valveIds as string[],
+        groupIds: (l.groupIds as string[]) ?? [],
         bedsCount: l.bedsCount,
         note: l.note,
         by: l.recorder.name,

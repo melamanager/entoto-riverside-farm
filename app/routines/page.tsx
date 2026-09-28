@@ -32,7 +32,7 @@ type DailyData = {
   maintenance: {
     total: number; done: number; tasks: { id: string; title: string; status: string; assignee: string }[];
     logged: number; bedsWorked: number;
-    logs: { id: string; activities: string[]; valveIds: string[]; bedsCount: number | null; note: string | null; by: string }[];
+    logs: { id: string; activities: string[]; valveIds: string[]; groupIds?: string[]; bedsCount: number | null; note: string | null; by: string }[];
   };
   sales: { orders: number; totalETB: number; totalKg: number };
   stock: {
@@ -180,8 +180,10 @@ export default function RoutinesPage() {
   const [logSaving, setLogSaving] = useState(false);
   const valveName = (id: string) =>
     daily?.watering.valves.find(v => v.id === id)?.name ?? id;
-  const [logForm, setLogForm] = useState<{ activities: string[]; valveIds: string[]; bedsCount: string; note: string }>(
-    { activities: [], valveIds: [], bedsCount: "", note: "" });
+  const [logForm, setLogForm] = useState<{ activities: string[]; valveIds: string[]; groupIds: string[]; bedsCount: string; note: string }>(
+    { activities: [], valveIds: [], groupIds: [], bedsCount: "", note: "" });
+  // sub-groups, so upkeep can be logged against the stretch one person owns
+  const [bedGroups, setBedGroups] = useState<{ id: string; code: string; name: string; valveId: string; bedIds?: string[]; owner?: { name: string } | null }[]>([]);
   const [otRecords, setOtRecords] = useState<AttendanceRec[]>([]);
 
   const [notes, setNotes] = useState<DailyNoteT[]>([]);
@@ -201,6 +203,10 @@ export default function RoutinesPage() {
   const loadWeekly = useCallback(() => {
     fetch(`/api/routines/weekly?start=${weekStart}`).then(r => r.json()).then(setWeekly);
   }, [weekStart]);
+
+  useEffect(() => {
+    fetch("/api/bed-groups").then(r => (r.ok ? r.json() : [])).then(setBedGroups).catch(() => {});
+  }, []);
 
   const loadNotes = useCallback(async () => {
     const data: DailyNoteT[] = await fetch(`/api/daily-notes?date=${date}`).then(r => r.ok ? r.json() : []);
@@ -355,7 +361,9 @@ export default function RoutinesPage() {
   /** Record upkeep that was already done, rather than assigning it to someone. */
   async function saveMaintLog() {
     if (logForm.activities.length === 0) { toast.error("Choose what was done"); return; }
-    if (logForm.valveIds.length === 0) { toast.error("Choose which valve zones"); return; }
+    if (logForm.valveIds.length === 0 && logForm.groupIds.length === 0) {
+      toast.error("Choose a sub-group or a valve zone"); return;
+    }
     setLogSaving(true);
     const res = await fetch("/api/maintenance", {
       method: "POST",
@@ -364,6 +372,7 @@ export default function RoutinesPage() {
         date,
         activities: logForm.activities,
         valveIds: logForm.valveIds,
+        groupIds: logForm.groupIds,
         bedsCount: logForm.bedsCount === "" ? null : Number(logForm.bedsCount),
         note: logForm.note || null,
       }),
@@ -374,13 +383,19 @@ export default function RoutinesPage() {
       toast.error(e.error ?? "Couldn't save the maintenance log");
       return;
     }
+    // say back what was actually chosen — a group-only log covers no zone of its own
+    const groups = logForm.groupIds.length;
     const zones = logForm.valveIds.length;
+    const where = [
+      groups ? `${groups} sub-group${groups === 1 ? "" : "s"}` : null,
+      zones ? `${zones} zone${zones === 1 ? "" : "s"}` : null,
+    ].filter(Boolean).join(" · ");
     toast.success("Maintenance recorded", {
-      description: `${logForm.activities.map(MAINT_LABEL).join(", ")} — ${zones} zone${zones === 1 ? "" : "s"}`
+      description: `${logForm.activities.map(MAINT_LABEL).join(", ")} — ${where}`
         + (logForm.bedsCount ? `, ${logForm.bedsCount} beds` : ""),
     });
     setLogOpen(false);
-    setLogForm({ activities: [], valveIds: [], bedsCount: "", note: "" });
+    setLogForm({ activities: [], valveIds: [], groupIds: [], bedsCount: "", note: "" });
     loadDaily();
   }
 
@@ -645,7 +660,10 @@ export default function RoutinesPage() {
                     <div key={l.id} className="truncate">
                       ✓ {l.activities.map(MAINT_LABEL).join(", ")}
                       {" — "}
-                      {l.valveIds.map(v => valveName(v)).join(", ")}
+                      {/* a sub-group says where more precisely than its zone does */}
+                      {(l.groupIds ?? []).length > 0
+                        ? (l.groupIds ?? []).map(g => bedGroups.find(x => x.id === g)?.code ?? "?").join(", ")
+                        : l.valveIds.map(v => valveName(v)).join(", ")}
                       {l.bedsCount ? ` · ${l.bedsCount} beds` : ""}
                       <span className="opacity-70"> ({l.by})</span>
                     </div>
@@ -1140,9 +1158,37 @@ export default function RoutinesPage() {
               </div>
             </div>
 
+            {bedGroups.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Sub-groups</label>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {bedGroups.map(g => {
+                    const on = logForm.groupIds.includes(g.id);
+                    return (
+                      <button key={g.id} type="button"
+                        onClick={() => setLogForm(f => ({
+                          ...f,
+                          groupIds: on ? f.groupIds.filter(x => x !== g.id) : [...f.groupIds, g.id],
+                        }))}
+                        className={`text-[11px] font-medium px-2.5 py-1.5 rounded-md border transition-colors ${
+                          on ? "bg-primary text-primary-foreground border-primary"
+                             : "bg-card border-border text-muted-foreground hover:bg-accent"}`}>
+                        {g.code} · {g.name}{g.owner ? ` — ${g.owner.name.split(" ")[0]}` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  Pick the stretch you actually worked. Its zone is recorded automatically.
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">Which zones *</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {bedGroups.length > 0 ? "…or whole zones" : "Which zones *"}
+                </label>
                 <button
                   type="button"
                   className="text-[11px] font-semibold text-primary hover:underline"
