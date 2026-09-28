@@ -29,6 +29,7 @@ import type { PackagingRecord } from "@/lib/erp-types";
 import { useLang } from "@/lib/lang";
 import { EN, AM } from "@/lib/translations";
 import { cn } from "@/lib/utils";
+import { GroupStandings } from "@/components/group-standings";
 
 /* ── small helpers ─────────────────────────────────────────────────────── */
 function SectionHeader({
@@ -516,6 +517,9 @@ export default function DashboardPage() {
 
       {/* ── Harvest Forecast ────────────────────────────────────────────── */}
       <HarvestForecast beds={beds} today={today} valves={valves} />
+
+      {/* ── Sub-group standings ─────────────────────────────────────────── */}
+      <GroupStandings />
 
       {/* ── Ripeness Heatmap ────────────────────────────────────────────── */}
       <RipenessHeatmap beds={beds} valves={valves} />

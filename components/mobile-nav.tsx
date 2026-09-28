@@ -37,6 +37,7 @@ const NAV_GROUPS = [
       { href: "/planting", label: "Planting Schedule", icon: CalendarDays, roles: ["manager", "supervisor"] },
       { href: "/beds",     label: "Raised Beds",        icon: Sprout,       roles: ["manager", "supervisor"] },
       { href: "/bed-groups", label: "Bed Groups",       icon: Layers,       roles: ["manager"] },
+      { href: "/bed-groups/performance", label: "Group Performance", icon: BarChart3, roles: ["manager", "supervisor"] },
     ],
   },
   {

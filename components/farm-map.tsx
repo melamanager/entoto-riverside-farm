@@ -17,7 +17,9 @@ const grotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"
 const mono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"], display: "swap" });
 
 type ValveWithSup = Valve & { supervisorId?: string };
-type Props = { valves: ValveWithSup[]; beds: Bed[]; harvestKgByBed: Record<string, number>; embed?: boolean };
+/** Sub-groups, so the map can show the stretch one person is responsible for. */
+type MapGroup = { id: string; code: string; name: string; valveId: string; bedIds?: string[]; owner?: { name: string } | null };
+type Props = { valves: ValveWithSup[]; beds: Bed[]; harvestKgByBed: Record<string, number>; groups?: MapGroup[]; embed?: boolean };
 
 const HEALTH: Record<HealthStatus, { c: string; l: string }> = {
   healthy: { c: "#35c46f", l: "Healthy" },
@@ -48,7 +50,7 @@ function yieldColor(v: number) {
 type Mode = "health" | "yield" | "stage";
 type View = "2d" | "3d";
 
-export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) {
+export function FarmMap({ valves, beds, harvestKgByBed, groups = [], embed = false }: Props) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [mode, setMode] = useState<Mode>("health");
@@ -91,6 +93,12 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
   const crops = useMemo(() => [...new Set(beds.map((b) => b.crop ?? "Strawberry"))], [beds]);
   const flagged = useMemo(() => beds.filter((b) => b.health !== "healthy"), [beds]);
   const supByValve = useMemo(() => Object.fromEntries(valves.map((v) => [v.id, v.supervisorId])), [valves]);
+  // bed -> its sub-group, so each row can show the stake it sits under
+  const groupOfBed = useMemo(() => {
+    const m = new Map<string, MapGroup>();
+    for (const g of groups) for (const id of g.bedIds ?? []) m.set(id, g);
+    return m;
+  }, [groups]);
 
   // ── real action: create an inspection/treatment task for one or more beds ─
   async function assignTask(bedIds: string[]) {
@@ -280,6 +288,11 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
                     <span style={{ width: 9, height: 9, borderRadius: 2, background: valve.color }} />
                     <span style={{ fontWeight: 700, color: valve.color, fontSize: 13 }}>{valve.name}</span>
                     <span style={{ ...mono.style, fontSize: 11, color: "#8a9a82" }}>{vb.length} beds · {ready} ready</span>
+                    {groups.filter((g) => g.valveId === valve.id).length > 0 && (
+                      <span style={{ ...mono.style, fontSize: 10.5, color: "#7d8f75", marginLeft: "auto" }}>
+                        {groups.filter((g) => g.valveId === valve.id).map((g) => g.code).join(" · ")}
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     {vb.map((b) => {
@@ -289,7 +302,14 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
                         <div key={b.id} onClick={() => setSel(b.id)} style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 10, opacity: dim ? 0.16 : 1, cursor: "pointer", minWidth: 0 }}>
                           {/* nowrap + enough width for "A-BED-01" at this size,
                               otherwise the id wraps and doubles the row height */}
-                          <span style={{ flex: "none", width: isMobile ? 54 : 52, ...mono.style, fontSize: isMobile ? 10.5 : 12, fontWeight: 700, color: "#b7c7ad", whiteSpace: "nowrap" }}>{b.id}</span>
+                          <span style={{ flex: "none", width: isMobile ? 54 : 52, ...mono.style, fontSize: isMobile ? 10.5 : 12, fontWeight: 700, color: "#b7c7ad", whiteSpace: "nowrap" }}>
+                            {b.id}
+                            {groupOfBed.get(b.id) && (
+                              <span style={{ display: "block", fontSize: 8.5, color: "#c7f04d", fontWeight: 700, letterSpacing: ".02em" }}>
+                                {groupOfBed.get(b.id)!.code}
+                              </span>
+                            )}
+                          </span>
                           {/* Mobile: the bar takes the room the fixed meta column used to
                               eat, and the meta text moves inside it — no more overflow. */}
                           <div style={{ position: "relative", height: isMobile ? 40 : 32, flex: isMobile ? 1 : undefined, width: isMobile ? undefined : `${Math.max(21, Math.round((b.lengthM / RULER_MAX) * 100))}%`, minWidth: isMobile ? 0 : 96, borderRadius: 7, background: mix(color, "#181008", 0.82), borderLeft: `5px solid ${color}`, overflow: "hidden", boxShadow: "0 2px 8px -3px rgba(0,0,0,.5)" }}>
@@ -383,6 +403,14 @@ export function FarmMap({ valves, beds, harvestKgByBed, embed = false }: Props) 
                 <div>
                   <div style={{ ...mono.style, fontSize: 22, fontWeight: 700 }}>{selBed.id}</div>
                   <div style={{ fontSize: 12.5, color: "#93a68c", marginTop: 2 }}>{selBed.variety} · {selValve?.name}</div>
+                  {groupOfBed.get(selBed.id) && (
+                    <div style={{ fontSize: 12, color: "#c7f04d", marginTop: 3, fontWeight: 600 }}>
+                      {groupOfBed.get(selBed.id)!.code} · {groupOfBed.get(selBed.id)!.name}
+                      {groupOfBed.get(selBed.id)!.owner && (
+                        <span style={{ color: "#93a68c", fontWeight: 400 }}> — {groupOfBed.get(selBed.id)!.owner!.name}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => setSel(null)} style={{ cursor: "pointer", border: "1px solid rgba(180,200,160,.16)", background: "#0b0f09", color: "#b7c7ad", width: 30, height: 30, borderRadius: 9, fontSize: 15 }}>✕</button>
               </div>

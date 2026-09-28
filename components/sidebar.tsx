@@ -44,6 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/planting", labelKey: "plantingSchedule", icon: CalendarDays, roles: ["manager", "supervisor"] },
       { href: "/beds",     labelKey: "raisedBeds",        icon: Sprout,       roles: ["manager", "supervisor"] },
       { href: "/bed-groups", labelKey: "bedGroups",       icon: Layers,       roles: ["manager"] },
+      { href: "/bed-groups/performance", labelKey: "groupPerformance", icon: BarChart3, roles: ["manager", "supervisor"] },
     ],
   },
   {
